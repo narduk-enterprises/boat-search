@@ -31,6 +31,7 @@ export default defineNuxtConfig({
     posthogApiKey: process.env.POSTHOG_PERSONAL_API_KEY || '',
     gaPropertyId: process.env.GA_PROPERTY_ID || '',
     posthogProjectId: process.env.POSTHOG_PROJECT_ID || '',
+    xaiApiKey: process.env.XAI_API_KEY || '',
     public: {
       appUrl: process.env.SITE_URL || 'https://boat-search.nard.uk',
       appName: process.env.APP_NAME || 'Boat Search',
