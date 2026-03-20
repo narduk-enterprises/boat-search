@@ -1,4 +1,5 @@
 import { eq } from 'drizzle-orm'
+import { z } from 'zod'
 import { users } from '../../database/schema'
 
 /**
@@ -7,11 +8,20 @@ import { users } from '../../database/schema'
  * Update the authenticated user's profile (name only by default).
  * Apps can extend this route if they need additional fields.
  */
+
+const bodySchema = z.object({
+  name: z.string().optional(),
+})
+
 export default defineEventHandler(async (event) => {
   const user = await requireAuth(event)
   const db = useDatabase(event)
 
-  const body = await readBody<{ name?: string }>(event)
+  const parsed = bodySchema.safeParse(await readBody(event))
+  if (!parsed.success) {
+    throw createError({ statusCode: 400, statusMessage: parsed.error.message })
+  }
+  const body = parsed.data
 
   const updates: Record<string, unknown> = {
     updatedAt: new Date().toISOString(),

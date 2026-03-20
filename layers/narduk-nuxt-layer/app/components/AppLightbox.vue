@@ -105,6 +105,8 @@ onUnmounted(() => {
     window.removeEventListener('keydown', handleKeydown)
   }
 })
+
+defineOptions({ inheritAttrs: false })
 </script>
 
 <template>

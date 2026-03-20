@@ -68,10 +68,50 @@ export default defineEventHandler(async (event) => {
     .limit(query.limit)
     .offset(query.offset)
 
-  // Parse images JSON for each result
-  return results.map((boat) => ({
+  // Parse images JSON and clean descriptions for each result
+  const cleaned = results.map((boat) => ({
     ...boat,
     images: boat.images ? JSON.parse(boat.images) : [],
     price: boat.price ? Number.parseInt(boat.price, 10) : null,
+    description: cleanDescription(boat.description),
   }))
+
+  // Deduplicate by make+model+year (keep first = highest price from ordering)
+  const seen = new Set<string>()
+  return cleaned.filter((boat) => {
+    const key = `${boat.make || ''}-${boat.model || ''}-${boat.year || ''}`.toLowerCase()
+    if (seen.has(key)) return false
+    seen.add(key)
+    return true
+  })
 })
+
+/**
+ * Clean scraped description text — removes contact form junk, excessive whitespace,
+ * and other artifacts from web scraping.
+ */
+function cleanDescription(raw: string | null): string | null {
+  if (!raw) return null
+
+  let text = raw
+    // Remove contact form boilerplate
+    .replace(/First\s*&?\s*Last\s*Name.*$/si, '')
+    .replace(/EmailPhoneSubjectComments.*/gi, '')
+    .replace(/Please\s+contact\s+.+?\s+at\b.*/gi, '')
+    .replace(/Contact\s+Information.*/gi, '')
+    .replace(/I'd like to know if the.*/gi, '')
+    .replace(/Show\s*More.*/gi, '')
+    .replace(/Trusted\s*Partner\s*\|.*/gi, '')
+    // Remove excessive whitespace
+    .replace(/\n{3,}/g, '\n\n')
+    .replace(/\s{2,}/g, ' ')
+    .trim()
+
+  // If cleaned to nothing, return null
+  if (text.length < 10) return null
+
+  // Cap at a reasonable length
+  if (text.length > 2000) text = text.slice(0, 2000) + '...'
+
+  return text
+}

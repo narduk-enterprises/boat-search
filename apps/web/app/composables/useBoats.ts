@@ -82,6 +82,7 @@ export function useBoats() {
     make?: string
     minLength?: number
     maxLength?: number
+    userContext?: string
   }) => {
     return $fetch<AnalysisResult>('/api/boats/analyze', {
       method: 'POST',
@@ -90,6 +91,7 @@ export function useBoats() {
         make: options?.make,
         minLength: options?.minLength || 40,
         maxLength: options?.maxLength || 60,
+        userContext: options?.userContext || undefined,
       },
     })
   }

@@ -8,6 +8,7 @@ const bodySchema = z.object({
   make: z.string().optional(),
   minLength: z.number().default(40),
   maxLength: z.number().default(60),
+  userContext: z.string().max(2000).optional(),
 })
 
 export default defineEventHandler(async (event) => {
@@ -25,7 +26,7 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 400, statusMessage: body.error.message })
   }
 
-  const { category, make, minLength, maxLength } = body.data
+  const { category, make, minLength, maxLength, userContext } = body.data
 
   const db = useDatabase(event)
 
@@ -52,6 +53,7 @@ export default defineEventHandler(async (event) => {
       description: boats.description,
       sellerType: boats.sellerType,
       listingType: boats.listingType,
+      source: boats.source,
     })
     .from(boats)
     .where(and(...conditions))
@@ -65,14 +67,16 @@ export default defineEventHandler(async (event) => {
     })
   }
 
-  // Call xAI analysis
-  const result = await analyzeBoats(apiKey, boatList, category)
+  // Call xAI analysis with optional user context
+  const result = await analyzeBoats(apiKey, boatList, category, userContext)
 
   // Store analysis in D1
   const boatIds = boatList.map((b) => b.id)
   await db.insert(xaiAnalyses).values({
     boatIds: JSON.stringify(boatIds),
-    prompt: `Analyze ${boatList.length} ${category} boats (${minLength}-${maxLength}ft)`,
+    prompt: userContext
+      ? `${userContext} — Analyze ${boatList.length} ${category} boats (${minLength}-${maxLength}ft)`
+      : `Analyze ${boatList.length} ${category} boats (${minLength}-${maxLength}ft)`,
     response: result.content,
     model: 'grok-3-mini',
     category,

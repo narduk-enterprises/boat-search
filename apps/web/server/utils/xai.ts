@@ -108,6 +108,7 @@ export async function analyzeBoats(
   apiKey: string,
   boatList: BoatSummary[],
   category?: string,
+  userContext?: string,
 ): Promise<{ content: string; tokensUsed: number }> {
   const categoryLabel = category || 'Hatteras'
 
@@ -147,6 +148,10 @@ export async function analyzeBoats(
 
   const systemPrompt = buildSystemPrompt(categoryLabel)
 
+  const personalContext = userContext
+    ? `\n\n**BUYER'S PERSONAL SITUATION:**\n${userContext}\n\nTailor your analysis to this buyer's specific situation. Address their budget, plans, and concerns directly. Recommend specific boats from the list that match their needs.`
+    : ''
+
   const userPrompt = `Analyze these ${boatList.length} sport fishing boats currently for sale across the US (data sourced from boats.com, YachtWorld, BoatTrader, and The Hull Truth).
 
 **Inventory Summary:**
@@ -158,6 +163,7 @@ export async function analyzeBoats(
 **Full Listings:**
 
 ${boatSummaries}
+${personalContext}
 
 Analyze this inventory using your expert framework. Be specific — reference actual boats from the list by year/make/model/price. Don't give generic advice; give opinionated, actionable intelligence that a serious buyer can use TODAY.`
 

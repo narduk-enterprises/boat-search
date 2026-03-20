@@ -35,6 +35,7 @@ const uniqueMakesLabel = computed(() => String(stats.value?.uniqueMakes || 0))
 const analysisResult = ref<string | null>(null)
 const analysisLoading = ref(false)
 const analysisCategory = ref('Hatteras')
+const userContext = ref('')
 
 // How it works toggle
 const showHowItWorks = ref(false)
@@ -55,6 +56,7 @@ async function runAnalysis() {
     const result = await triggerAnalysis({
       category: analysisCategory.value,
       make: makeFilter.value || undefined,
+      userContext: userContext.value || undefined,
     })
     analysisResult.value = result.analysis
   }
@@ -307,6 +309,19 @@ function getSourceLabel(source: string) {
               :disabled="analysisLoading"
               @click="runAnalysis"
             />
+          </div>
+
+          <!-- Free-form context -->
+          <div class="mt-2">
+            <UFormField label="Tell the Captain your situation (optional)">
+              <UTextarea
+                v-model="userContext"
+                placeholder="e.g. Me and my buddy want to go in together on a 45-50ft convertible. Our budget is around $400K combined. We want to fish the Gulf — offshore tournaments, tuna, wahoo. We're based in Galveston and need something we can run year-round without breaking the bank on maintenance..."
+                :rows="3"
+                class="w-full"
+                autoresize
+              />
+            </UFormField>
           </div>
 
           <div
