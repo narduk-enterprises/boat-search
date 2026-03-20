@@ -1,0 +1,28 @@
+{
+  "$schema": "https://unpkg.com/wrangler@latest/config-schema.json",
+  "name": "boat-search",
+  "main": ".output/server/index.mjs",
+  "assets": {
+    "directory": ".output/public"
+  },
+  "compatibility_date": "2026-03-03",
+  "compatibility_flags": [
+    "nodejs_compat"
+  ],
+  "observability": {
+    "enabled": true
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "boat-search-db",
+      "database_id": "2489fb89-8ac3-435f-afff-c19bbf877509"
+    }
+  ],
+  "routes": [
+    {
+      "pattern": "boat-search.nard.uk",
+      "custom_domain": true
+    }
+  ]
+}
