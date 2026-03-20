@@ -87,6 +87,7 @@ const analysisData = ref<any>(null)
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- boat map keyed by dynamic IDs from DB
 const analysisBoatMap = ref<Record<number, any>>({})
 const analysisError = ref<string | null>(null)
+const analysisRawFallback = ref<string | null>(null)
 const analysisLoading = ref(false)
 const analysisCategory = ref('')
 const userContext = ref(
@@ -209,10 +210,32 @@ async function applyFilters() {
   boats.value = data.value
 }
 
+/**
+ * Try to repair truncated JSON from Grok (when response hits token limit mid-string).
+ * Closes unterminated strings, arrays, and objects.
+ */
+function repairTruncatedJSON(raw: string): string {
+  let repaired = raw.trim()
+  // Close any unterminated string
+  const quoteCount = (repaired.match(/(?<!\\)"/g) || []).length
+  if (quoteCount % 2 !== 0) repaired += '"'
+  // Close unclosed arrays and objects
+  const opens = { '{': 0, '[': 0 }
+  const closes = { '}': '{', ']': '[' } as const
+  for (const ch of repaired) {
+    if (ch === '{' || ch === '[') opens[ch]++
+    if (ch === '}' || ch === ']') opens[closes[ch]]--
+  }
+  for (let i = 0; i < opens['[']; i++) repaired += ']'
+  for (let i = 0; i < opens['{']; i++) repaired += '}'
+  return repaired
+}
+
 async function runAnalysis() {
   analysisLoading.value = true
   analysisData.value = null
   analysisError.value = null
+  analysisRawFallback.value = null
   try {
     const result = await triggerAnalysis({
       category: analysisCategory.value,
@@ -220,15 +243,30 @@ async function runAnalysis() {
       userContext: userContext.value || undefined,
     })
     analysisBoatMap.value = result.boatMap || {}
-    // Parse structured JSON from Grok response
+
+    // Always store raw text first so it's never lost
     let raw = result.analysis
+    analysisRawFallback.value = raw
+
     // Strip markdown code fences if present
     if (raw.startsWith('```')) {
       raw = raw.replace(/^```(?:json)?\n?/, '').replace(/\n?```$/, '')
     }
-    analysisData.value = JSON.parse(raw)
+
+    // Try parsing JSON — if truncated, try repair
+    try {
+      analysisData.value = JSON.parse(raw)
+    } catch {
+      // Attempt to repair truncated JSON
+      const repaired = repairTruncatedJSON(raw)
+      try {
+        analysisData.value = JSON.parse(repaired)
+      } catch {
+        // JSON is too broken to repair — show raw text as fallback
+        analysisData.value = null
+      }
+    }
   } catch (error) {
-    // If JSON parse fails, show raw text
     analysisError.value = `Error: ${(error as Error).message}`
   } finally {
     analysisLoading.value = false
@@ -589,6 +627,20 @@ function getSourceLabel(source: string) {
         <!-- Analysis Error -->
         <div v-if="analysisError" class="bg-error/10 rounded-lg p-5 mt-4 text-error">
           {{ analysisError }}
+        </div>
+
+        <!-- Raw text fallback when JSON couldn't be parsed -->
+        <div
+          v-if="!analysisData && analysisRawFallback && !analysisLoading"
+          class="bg-elevated rounded-lg p-5 mt-4"
+        >
+          <div class="flex items-center gap-2 mb-3">
+            <UBadge label="Raw Response" color="warning" variant="subtle" size="sm" />
+            <span class="text-xs text-dimmed">Grok's response was too long to parse as structured data — showing raw text</span>
+          </div>
+          <div class="prose prose-sm max-w-none text-default whitespace-pre-wrap text-sm">
+            {{ analysisRawFallback }}
+          </div>
         </div>
 
         <!-- Structured Analysis Results -->
