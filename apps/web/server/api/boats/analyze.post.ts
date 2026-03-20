@@ -49,6 +49,7 @@ export default defineEventHandler(async (event) => {
   const boatList = await db
     .select({
       id: boats.id,
+      url: boats.url,
       make: boats.make,
       model: boats.model,
       year: boats.year,
@@ -90,19 +91,37 @@ export default defineEventHandler(async (event) => {
   await db.insert(xaiAnalyses).values({
     boatIds: JSON.stringify(boatIds),
     prompt: userContext
-      ? `${userContext} — Analyze ${boatList.length} ${category} boats (${minLength}-${maxLength}ft)`
-      : `Analyze ${boatList.length} ${category} boats (${minLength}-${maxLength}ft)`,
+      ? `${userContext} — Analyze ${boatList.length} ${category || 'all'} boats`
+      : `Analyze ${boatList.length} ${category || 'all'} boats`,
     response: result.content,
-    model: 'grok-3-mini',
+    model: 'grok-3-mini-reasoning-high',
     category,
     tokensUsed: result.tokensUsed,
     createdAt: new Date().toISOString(),
   })
+
+  // Build boat map for frontend photo rendering
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- boat map shape is consumed by dynamic frontend renderer
+  const boatMap: Record<number, any> = {}
+  for (const b of boatList) {
+    const imgs = b.images ? JSON.parse(b.images) : []
+    boatMap[b.id] = {
+      images: Array.isArray(imgs) ? imgs.slice(0, 5) : [],
+      make: b.make,
+      model: b.model,
+      year: b.year,
+      price: b.price,
+      length: b.length,
+      location: b.location,
+      url: b.url,
+    }
+  }
 
   return {
     analysis: result.content,
     boatCount: boatList.length,
     category,
     tokensUsed: result.tokensUsed,
+    boatMap,
   }
 })

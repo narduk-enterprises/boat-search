@@ -52,6 +52,19 @@ interface AnalysisResult {
   boatCount: number
   category: string
   tokensUsed: number
+  boatMap: Record<
+    number,
+    {
+      images: string[]
+      make: string | null
+      model: string | null
+      year: number | null
+      price: string | null
+      length: string | null
+      location: string | null
+      url: string | null
+    }
+  >
 }
 
 export function useBoats() {
@@ -87,7 +100,7 @@ export function useBoats() {
     return $fetch<AnalysisResult>('/api/boats/analyze', {
       method: 'POST',
       body: {
-        category: options?.category || 'Hatteras',
+        category: options?.category || '',
         make: options?.make,
         minLength: options?.minLength,
         maxLength: options?.maxLength,

@@ -82,7 +82,11 @@ const hasActiveFilters = computed(() => {
 })
 
 // Analysis
-const analysisResult = ref<string | null>(null)
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- Grok returns dynamic structured JSON that doesn't fit a static type
+const analysisData = ref<any>(null)
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- boat map keyed by dynamic IDs from DB
+const analysisBoatMap = ref<Record<number, any>>({})
+const analysisError = ref<string | null>(null)
 const analysisLoading = ref(false)
 const analysisCategory = ref('')
 const userContext = ref(
@@ -207,19 +211,34 @@ async function applyFilters() {
 
 async function runAnalysis() {
   analysisLoading.value = true
-  analysisResult.value = null
+  analysisData.value = null
+  analysisError.value = null
   try {
     const result = await triggerAnalysis({
       category: analysisCategory.value,
       make: makeFilter.value || undefined,
       userContext: userContext.value || undefined,
     })
-    analysisResult.value = result.analysis
+    analysisBoatMap.value = result.boatMap || {}
+    // Parse structured JSON from Grok response
+    let raw = result.analysis
+    // Strip markdown code fences if present
+    if (raw.startsWith('```')) {
+      raw = raw.replace(/^```(?:json)?\n?/, '').replace(/\n?```$/, '')
+    }
+    analysisData.value = JSON.parse(raw)
   } catch (error) {
-    analysisResult.value = `Error: ${(error as Error).message}`
+    // If JSON parse fails, show raw text
+    analysisError.value = `Error: ${(error as Error).message}`
   } finally {
     analysisLoading.value = false
   }
+}
+
+type BadgeColor = 'error' | 'info' | 'primary' | 'secondary' | 'success' | 'warning' | 'neutral'
+function getRatingColor(rating: string): BadgeColor {
+  const colors: Record<string, BadgeColor> = { BUY: 'success', CONSIDER: 'info', CAUTION: 'warning', AVOID: 'error' }
+  return colors[rating] || 'neutral'
 }
 
 function formatPrice(price: number | null) {
@@ -562,11 +581,211 @@ function getSourceLabel(source: string) {
           </div>
         </div>
 
-        <div
-          v-if="analysisResult"
-          class="bg-elevated rounded-lg p-5 mt-4 prose prose-sm max-w-none text-default whitespace-pre-wrap"
-        >
-          {{ analysisResult }}
+        <!-- Analysis Error -->
+        <div v-if="analysisError" class="bg-error/10 rounded-lg p-5 mt-4 text-error">
+          {{ analysisError }}
+        </div>
+
+        <!-- Structured Analysis Results -->
+        <div v-if="analysisData" class="mt-6 space-y-6">
+          <!-- Market Snapshot -->
+          <div v-if="analysisData.marketSnapshot" class="card-base rounded-xl p-6">
+            <h3 class="text-xl font-bold text-default flex items-center gap-2">
+              <span>🏷️</span> {{ analysisData.marketSnapshot.title || 'Market Snapshot' }}
+            </h3>
+            <div
+              v-if="analysisData.marketSnapshot.stats"
+              class="grid grid-cols-2 sm:grid-cols-4 gap-4 mt-4"
+            >
+              <div class="bg-muted rounded-lg p-3 text-center">
+                <div class="text-xs text-dimmed">Avg Price</div>
+                <div class="text-lg font-bold text-primary">
+                  {{ analysisData.marketSnapshot.stats.avgPrice }}
+                </div>
+              </div>
+              <div class="bg-muted rounded-lg p-3 text-center">
+                <div class="text-xs text-dimmed">Median</div>
+                <div class="text-lg font-bold text-primary">
+                  {{ analysisData.marketSnapshot.stats.medianPrice }}
+                </div>
+              </div>
+              <div class="bg-muted rounded-lg p-3 text-center">
+                <div class="text-xs text-dimmed">Price Range</div>
+                <div class="text-sm font-semibold text-default">
+                  {{ analysisData.marketSnapshot.stats.priceRange }}
+                </div>
+              </div>
+              <div class="bg-muted rounded-lg p-3 text-center">
+                <div class="text-xs text-dimmed">Avg Age</div>
+                <div class="text-lg font-bold text-default">
+                  {{ analysisData.marketSnapshot.stats.avgAge }}
+                </div>
+              </div>
+            </div>
+            <p class="mt-4 text-sm text-muted whitespace-pre-line">
+              {{ analysisData.marketSnapshot.summary }}
+            </p>
+          </div>
+
+          <!-- Per-Boat Analyses -->
+          <div v-if="analysisData.boatAnalyses?.length" class="space-y-4">
+            <h3 class="text-xl font-bold text-default">⭐ Individual Boat Analysis</h3>
+            <div
+              v-for="ba in analysisData.boatAnalyses"
+              :key="ba.boatId"
+              class="card-base rounded-xl overflow-hidden"
+            >
+              <!-- Boat header with photos -->
+              <div class="flex flex-col sm:flex-row">
+                <!-- Photos -->
+                <div v-if="analysisBoatMap[ba.boatId]?.images?.length" class="sm:w-64 shrink-0">
+                  <div class="aspect-video sm:aspect-square overflow-hidden">
+                    <img
+                      :src="analysisBoatMap[ba.boatId].images[0]"
+                      :alt="`${analysisBoatMap[ba.boatId]?.year || ''} ${analysisBoatMap[ba.boatId]?.make || ''}`"
+                      class="w-full h-full object-cover"
+                      loading="lazy"
+                    />
+                  </div>
+                  <div v-if="analysisBoatMap[ba.boatId].images.length > 1" class="flex gap-1 p-1">
+                    <img
+                      v-for="(img, idx) in analysisBoatMap[ba.boatId].images.slice(1, 4)"
+                      :key="idx"
+                      :src="img"
+                      class="w-1/3 aspect-square object-cover rounded"
+                      loading="lazy"
+                    />
+                  </div>
+                </div>
+                <!-- Analysis content -->
+                <div class="flex-1 p-5">
+                  <div class="flex items-start justify-between gap-3">
+                    <div>
+                      <h4 class="text-lg font-bold text-default">
+                        {{ analysisBoatMap[ba.boatId]?.year }}
+                        {{ analysisBoatMap[ba.boatId]?.make }}
+                        {{ analysisBoatMap[ba.boatId]?.model }}
+                      </h4>
+                      <p class="text-sm text-muted">
+                        {{ analysisBoatMap[ba.boatId]?.length }}ft ·
+                        {{ analysisBoatMap[ba.boatId]?.location || 'US' }}
+                      </p>
+                    </div>
+                    <UBadge
+                      :label="ba.rating"
+                      :color="getRatingColor(ba.rating)"
+                      variant="solid"
+                      size="lg"
+                    />
+                  </div>
+                  <p class="mt-1 text-sm font-semibold text-primary">{{ ba.headline }}</p>
+                  <p class="mt-3 text-sm text-muted whitespace-pre-line">{{ ba.analysis }}</p>
+
+                  <!-- Pros & Cons -->
+                  <div v-if="ba.prosAndCons" class="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-4">
+                    <div class="bg-success/10 rounded-lg p-3">
+                      <div class="text-xs font-bold text-success mb-1">✅ Pros</div>
+                      <ul class="text-xs text-muted space-y-1">
+                        <li v-for="pro in ba.prosAndCons.pros" :key="pro">• {{ pro }}</li>
+                      </ul>
+                    </div>
+                    <div class="bg-error/10 rounded-lg p-3">
+                      <div class="text-xs font-bold text-error mb-1">❌ Cons</div>
+                      <ul class="text-xs text-muted space-y-1">
+                        <li v-for="con in ba.prosAndCons.cons" :key="con">• {{ con }}</li>
+                      </ul>
+                    </div>
+                  </div>
+
+                  <!-- Value metrics -->
+                  <div class="flex flex-wrap gap-4 mt-4 text-xs">
+                    <div v-if="ba.fairMarketValue">
+                      <span class="text-dimmed">Fair Value:</span>
+                      <span class="font-bold text-default ml-1">{{ ba.fairMarketValue }}</span>
+                    </div>
+                    <div v-if="ba.negotiationTarget">
+                      <span class="text-dimmed">Target Price:</span>
+                      <span class="font-bold text-success ml-1">{{ ba.negotiationTarget }}</span>
+                    </div>
+                    <div v-if="ba.estimatedAnnualCost">
+                      <span class="text-dimmed">Annual Cost:</span>
+                      <span class="font-bold text-warning ml-1">{{ ba.estimatedAnnualCost }}</span>
+                    </div>
+                  </div>
+
+                  <div v-if="analysisBoatMap[ba.boatId]?.url" class="mt-3">
+                    <ULink
+                      :to="analysisBoatMap[ba.boatId].url"
+                      target="_blank"
+                      class="text-xs text-primary hover:underline"
+                    >
+                      View original listing →
+                    </ULink>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Buyer's Playbook -->
+          <div v-if="analysisData.buyersPlaybook" class="card-base rounded-xl p-6">
+            <h3 class="text-xl font-bold text-default flex items-center gap-2">
+              <span>💡</span> {{ analysisData.buyersPlaybook.title || "Buyer's Playbook" }}
+            </h3>
+            <p class="mt-3 text-sm text-muted whitespace-pre-line">
+              {{ analysisData.buyersPlaybook.content }}
+            </p>
+          </div>
+
+          <!-- Bottom Line -->
+          <div
+            v-if="analysisData.bottomLine"
+            class="card-base rounded-xl p-6 border-2 border-primary"
+          >
+            <h3 class="text-xl font-bold text-default flex items-center gap-2">
+              <span>🎯</span> {{ analysisData.bottomLine.title || 'Bottom Line' }}
+            </h3>
+            <p class="mt-3 text-sm text-muted whitespace-pre-line">
+              {{ analysisData.bottomLine.content }}
+            </p>
+            <!-- Highlight top pick photo -->
+            <div
+              v-if="
+                analysisData.bottomLine.topPickBoatId &&
+                analysisBoatMap[analysisData.bottomLine.topPickBoatId]?.images?.length
+              "
+              class="mt-4 flex items-center gap-4"
+            >
+              <img
+                :src="analysisBoatMap[analysisData.bottomLine.topPickBoatId].images[0]"
+                class="w-24 h-24 rounded-lg object-cover"
+                loading="lazy"
+              />
+              <div>
+                <p class="font-bold text-default">
+                  {{ analysisBoatMap[analysisData.bottomLine.topPickBoatId]?.year }}
+                  {{ analysisBoatMap[analysisData.bottomLine.topPickBoatId]?.make }}
+                  {{ analysisBoatMap[analysisData.bottomLine.topPickBoatId]?.model }}
+                </p>
+                <NuxtLink
+                  :to="`/boats/${analysisData.bottomLine.topPickBoatId}`"
+                  class="text-sm text-primary hover:underline"
+                >
+                  View details →
+                </NuxtLink>
+              </div>
+            </div>
+          </div>
+
+          <!-- Personal Advice -->
+          <div v-if="analysisData.personalAdvice" class="card-base rounded-xl p-6">
+            <h3 class="text-xl font-bold text-default flex items-center gap-2">
+              <span>🎯</span> Tailored Advice for You
+            </h3>
+            <p class="mt-3 text-sm text-muted whitespace-pre-line">
+              {{ analysisData.personalAdvice }}
+            </p>
+          </div>
         </div>
       </div>
     </UPageSection>
