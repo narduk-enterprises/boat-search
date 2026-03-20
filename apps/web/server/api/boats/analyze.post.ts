@@ -6,8 +6,8 @@ import { analyzeBoats } from '~~/server/utils/xai'
 const bodySchema = z.object({
   category: z.string().default('Hatteras'),
   make: z.string().optional(),
-  minLength: z.number().default(40),
-  maxLength: z.number().default(60),
+  minLength: z.number().optional(),
+  maxLength: z.number().optional(),
   userContext: z.string().max(2000).optional(),
 })
 
@@ -31,10 +31,15 @@ export default defineEventHandler(async (event) => {
   const db = useDatabase(event)
 
   // Build filter conditions
-  const conditions = [
-    gte(sql`CAST(${boats.length} AS REAL)`, minLength),
-    lte(sql`CAST(${boats.length} AS REAL)`, maxLength),
-  ]
+  const conditions = []
+
+  if (minLength) {
+    conditions.push(gte(sql`CAST(${boats.length} AS REAL)`, minLength))
+  }
+
+  if (maxLength) {
+    conditions.push(lte(sql`CAST(${boats.length} AS REAL)`, maxLength))
+  }
 
   if (make) {
     conditions.push(like(boats.make, `%${make}%`))
@@ -56,9 +61,9 @@ export default defineEventHandler(async (event) => {
       source: boats.source,
     })
     .from(boats)
-    .where(and(...conditions))
+    .where(conditions.length > 0 ? and(...conditions) : undefined)
     .orderBy(desc(sql`CAST(${boats.price} AS INTEGER)`))
-    .limit(50)
+    .limit(100)
 
   if (boatList.length === 0) {
     throw createError({

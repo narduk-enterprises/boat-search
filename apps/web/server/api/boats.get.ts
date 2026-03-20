@@ -8,7 +8,7 @@ const querySchema = z.object({
   maxLength: z.coerce.number().optional(),
   minPrice: z.coerce.number().optional(),
   maxPrice: z.coerce.number().optional(),
-  limit: z.coerce.number().min(1).max(100).default(50),
+  limit: z.coerce.number().min(1).max(500).default(200),
   offset: z.coerce.number().min(0).default(0),
 })
 

@@ -89,8 +89,8 @@ export function useBoats() {
       body: {
         category: options?.category || 'Hatteras',
         make: options?.make,
-        minLength: options?.minLength || 40,
-        maxLength: options?.maxLength || 60,
+        minLength: options?.minLength,
+        maxLength: options?.maxLength,
         userContext: options?.userContext || undefined,
       },
     })

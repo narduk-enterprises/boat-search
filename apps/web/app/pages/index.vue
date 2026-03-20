@@ -40,9 +40,39 @@ const analysisResult = ref<string | null>(null)
 const analysisLoading = ref(false)
 const analysisCategory = ref('Hatteras')
 const userContext = ref('')
+const showPromptPreview = ref(false)
 
 // How it works toggle
 const showHowItWorks = ref(false)
+
+// Prompt preview — mirrors what the server will send to Grok
+const promptPreview = computed(() => {
+  const cat = analysisCategory.value || 'Hatteras'
+  const boatCount = boats.value?.length || 0
+  const makeFilter_ = makeFilter.value
+
+  let systemSummary = `🤖 SYSTEM PROMPT (Captain's Market Intelligence)\n`
+  systemSummary += `Expert offshore fishing boat analyst — 30+ years marine surveyor, yacht broker, tournament captain.\n`
+  systemSummary += `Specialties: hull/structural analysis, engine/drivetrain (CAT, MAN, Cummins), market dynamics, fishing capability, cost of ownership.\n`
+  systemSummary += `Focus category: ${cat}\n`
+  systemSummary += `Response sections: Market Snapshot → Top Values → Red Flags → Maintenance Reality → Buyer's Playbook → Bottom Line\n`
+
+  let userPrompt = `\n📝 USER PROMPT\n`
+  userPrompt += `Analyze sport fishing boats currently for sale across the US.\n\n`
+  userPrompt += `Inventory: ~${boatCount} listings`
+  if (makeFilter_) userPrompt += ` (filtered: ${makeFilter_})`
+  userPrompt += `\n`
+  userPrompt += `Focus: ${cat} and comparable offshore fishing vessels\n`
+
+  if (userContext.value) {
+    userPrompt += `\n🎯 BUYER'S PERSONAL SITUATION:\n${userContext.value}\n`
+    userPrompt += `\n→ Grok will tailor analysis to your specific situation, budget, and plans.`
+  } else {
+    userPrompt += `\n💡 Add your personal situation above for tailored recommendations.`
+  }
+
+  return systemSummary + userPrompt
+})
 
 async function applyFilters() {
   const { data } = await fetchBoats({
@@ -311,6 +341,27 @@ function getSourceLabel(source: string) {
                 autoresize
               />
             </UFormField>
+          </div>
+
+          <!-- Prompt Preview -->
+          <div class="mt-3">
+            <div
+              class="flex items-center gap-2 cursor-pointer select-none text-sm text-muted hover:text-default transition-fast"
+              @click="showPromptPreview = !showPromptPreview"
+            >
+              <UIcon
+                :name="showPromptPreview ? 'i-lucide-chevron-down' : 'i-lucide-chevron-right'"
+                class="text-base"
+              />
+              <UIcon name="i-lucide-eye" class="text-base" />
+              <span>Preview what Grok will receive</span>
+            </div>
+            <div
+              v-if="showPromptPreview"
+              class="mt-2 bg-muted rounded-lg p-4 text-xs font-mono text-muted whitespace-pre-wrap overflow-x-auto max-h-80 overflow-y-auto"
+            >
+              {{ promptPreview }}
+            </div>
           </div>
 
           <div
