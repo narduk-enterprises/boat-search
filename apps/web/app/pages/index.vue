@@ -3,14 +3,14 @@ const config = useRuntimeConfig()
 const appName = config.public.appName || 'Boat Search'
 
 useSeo({
-  title: `${appName} — Find Your Perfect Sportfishing Boat`,
+  title: `${appName} — Find Your Perfect Fishing Boat`,
   description:
-    'Search 40-60ft convertible sportfishing boats across the US. AI-powered market analysis by xAI Grok. Data from boats.com, YachtWorld, and more.',
+    'Search fishing boats 20-60ft across the US. AI-powered market analysis by xAI Grok. Data from boats.com, YachtWorld, and more.',
 })
 useWebPageSchema({
-  name: `${appName} — Sportfishing Boat Search`,
+  name: `${appName} — Fishing Boat Search`,
   description:
-    'Search 40-60ft convertible sportfishing boats across the US with AI-powered market analysis.',
+    'Search fishing boats across the US with AI-powered market analysis.',
 })
 
 const { fetchBoats, fetchBoatStats, triggerAnalysis } = useBoats()
@@ -19,6 +19,23 @@ const { fetchBoats, fetchBoatStats, triggerAnalysis } = useBoats()
 const makeFilter = ref('')
 const minPrice = ref<number | undefined>(undefined)
 const maxPrice = ref<number | undefined>(undefined)
+const minLength = ref<number | undefined>(undefined)
+const maxLength = ref<number | undefined>(undefined)
+
+// Preset chip options
+const makeChips = ['Hatteras', 'Viking', 'Bertram', 'Grady-White', 'Boston Whaler', 'Yellowfin', 'Contender', 'Regulator', 'Sea Hunt', 'Pursuit']
+const lengthChips = [
+  { label: '20-30\'', min: 20, max: 30 },
+  { label: '30-40\'', min: 30, max: 40 },
+  { label: '40-50\'', min: 40, max: 50 },
+  { label: '50-60\'', min: 50, max: 60 },
+]
+const priceChips = [
+  { label: '$50K-150K', min: 50000, max: 150000 },
+  { label: '$150K-300K', min: 150000, max: 300000 },
+  { label: '$300K-500K', min: 300000, max: 500000 },
+  { label: '$500K-1M', min: 500000, max: 1000000 },
+]
 
 // Data
 const { data: boats, status: boatsStatus } = fetchBoats()
@@ -34,6 +51,19 @@ const priceRangeLabel = computed(() => {
 })
 const totalBoatsLabel = computed(() => String(stats.value?.total || 0))
 const uniqueMakesLabel = computed(() => String(stats.value?.uniqueMakes || 0))
+
+// Active chip tracking
+const activeLength = computed(() => {
+  if (!minLength.value && !maxLength.value) return null
+  return lengthChips.find((c) => c.min === minLength.value && c.max === maxLength.value) || null
+})
+const activePrice = computed(() => {
+  if (!minPrice.value && !maxPrice.value) return null
+  return priceChips.find((c) => c.min === minPrice.value && c.max === maxPrice.value) || null
+})
+const hasActiveFilters = computed(() => {
+  return !!(makeFilter.value || minPrice.value || maxPrice.value || minLength.value || maxLength.value)
+})
 
 // Analysis
 const analysisResult = ref<string | null>(null)
@@ -51,13 +81,13 @@ const promptPreview = computed(() => {
   const boatCount = boats.value?.length || 0
   const makeFilter_ = makeFilter.value
 
-  let systemSummary = `🤖 SYSTEM PROMPT (Captain's Market Intelligence)\n`
+  let systemSummary = `\ud83e\udd16 SYSTEM PROMPT (Captain's Market Intelligence)\n`
   systemSummary += `Expert offshore fishing boat analyst — 30+ years marine surveyor, yacht broker, tournament captain.\n`
   systemSummary += `Specialties: hull/structural analysis, engine/drivetrain (CAT, MAN, Cummins), market dynamics, fishing capability, cost of ownership.\n`
   systemSummary += `Focus category: ${cat}\n`
   systemSummary += `Response sections: Market Snapshot → Top Values → Red Flags → Maintenance Reality → Buyer's Playbook → Bottom Line\n`
 
-  let userPrompt = `\n📝 USER PROMPT\n`
+  let userPrompt = `\n\ud83d\udcdd USER PROMPT\n`
   userPrompt += `Analyze sport fishing boats currently for sale across the US.\n\n`
   userPrompt += `Inventory: ~${boatCount} listings`
   if (makeFilter_) userPrompt += ` (filtered: ${makeFilter_})`
@@ -65,20 +95,58 @@ const promptPreview = computed(() => {
   userPrompt += `Focus: ${cat} and comparable offshore fishing vessels\n`
 
   if (userContext.value) {
-    userPrompt += `\n🎯 BUYER'S PERSONAL SITUATION:\n${userContext.value}\n`
+    userPrompt += `\n\ud83c\udfaf BUYER'S PERSONAL SITUATION:\n${userContext.value}\n`
     userPrompt += `\n→ Grok will tailor analysis to your specific situation, budget, and plans.`
   } else {
-    userPrompt += `\n💡 Add your personal situation above for tailored recommendations.`
+    userPrompt += `\n\ud83d\udca1 Add your personal situation above for tailored recommendations.`
   }
 
   return systemSummary + userPrompt
 })
+
+function toggleMakeChip(make: string) {
+  makeFilter.value = makeFilter.value === make ? '' : make
+  applyFilters()
+}
+
+function toggleLengthChip(chip: { min: number; max: number }) {
+  if (minLength.value === chip.min && maxLength.value === chip.max) {
+    minLength.value = undefined
+    maxLength.value = undefined
+  } else {
+    minLength.value = chip.min
+    maxLength.value = chip.max
+  }
+  applyFilters()
+}
+
+function togglePriceChip(chip: { min: number; max: number }) {
+  if (minPrice.value === chip.min && maxPrice.value === chip.max) {
+    minPrice.value = undefined
+    maxPrice.value = undefined
+  } else {
+    minPrice.value = chip.min
+    maxPrice.value = chip.max
+  }
+  applyFilters()
+}
+
+function clearAllFilters() {
+  makeFilter.value = ''
+  minPrice.value = undefined
+  maxPrice.value = undefined
+  minLength.value = undefined
+  maxLength.value = undefined
+  applyFilters()
+}
 
 async function applyFilters() {
   const { data } = await fetchBoats({
     make: makeFilter.value || undefined,
     minPrice: minPrice.value,
     maxPrice: maxPrice.value,
+    minLength: minLength.value,
+    maxLength: maxLength.value,
   })
   boats.value = data.value
 }
@@ -267,41 +335,116 @@ function getSourceLabel(source: string) {
       </div>
     </UPageSection>
 
-    <!-- Filters + AI Analysis -->
+    <!-- Filters -->
     <UPageSection :ui="{ wrapper: 'py-4' }">
-      <div class="flex flex-col gap-6">
-        <!-- Filters -->
-        <div class="flex flex-wrap items-end gap-4">
-          <div class="flex-1 min-w-48">
-            <UFormField label="Make">
-              <UInput
-                v-model="makeFilter"
-                placeholder="e.g. Hatteras, Viking, Bertram..."
-                icon="i-lucide-search"
-                class="w-full"
-              />
-            </UFormField>
-          </div>
-          <div class="w-40">
-            <UFormField label="Min Price">
-              <UInput v-model.number="minPrice" type="number" placeholder="$0" class="w-full" />
-            </UFormField>
-          </div>
-          <div class="w-40">
-            <UFormField label="Max Price">
-              <UInput
-                v-model.number="maxPrice"
-                type="number"
-                placeholder="$1,000,000"
-                class="w-full"
-              />
-            </UFormField>
-          </div>
-          <UButton label="Search" icon="i-lucide-search" @click="applyFilters" />
+      <div class="flex flex-col gap-4">
+        <!-- Filter header -->
+        <div class="flex items-center justify-between">
+          <h2 class="text-lg font-semibold text-default flex items-center gap-2">
+            <UIcon name="i-lucide-sliders-horizontal" class="text-primary" />
+            Filters
+          </h2>
+          <UButton
+            v-if="hasActiveFilters"
+            label="Clear All"
+            icon="i-lucide-x"
+            variant="ghost"
+            size="xs"
+            color="neutral"
+            @click="clearAllFilters"
+          />
         </div>
 
-        <!-- AI Analysis -->
-        <div class="card-base rounded-xl p-6">
+        <!-- Make chips -->
+        <div>
+          <p class="text-xs font-medium text-muted mb-2 uppercase tracking-wider">Popular Makes</p>
+          <div class="flex flex-wrap gap-2">
+            <UButton
+              v-for="make in makeChips"
+              :key="make"
+              :label="make"
+              size="xs"
+              :variant="makeFilter === make ? 'solid' : 'soft'"
+              :color="makeFilter === make ? 'primary' : 'neutral'"
+              @click="toggleMakeChip(make)"
+            />
+          </div>
+        </div>
+
+        <!-- Length chips -->
+        <div>
+          <p class="text-xs font-medium text-muted mb-2 uppercase tracking-wider">Length</p>
+          <div class="flex flex-wrap gap-2">
+            <UButton
+              v-for="chip in lengthChips"
+              :key="chip.label"
+              :label="chip.label"
+              size="xs"
+              :variant="activeLength?.label === chip.label ? 'solid' : 'soft'"
+              :color="activeLength?.label === chip.label ? 'primary' : 'neutral'"
+              @click="toggleLengthChip(chip)"
+            />
+          </div>
+        </div>
+
+        <!-- Price chips -->
+        <div>
+          <p class="text-xs font-medium text-muted mb-2 uppercase tracking-wider">Price Range</p>
+          <div class="flex flex-wrap gap-2">
+            <UButton
+              v-for="chip in priceChips"
+              :key="chip.label"
+              :label="chip.label"
+              size="xs"
+              :variant="activePrice?.label === chip.label ? 'solid' : 'soft'"
+              :color="activePrice?.label === chip.label ? 'primary' : 'neutral'"
+              @click="togglePriceChip(chip)"
+            />
+          </div>
+        </div>
+
+        <!-- Custom search row -->
+        <div class="grid grid-cols-1 sm:grid-cols-4 gap-3 items-end">
+          <UFormField label="Search Make">
+            <UInput
+              v-model="makeFilter"
+              placeholder="Any make..."
+              icon="i-lucide-search"
+              class="w-full"
+              @keyup.enter="applyFilters"
+            />
+          </UFormField>
+          <UFormField label="Min Price">
+            <UInput
+              v-model.number="minPrice"
+              type="number"
+              placeholder="$0"
+              class="w-full"
+              @keyup.enter="applyFilters"
+            />
+          </UFormField>
+          <UFormField label="Max Price">
+            <UInput
+              v-model.number="maxPrice"
+              type="number"
+              placeholder="$1,000,000"
+              class="w-full"
+              @keyup.enter="applyFilters"
+            />
+          </UFormField>
+          <UButton
+            label="Search"
+            icon="i-lucide-search"
+            class="w-full sm:w-auto"
+            @click="applyFilters"
+          />
+        </div>
+      </div>
+    </UPageSection>
+
+    <!-- AI Analysis -->
+    <UPageSection :ui="{ wrapper: 'py-4' }">
+      <div class="card-base rounded-xl p-6">
           <div class="flex items-center gap-4 mb-4 flex-wrap">
             <div class="flex items-center gap-3 flex-1 min-w-48">
               <div class="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
@@ -312,7 +455,7 @@ function getSourceLabel(source: string) {
                 <p class="text-sm text-muted">Expert analysis by xAI Grok</p>
               </div>
             </div>
-            <div class="w-48">
+            <div class="w-full sm:w-48">
               <UInput
                 v-model="analysisCategory"
                 placeholder="Focus: Hatteras, Viking..."
@@ -326,6 +469,7 @@ function getSourceLabel(source: string) {
               color="primary"
               :loading="analysisLoading"
               :disabled="analysisLoading"
+              class="w-full sm:w-auto"
               @click="runAnalysis"
             />
           </div>
@@ -371,7 +515,6 @@ function getSourceLabel(source: string) {
             {{ analysisResult }}
           </div>
         </div>
-      </div>
     </UPageSection>
 
     <!-- Boat Listings -->
