@@ -237,7 +237,12 @@ async function runAnalysis() {
 
 type BadgeColor = 'error' | 'info' | 'primary' | 'secondary' | 'success' | 'warning' | 'neutral'
 function getRatingColor(rating: string): BadgeColor {
-  const colors: Record<string, BadgeColor> = { BUY: 'success', CONSIDER: 'info', CAUTION: 'warning', AVOID: 'error' }
+  const colors: Record<string, BadgeColor> = {
+    BUY: 'success',
+    CONSIDER: 'info',
+    CAUTION: 'warning',
+    AVOID: 'error',
+  }
   return colors[rating] || 'neutral'
 }
 
