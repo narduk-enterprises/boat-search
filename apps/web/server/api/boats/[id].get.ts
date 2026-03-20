@@ -15,7 +15,7 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 404, statusMessage: 'Boat not found' })
   }
 
-  const boat = result[0]
+  const boat = result[0]!
   return {
     ...boat,
     images: boat.images ? JSON.parse(boat.images) : [],
