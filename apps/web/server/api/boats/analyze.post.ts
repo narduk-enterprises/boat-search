@@ -64,7 +64,7 @@ export default defineEventHandler(async (event) => {
     .from(boats)
     .where(conditions.length > 0 ? and(...conditions) : undefined)
     .orderBy(desc(sql`CAST(${boats.price} AS INTEGER)`))
-    .limit(100)
+    .limit(500)
 
   if (boatList.length === 0) {
     throw createError({

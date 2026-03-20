@@ -184,6 +184,6 @@ Analyze this inventory using your expert framework. Be specific — reference ac
       { role: 'system', content: systemPrompt },
       { role: 'user', content: userPrompt },
     ],
-    { temperature: 0.6, maxTokens: 4096 },
+    { temperature: 0.6, maxTokens: 8192 },
   )
 }
