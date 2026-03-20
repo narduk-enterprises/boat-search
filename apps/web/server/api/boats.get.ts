@@ -95,13 +95,13 @@ function cleanDescription(raw: string | null): string | null {
 
   let text = raw
     // Remove contact form boilerplate
-    .replace(/First\s*(?:&\s*)?Last\s*Name[^]*/is, '')
-    .replaceAll(/EmailPhoneSubjectComments[^]*/gi, '')
-    .replaceAll(/Please contact [^]*/gi, '')
-    .replaceAll(/Contact Information[^]*/gi, '')
-    .replaceAll(/I'd like to know if the[^]*/gi, '')
-    .replaceAll(/Show\s*More[^]*/gi, '')
-    .replaceAll(/Trusted\s*Partner\s*\|[^]*/gi, '')
+    .replace(/First\s*(?:&\s*)?Last\s*Name[\s\S]*/i, '')
+    .replaceAll(/EmailPhoneSubjectComments[\s\S]*/gi, '')
+    .replaceAll(/Please contact [\s\S]*/gi, '')
+    .replaceAll(/Contact Information[\s\S]*/gi, '')
+    .replaceAll(/I'd like to know if the[\s\S]*/gi, '')
+    .replaceAll(/Show\s*More[\s\S]*/gi, '')
+    .replaceAll(/Trusted\s*Partner\s*\|[\s\S]*/gi, '')
     // Remove excessive whitespace
     .replaceAll(/\n{3,}/g, '\n\n')
     .replaceAll(/\s{2,}/g, ' ')
