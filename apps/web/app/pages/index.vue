@@ -636,7 +636,9 @@ function getSourceLabel(source: string) {
         >
           <div class="flex items-center gap-2 mb-3">
             <UBadge label="Raw Response" color="warning" variant="subtle" size="sm" />
-            <span class="text-xs text-dimmed">Grok's response was too long to parse as structured data — showing raw text</span>
+            <span class="text-xs text-dimmed"
+              >Grok's response was too long to parse as structured data — showing raw text</span
+            >
           </div>
           <div class="prose prose-sm max-w-none text-default whitespace-pre-wrap text-sm">
             {{ analysisRawFallback }}
