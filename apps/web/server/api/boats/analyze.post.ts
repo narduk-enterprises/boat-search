@@ -45,7 +45,7 @@ export default defineEventHandler(async (event) => {
     conditions.push(like(boats.make, `%${make}%`))
   }
 
-  // Fetch matching boats
+  // Fetch matching boats with descriptions and images
   const boatList = await db
     .select({
       id: boats.id,
@@ -59,6 +59,7 @@ export default defineEventHandler(async (event) => {
       sellerType: boats.sellerType,
       listingType: boats.listingType,
       source: boats.source,
+      images: boats.images,
     })
     .from(boats)
     .where(conditions.length > 0 ? and(...conditions) : undefined)
@@ -72,8 +73,17 @@ export default defineEventHandler(async (event) => {
     })
   }
 
+  // Enrich with photo count for Grok context
+  const enrichedBoats = boatList.map((b) => {
+    const imgs = b.images ? JSON.parse(b.images) : []
+    return {
+      ...b,
+      photoCount: Array.isArray(imgs) ? imgs.length : 0,
+    }
+  })
+
   // Call xAI analysis with optional user context
-  const result = await analyzeBoats(apiKey, boatList, category, userContext)
+  const result = await analyzeBoats(apiKey, enrichedBoats, category, userContext)
 
   // Store analysis in D1
   const boatIds = boatList.map((b) => b.id)

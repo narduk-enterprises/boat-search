@@ -36,6 +36,7 @@ interface BoatSummary {
   sellerType: string | null
   listingType: string | null
   source?: string | null
+  photoCount?: number
 }
 
 /**
@@ -127,7 +128,7 @@ export async function analyzeBoats(
         pricedCount++
       }
 
-      const parts = [
+      const header = [
         b.year ? `${b.year}` : null,
         b.make,
         b.model,
@@ -136,8 +137,15 @@ export async function analyzeBoats(
         b.location,
         b.sellerType ? `(${b.sellerType})` : null,
         b.source ? `[${b.source}]` : null,
+        b.photoCount ? `📷${b.photoCount}` : null,
       ].filter(Boolean)
-      return `- ${parts.join(' ')}`
+
+      // Include truncated description for context (condition, engines, features)
+      const desc = b.description
+        ? `\n  → ${b.description.slice(0, 300).replace(/\n+/g, ' ').trim()}${b.description.length > 300 ? '...' : ''}`
+        : ''
+
+      return `- ${header.join(' ')}${desc}`
     })
     .join('\n')
 
@@ -154,13 +162,14 @@ export async function analyzeBoats(
     ? `\n\n**BUYER'S PERSONAL SITUATION:**\n${userContext}\n\nTailor your analysis to this buyer's specific situation. Address their budget, plans, and concerns directly. Recommend specific boats from the list that match their needs.`
     : ''
 
-  const userPrompt = `Analyze these ${boatList.length} sport fishing boats currently for sale across the US (data sourced from boats.com, YachtWorld, BoatTrader, and The Hull Truth).
+  const userPrompt = `Analyze these ${boatList.length} fishing boats currently for sale across the US (data sourced from boats.com, YachtWorld, BoatTrader, and The Hull Truth).
 
 **Inventory Summary:**
-- ${boatList.length} total listings in the 40-60ft sportfish/convertible class
+- ${boatList.length} total listings
 - Average asking price: $${avgPrice.toLocaleString()}
 - Most common makes: ${topMakes}
 - Focus area: ${categoryLabel} and comparable offshore fishing vessels
+- Each listing includes a description excerpt with condition details, engine info, and features
 
 **Full Listings:**
 
