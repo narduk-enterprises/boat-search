@@ -86,7 +86,7 @@ const analysisResult = ref<string | null>(null)
 const analysisLoading = ref(false)
 const analysisCategory = ref('')
 const userContext = ref(
-  'Me and my buddy want to go in together on a 45-50ft convertible. Our budget is around $400K combined. We want to fish the Gulf — offshore tournaments, tuna, wahoo. We\'re based in Galveston and need something we can run year-round without breaking the bank on maintenance.',
+  "Me and my buddy want to go in together on a 45-50ft convertible. Our budget is around $400K combined. We want to fish the Gulf — offshore tournaments, tuna, wahoo. We're based in Galveston and need something we can run year-round without breaking the bank on maintenance.",
 )
 const showPromptPreview = ref(false)
 
