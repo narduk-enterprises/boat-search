@@ -99,27 +99,63 @@ const promptPreview = computed(() => {
   const boatCount = boats.value?.length || 0
   const makeFilter_ = makeFilter.value
 
-  let systemSummary = `\ud83e\udd16 SYSTEM PROMPT (Captain's Market Intelligence)\n`
-  systemSummary += `Expert offshore fishing boat analyst — 30+ years marine surveyor, yacht broker, tournament captain.\n`
-  systemSummary += `Specialties: hull/structural analysis, engine/drivetrain (CAT, MAN, Cummins), market dynamics, fishing capability, cost of ownership.\n`
-  systemSummary += `Focus category: ${cat}\n`
-  systemSummary += `Response sections: Market Snapshot → Top Values → Red Flags → Maintenance Reality → Buyer's Playbook → Bottom Line\n`
+  let preview = `🤖 SYSTEM PROMPT (Captain's Market Intelligence)\n`
+  preview += `Expert offshore fishing boat analyst — 30+ years marine surveyor, yacht broker, tournament captain.\n`
+  preview += `Specialties: hull/structural analysis, engine/drivetrain (CAT, MAN, Cummins), market dynamics, fishing capability, cost of ownership.\n`
+  preview += `Focus: ${cat}${cat === 'All Fishing Boats' ? ' — cover ALL makes and types' : ''}\n`
+  preview += `Response: Market Snapshot → Top Values → Red Flags → Maintenance Reality → Buyer's Playbook → Bottom Line\n`
 
-  let userPrompt = `\n\ud83d\udcdd USER PROMPT\n`
-  userPrompt += `Analyze sport fishing boats currently for sale across the US.\n\n`
-  userPrompt += `Inventory: ~${boatCount} listings`
-  if (makeFilter_) userPrompt += ` (filtered: ${makeFilter_})`
-  userPrompt += `\n`
-  userPrompt += `Focus: ${cat} and comparable offshore fishing vessels\n`
+  preview += `\n📝 USER PROMPT\n`
+  preview += `Analyze fishing boats currently for sale across the US.\n\n`
+  preview += `Inventory: ~${boatCount} listings\n`
 
-  if (userContext.value) {
-    userPrompt += `\n\ud83c\udfaf BUYER'S PERSONAL SITUATION:\n${userContext.value}\n`
-    userPrompt += `\n→ Grok will tailor analysis to your specific situation, budget, and plans.`
-  } else {
-    userPrompt += `\n\ud83d\udca1 Add your personal situation above for tailored recommendations.`
+  // Show active filters
+  const activeFilters = []
+  if (makeFilter_) activeFilters.push(`Make: ${makeFilter_}`)
+  if (minLength.value || maxLength.value)
+    activeFilters.push(`Length: ${minLength.value || '?'}-${maxLength.value || '?'}ft`)
+  if (minPrice.value || maxPrice.value)
+    activeFilters.push(
+      `Price: $${(minPrice.value || 0).toLocaleString()}-$${(maxPrice.value || 0).toLocaleString()}`,
+    )
+  if (activeFilters.length) preview += `Active filters: ${activeFilters.join(', ')}\n`
+
+  preview += `\n📊 ENRICHED DATA SENT TO GROK:\n`
+  preview += `Each boat listing includes:\n`
+  preview += `  • Year, Make, Model, Length, Price, Location, Source\n`
+  preview += `  • Truncated description (~300 chars) with condition, engines, features\n`
+  preview += `  • Photo count per listing\n`
+
+  // Show sample boats
+  if (boats.value && boats.value.length > 0) {
+    preview += `\n📋 SAMPLE LISTINGS (first 3 of ${boatCount}):\n`
+    for (const b of boats.value.slice(0, 3)) {
+      const line = [
+        b.year,
+        b.make,
+        b.model,
+        b.length ? `${b.length}ft` : null,
+        b.price ? `$${Number(b.price).toLocaleString()}` : null,
+        b.location,
+      ]
+        .filter(Boolean)
+        .join(' ')
+      preview += `- ${line}\n`
+      if (b.description) {
+        const desc = String(b.description).slice(0, 150).replaceAll(/\n+/g, ' ').trim()
+        preview += `  → ${desc}...\n`
+      }
+    }
   }
 
-  return systemSummary + userPrompt
+  if (userContext.value) {
+    preview += `\n🎯 BUYER'S PERSONAL SITUATION:\n${userContext.value}\n`
+    preview += `\n→ Grok will tailor analysis to your specific situation, budget, and plans.`
+  } else {
+    preview += `\n💡 Add your personal situation above for tailored recommendations.`
+  }
+
+  return preview
 })
 
 function toggleMakeChip(make: string) {
