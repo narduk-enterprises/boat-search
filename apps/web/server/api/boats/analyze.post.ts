@@ -4,7 +4,7 @@ import { like, gte, lte, sql, and, desc } from 'drizzle-orm'
 import { analyzeBoats } from '~~/server/utils/xai'
 
 const bodySchema = z.object({
-  category: z.string().default('Hatteras'),
+  category: z.string().default(''),
   make: z.string().optional(),
   minLength: z.number().optional(),
   maxLength: z.number().optional(),

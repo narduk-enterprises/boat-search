@@ -84,8 +84,10 @@ const hasActiveFilters = computed(() => {
 // Analysis
 const analysisResult = ref<string | null>(null)
 const analysisLoading = ref(false)
-const analysisCategory = ref('Hatteras')
-const userContext = ref('')
+const analysisCategory = ref('')
+const userContext = ref(
+  'Me and my buddy want to go in together on a 45-50ft convertible. Our budget is around $400K combined. We want to fish the Gulf — offshore tournaments, tuna, wahoo. We\'re based in Galveston and need something we can run year-round without breaking the bank on maintenance.',
+)
 const showPromptPreview = ref(false)
 
 // How it works toggle
@@ -93,7 +95,7 @@ const showHowItWorks = ref(false)
 
 // Prompt preview — mirrors what the server will send to Grok
 const promptPreview = computed(() => {
-  const cat = analysisCategory.value || 'Hatteras'
+  const cat = analysisCategory.value || 'All Fishing Boats'
   const boatCount = boats.value?.length || 0
   const makeFilter_ = makeFilter.value
 

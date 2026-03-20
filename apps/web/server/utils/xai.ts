@@ -89,7 +89,7 @@ Your expertise includes:
 - **Fishing Capability**: Tournament rigging, fishability, cockpit layout, live well capacity, bait prep areas, and how hull design affects offshore performance in Gulf conditions.
 - **Cost of Ownership**: You know that a 50ft sportfish costs $50K-$100K/year to maintain, and you can break down where that money goes.
 
-When analyzing boats, focus on the **${categoryLabel}** category specifically. Use the following framework:
+When analyzing boats, focus on the **${categoryLabel}** category specifically${categoryLabel === 'All Fishing Boats' ? ' — cover ALL makes and types in the inventory' : ''}. Use the following framework:
 
 **FORMAT YOUR RESPONSE IN THESE SECTIONS:**
 1. 🏷️ **Market Snapshot** — What does this inventory tell us? Price trends, age distribution, which makes dominate.
@@ -111,7 +111,7 @@ export async function analyzeBoats(
   category?: string,
   userContext?: string,
 ): Promise<{ content: string; tokensUsed: number }> {
-  const categoryLabel = category || 'Hatteras'
+  const categoryLabel = category || 'All Fishing Boats'
 
   // Group boats by make for better analysis
   const makeGroups = new Map<string, number>()
