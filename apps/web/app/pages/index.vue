@@ -9,8 +9,7 @@ useSeo({
 })
 useWebPageSchema({
   name: `${appName} — Fishing Boat Search`,
-  description:
-    'Search fishing boats across the US with AI-powered market analysis.',
+  description: 'Search fishing boats across the US with AI-powered market analysis.',
 })
 
 const { fetchBoats, fetchBoatStats, triggerAnalysis } = useBoats()
@@ -23,12 +22,23 @@ const minLength = ref<number | undefined>(undefined)
 const maxLength = ref<number | undefined>(undefined)
 
 // Preset chip options
-const makeChips = ['Hatteras', 'Viking', 'Bertram', 'Grady-White', 'Boston Whaler', 'Yellowfin', 'Contender', 'Regulator', 'Sea Hunt', 'Pursuit']
+const makeChips = [
+  'Hatteras',
+  'Viking',
+  'Bertram',
+  'Grady-White',
+  'Boston Whaler',
+  'Yellowfin',
+  'Contender',
+  'Regulator',
+  'Sea Hunt',
+  'Pursuit',
+]
 const lengthChips = [
-  { label: '20-30\'', min: 20, max: 30 },
-  { label: '30-40\'', min: 30, max: 40 },
-  { label: '40-50\'', min: 40, max: 50 },
-  { label: '50-60\'', min: 50, max: 60 },
+  { label: "20-30'", min: 20, max: 30 },
+  { label: "30-40'", min: 30, max: 40 },
+  { label: "40-50'", min: 40, max: 50 },
+  { label: "50-60'", min: 50, max: 60 },
 ]
 const priceChips = [
   { label: '$50K-150K', min: 50000, max: 150000 },
@@ -62,7 +72,13 @@ const activePrice = computed(() => {
   return priceChips.find((c) => c.min === minPrice.value && c.max === maxPrice.value) || null
 })
 const hasActiveFilters = computed(() => {
-  return !!(makeFilter.value || minPrice.value || maxPrice.value || minLength.value || maxLength.value)
+  return !!(
+    makeFilter.value ||
+    minPrice.value ||
+    maxPrice.value ||
+    minLength.value ||
+    maxLength.value
+  )
 })
 
 // Analysis
@@ -445,76 +461,76 @@ function getSourceLabel(source: string) {
     <!-- AI Analysis -->
     <UPageSection :ui="{ wrapper: 'py-4' }">
       <div class="card-base rounded-xl p-6">
-          <div class="flex items-center gap-4 mb-4 flex-wrap">
-            <div class="flex items-center gap-3 flex-1 min-w-48">
-              <div class="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
-                <UIcon name="i-lucide-sparkles" class="text-primary text-xl" />
-              </div>
-              <div>
-                <h3 class="text-lg font-semibold text-default">Captain's Market Intelligence</h3>
-                <p class="text-sm text-muted">Expert analysis by xAI Grok</p>
-              </div>
+        <div class="flex items-center gap-4 mb-4 flex-wrap">
+          <div class="flex items-center gap-3 flex-1 min-w-48">
+            <div class="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
+              <UIcon name="i-lucide-sparkles" class="text-primary text-xl" />
             </div>
-            <div class="w-full sm:w-48">
-              <UInput
-                v-model="analysisCategory"
-                placeholder="Focus: Hatteras, Viking..."
-                class="w-full"
-                icon="i-lucide-target"
-              />
+            <div>
+              <h3 class="text-lg font-semibold text-default">Captain's Market Intelligence</h3>
+              <p class="text-sm text-muted">Expert analysis by xAI Grok</p>
             </div>
-            <UButton
-              :label="analysisLoading ? 'Analyzing...' : 'Analyze Market'"
-              icon="i-lucide-sparkles"
-              color="primary"
-              :loading="analysisLoading"
-              :disabled="analysisLoading"
-              class="w-full sm:w-auto"
-              @click="runAnalysis"
+          </div>
+          <div class="w-full sm:w-48">
+            <UInput
+              v-model="analysisCategory"
+              placeholder="Focus: Hatteras, Viking..."
+              class="w-full"
+              icon="i-lucide-target"
             />
           </div>
+          <UButton
+            :label="analysisLoading ? 'Analyzing...' : 'Analyze Market'"
+            icon="i-lucide-sparkles"
+            color="primary"
+            :loading="analysisLoading"
+            :disabled="analysisLoading"
+            class="w-full sm:w-auto"
+            @click="runAnalysis"
+          />
+        </div>
 
-          <!-- Free-form context -->
-          <div class="mt-2">
-            <UFormField label="Tell the Captain your situation (optional)">
-              <UTextarea
-                v-model="userContext"
-                placeholder="e.g. Me and my buddy want to go in together on a 45-50ft convertible. Our budget is around $400K combined. We want to fish the Gulf — offshore tournaments, tuna, wahoo. We're based in Galveston and need something we can run year-round without breaking the bank on maintenance..."
-                :rows="3"
-                class="w-full"
-                autoresize
-              />
-            </UFormField>
-          </div>
+        <!-- Free-form context -->
+        <div class="mt-2">
+          <UFormField label="Tell the Captain your situation (optional)">
+            <UTextarea
+              v-model="userContext"
+              placeholder="e.g. Me and my buddy want to go in together on a 45-50ft convertible. Our budget is around $400K combined. We want to fish the Gulf — offshore tournaments, tuna, wahoo. We're based in Galveston and need something we can run year-round without breaking the bank on maintenance..."
+              :rows="3"
+              class="w-full"
+              autoresize
+            />
+          </UFormField>
+        </div>
 
-          <!-- Prompt Preview -->
-          <div class="mt-3">
-            <div
-              class="flex items-center gap-2 cursor-pointer select-none text-sm text-muted hover:text-default transition-fast"
-              @click="showPromptPreview = !showPromptPreview"
-            >
-              <UIcon
-                :name="showPromptPreview ? 'i-lucide-chevron-down' : 'i-lucide-chevron-right'"
-                class="text-base"
-              />
-              <UIcon name="i-lucide-eye" class="text-base" />
-              <span>Preview what Grok will receive</span>
-            </div>
-            <div
-              v-if="showPromptPreview"
-              class="mt-2 bg-muted rounded-lg p-4 text-xs font-mono text-muted whitespace-pre-wrap overflow-x-auto max-h-80 overflow-y-auto"
-            >
-              {{ promptPreview }}
-            </div>
-          </div>
-
+        <!-- Prompt Preview -->
+        <div class="mt-3">
           <div
-            v-if="analysisResult"
-            class="bg-elevated rounded-lg p-5 mt-4 prose prose-sm max-w-none text-default whitespace-pre-wrap"
+            class="flex items-center gap-2 cursor-pointer select-none text-sm text-muted hover:text-default transition-fast"
+            @click="showPromptPreview = !showPromptPreview"
           >
-            {{ analysisResult }}
+            <UIcon
+              :name="showPromptPreview ? 'i-lucide-chevron-down' : 'i-lucide-chevron-right'"
+              class="text-base"
+            />
+            <UIcon name="i-lucide-eye" class="text-base" />
+            <span>Preview what Grok will receive</span>
+          </div>
+          <div
+            v-if="showPromptPreview"
+            class="mt-2 bg-muted rounded-lg p-4 text-xs font-mono text-muted whitespace-pre-wrap overflow-x-auto max-h-80 overflow-y-auto"
+          >
+            {{ promptPreview }}
           </div>
         </div>
+
+        <div
+          v-if="analysisResult"
+          class="bg-elevated rounded-lg p-5 mt-4 prose prose-sm max-w-none text-default whitespace-pre-wrap"
+        >
+          {{ analysisResult }}
+        </div>
+      </div>
     </UPageSection>
 
     <!-- Boat Listings -->
