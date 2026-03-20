@@ -632,10 +632,7 @@ function getSourceLabel(source: string) {
                 </span>
               </div>
               <!-- Description excerpt -->
-              <p
-                v-if="boat.description"
-                class="mt-2 text-xs text-dimmed line-clamp-2"
-              >
+              <p v-if="boat.description" class="mt-2 text-xs text-dimmed line-clamp-2">
                 {{ boat.description }}
               </p>
               <div v-if="boat.sellerType" class="mt-2 flex items-center gap-2">
