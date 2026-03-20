@@ -13,13 +13,13 @@ useSeo({
   title: pageTitle.value,
   description: computed(() =>
     boat.value
-      ? `${pageTitle.value} — ${boat.value.length}ft sport fishing boat for sale in ${boat.value.location || 'Texas'}`
+      ? `${pageTitle.value} — ${boat.value.length}ft sport fishing boat for sale in ${boat.value.location || 'the US'}`
       : 'Boat details',
   ).value,
 })
 useWebPageSchema({
   name: pageTitle.value,
-  description: `Sport fishing boat for sale in Texas`,
+  description: `Sport fishing boat for sale in the US`,
 })
 
 // Selected image index for gallery
@@ -51,6 +51,26 @@ async function analyzeThisBoat() {
 function formatPrice(price: number | null) {
   if (!price) return 'Price N/A'
   return `$${price.toLocaleString()}`
+}
+
+function getSourceLabel(source: string) {
+  switch (source) {
+    case 'boats.com': return 'View on Boats.com'
+    case 'yachtworld.com': return 'View on YachtWorld'
+    case 'boattrader.com': return 'View on BoatTrader'
+    case 'thehulltruth.com': return 'View on Hull Truth'
+    default: return 'View Original Listing'
+  }
+}
+
+function getSourceBadgeLabel(source: string) {
+  switch (source) {
+    case 'boats.com': return 'Boats.com'
+    case 'yachtworld.com': return 'YachtWorld'
+    case 'boattrader.com': return 'BoatTrader'
+    case 'thehulltruth.com': return 'Hull Truth'
+    default: return source
+  }
 }
 </script>
 
@@ -115,7 +135,7 @@ function formatPrice(price: number | null) {
                 {{ pageTitle }}
               </h1>
               <p class="text-lg text-muted mt-1">
-                {{ boat.length }}ft · {{ boat.location || boat.state || 'Texas' }}
+                {{ boat.length }}ft · {{ boat.city || boat.state || boat.location || 'US' }}
               </p>
             </div>
 
@@ -173,12 +193,21 @@ function formatPrice(price: number | null) {
           <!-- Sidebar -->
           <div class="space-y-4">
             <!-- View Original -->
+            <UBadge
+              v-if="boat.source"
+              :label="getSourceBadgeLabel(boat.source)"
+              color="primary"
+              variant="subtle"
+              size="lg"
+              class="mb-3"
+            />
+
             <UButton
               v-if="boat.url"
               :to="boat.url"
               external
               target="_blank"
-              label="View on boats.com"
+              :label="getSourceLabel(boat.source)"
               icon="i-lucide-external-link"
               color="primary"
               variant="solid"
@@ -187,11 +216,14 @@ function formatPrice(price: number | null) {
 
             <!-- AI Analysis -->
             <div class="card-base rounded-xl p-4 space-y-3">
-              <h3 class="font-semibold text-default">
-                AI Analysis
-              </h3>
+              <div class="flex items-center gap-2">
+                <UIcon name="i-lucide-sparkles" class="text-primary" />
+                <h3 class="font-semibold text-default">
+                  Captain's Intelligence
+                </h3>
+              </div>
               <p class="text-sm text-muted">
-                Ask Grok to analyze boats similar to this {{ boat.make || 'listing' }}
+                Expert analysis of {{ boat.make || 'this' }} and similar sportfish boats
               </p>
               <UButton
                 :label="analysisLoading ? 'Analyzing...' : 'Analyze with AI'"

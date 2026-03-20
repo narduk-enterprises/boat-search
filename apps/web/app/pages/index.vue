@@ -3,12 +3,12 @@ const config = useRuntimeConfig()
 const appName = config.public.appName || 'Boat Search'
 
 useSeo({
-  title: `${appName} — 40-60ft Sport Fishing Boats in Texas`,
-  description: 'Search and analyze 40-60 foot sport fishing boats for sale in Texas. AI-powered market analysis by xAI Grok.',
+  title: `${appName} — Find Your Perfect Sportfishing Boat`,
+  description: 'Search 40-60ft convertible sportfishing boats across the US. AI-powered market analysis by xAI Grok. Data from boats.com, YachtWorld, and more.',
 })
 useWebPageSchema({
-  name: `${appName} — Sport Fishing Boat Search`,
-  description: 'Search and analyze 40-60 foot sport fishing boats for sale in Texas.',
+  name: `${appName} — Sportfishing Boat Search`,
+  description: 'Search 40-60ft convertible sportfishing boats across the US with AI-powered market analysis.',
 })
 
 const { fetchBoats, fetchBoatStats, triggerAnalysis } = useBoats()
@@ -22,11 +22,11 @@ const maxPrice = ref<number | undefined>(undefined)
 const { data: boats, status: boatsStatus } = fetchBoats()
 const { data: stats } = fetchBoatStats()
 
-// Computed stat labels (avoid complex template expressions)
-const avgPriceLabel = computed(() => stats.value?.avgPrice ? formatPrice(stats.value.avgPrice) : 'N/A')
+// Computed stat labels
+const avgPriceLabel = computed(() => stats.value?.avgPrice ? formatPrice(stats.value.avgPrice) : '—')
 const priceRangeLabel = computed(() => {
-  if (!stats.value?.minPrice || !stats.value?.maxPrice) return 'N/A'
-  return `${formatPrice(stats.value.minPrice)} - ${formatPrice(stats.value.maxPrice)}`
+  if (!stats.value?.minPrice || !stats.value?.maxPrice) return '—'
+  return `${formatPrice(stats.value.minPrice)} – ${formatPrice(stats.value.maxPrice)}`
 })
 const totalBoatsLabel = computed(() => String(stats.value?.total || 0))
 const uniqueMakesLabel = computed(() => String(stats.value?.uniqueMakes || 0))
@@ -35,6 +35,9 @@ const uniqueMakesLabel = computed(() => String(stats.value?.uniqueMakes || 0))
 const analysisResult = ref<string | null>(null)
 const analysisLoading = ref(false)
 const analysisCategory = ref('Hatteras')
+
+// How it works toggle
+const showHowItWorks = ref(false)
 
 async function applyFilters() {
   const { data } = await fetchBoats({
@@ -67,39 +70,69 @@ function formatPrice(price: number | null) {
   if (!price) return 'Price N/A'
   return `$${price.toLocaleString()}`
 }
+
+function getSourceColor(source: string) {
+  switch (source) {
+    case 'boats.com': return 'info'
+    case 'yachtworld.com': return 'primary'
+    case 'boattrader.com': return 'success'
+    case 'thehulltruth.com': return 'warning'
+    default: return 'neutral'
+  }
+}
+
+function getSourceLabel(source: string) {
+  switch (source) {
+    case 'boats.com': return 'Boats.com'
+    case 'yachtworld.com': return 'YachtWorld'
+    case 'boattrader.com': return 'BoatTrader'
+    case 'thehulltruth.com': return 'Hull Truth'
+    default: return source
+  }
+}
 </script>
 
 <template>
   <UPage>
+    <!-- Hero -->
     <UPageHero
-      title="Boat Search"
-      description="40-60ft sport fishing boats for sale in Texas. AI-powered analysis by xAI Grok."
-      :ui="{ title: 'text-5xl sm:text-6xl', description: 'text-xl text-muted' }"
+      title="Find Your Perfect Sportfishing Boat"
+      description="Search 40-60ft convertible sportfishing boats across the US. AI-powered market analysis by xAI Grok."
+      :ui="{ title: 'text-4xl sm:text-5xl lg:text-6xl', description: 'text-lg sm:text-xl text-muted max-w-2xl' }"
     >
       <template #links>
-        <UBadge
-          color="primary"
-          variant="subtle"
-          size="lg"
-          label="Sport Fishing"
-          icon="i-lucide-anchor"
-        />
+        <div class="flex flex-wrap gap-2">
+          <UBadge
+            color="primary"
+            variant="subtle"
+            size="lg"
+            label="Hatteras · Viking · Bertram"
+            icon="i-lucide-anchor"
+          />
+          <UBadge
+            color="neutral"
+            variant="subtle"
+            size="lg"
+            label="AI-Powered Analysis"
+            icon="i-lucide-sparkles"
+          />
+        </div>
       </template>
     </UPageHero>
 
-    <!-- Stats -->
+    <!-- Stats Dashboard -->
     <UPageSection
       v-if="stats"
-      :ui="{ wrapper: 'py-8' }"
+      :ui="{ wrapper: 'py-6' }"
     >
       <UPageGrid>
         <UPageCard
           icon="i-lucide-ship"
           :title="totalBoatsLabel"
-          description="Total Boats"
+          description="Boats Listed"
         />
         <UPageCard
-          icon="i-lucide-tag"
+          icon="i-lucide-dollar-sign"
           :title="avgPriceLabel"
           description="Average Price"
         />
@@ -111,9 +144,93 @@ function formatPrice(price: number | null) {
         <UPageCard
           icon="i-lucide-factory"
           :title="uniqueMakesLabel"
-          description="Unique Makes"
+          description="Boat Makers"
         />
       </UPageGrid>
+    </UPageSection>
+
+    <!-- How It Works -->
+    <UPageSection :ui="{ wrapper: 'py-4' }">
+      <div class="card-base rounded-xl overflow-hidden">
+        <div
+          class="flex items-center justify-between p-4 cursor-pointer select-none"
+          @click="showHowItWorks = !showHowItWorks"
+        >
+          <div class="flex items-center gap-3">
+            <UIcon name="i-lucide-info" class="text-primary text-xl" />
+            <h3 class="text-lg font-semibold text-default">
+              How Boat Search Works
+            </h3>
+          </div>
+          <UIcon
+            :name="showHowItWorks ? 'i-lucide-chevron-up' : 'i-lucide-chevron-down'"
+            class="text-muted text-lg"
+          />
+        </div>
+
+        <div
+          v-if="showHowItWorks"
+          class="px-4 pb-6 space-y-6"
+        >
+          <USeparator />
+
+          <div class="grid gap-6 sm:grid-cols-3">
+            <!-- Step 1: Data Collection -->
+            <div class="space-y-2">
+              <div class="flex items-center gap-2">
+                <div class="w-8 h-8 rounded-full bg-primary/10 text-primary flex items-center justify-center font-bold text-sm">
+                  1
+                </div>
+                <h4 class="font-semibold text-default">
+                  Data Collection
+                </h4>
+              </div>
+              <p class="text-sm text-muted">
+                Automated scrapers crawl <strong>boats.com</strong>, <strong>YachtWorld</strong>, <strong>BoatTrader</strong>, and <strong>The Hull Truth</strong> daily. We use Playwright-powered browsers to extract listings for 40-60ft sportfish and convertible boats under $1M across the entire US.
+              </p>
+            </div>
+
+            <!-- Step 2: Filtering & Search -->
+            <div class="space-y-2">
+              <div class="flex items-center gap-2">
+                <div class="w-8 h-8 rounded-full bg-primary/10 text-primary flex items-center justify-center font-bold text-sm">
+                  2
+                </div>
+                <h4 class="font-semibold text-default">
+                  Smart Filtering
+                </h4>
+              </div>
+              <p class="text-sm text-muted">
+                Filter by make (Hatteras, Viking, Bertram, Cabo), price range, and length. All listings are normalized and deduplicated across sources so you see each boat once with the best available data.
+              </p>
+            </div>
+
+            <!-- Step 3: AI Analysis -->
+            <div class="space-y-2">
+              <div class="flex items-center gap-2">
+                <div class="w-8 h-8 rounded-full bg-primary/10 text-primary flex items-center justify-center font-bold text-sm">
+                  3
+                </div>
+                <h4 class="font-semibold text-default">
+                  AI Market Analysis
+                </h4>
+              </div>
+              <p class="text-sm text-muted">
+                <strong>xAI Grok</strong> acts as "Captain's Market Intelligence" — an expert marine surveyor who analyzes the full inventory. It identifies top values, red flags, engine repower costs, and gives specific negotiation tactics for your target boats.
+              </p>
+            </div>
+          </div>
+
+          <div class="bg-elevated rounded-lg p-4 text-sm text-muted">
+            <div class="flex items-start gap-2">
+              <UIcon name="i-lucide-sparkles" class="text-primary mt-0.5 shrink-0" />
+              <p>
+                <strong class="text-default">About the AI:</strong> Grok analyzes real listing data with market expertise covering hull construction, engine configurations (CAT, MAN, Cummins), maintenance costs ($50K-$100K/year for a 50ft sportfish), repower considerations, and resale value trends. It gives bold, opinionated recommendations — not generic advice.
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
     </UPageSection>
 
     <!-- Filters + AI Analysis -->
@@ -125,7 +242,7 @@ function formatPrice(price: number | null) {
             <UFormField label="Make">
               <UInput
                 v-model="makeFilter"
-                placeholder="e.g. Hatteras, Viking..."
+                placeholder="e.g. Hatteras, Viking, Bertram..."
                 icon="i-lucide-search"
                 class="w-full"
               />
@@ -146,38 +263,44 @@ function formatPrice(price: number | null) {
               <UInput
                 v-model.number="maxPrice"
                 type="number"
-                placeholder="$10M"
+                placeholder="$1,000,000"
                 class="w-full"
               />
             </UFormField>
           </div>
           <UButton
-            label="Filter"
-            icon="i-lucide-filter"
+            label="Search"
+            icon="i-lucide-search"
             @click="applyFilters"
           />
         </div>
 
         <!-- AI Analysis -->
         <div class="card-base rounded-xl p-6">
-          <div class="flex items-center gap-4 mb-4">
-            <div class="flex-1">
-              <h3 class="text-lg font-semibold">
-                xAI Analysis
-              </h3>
-              <p class="text-sm text-muted">
-                Ask Grok to analyze the current boat inventory
-              </p>
+          <div class="flex items-center gap-4 mb-4 flex-wrap">
+            <div class="flex items-center gap-3 flex-1 min-w-48">
+              <div class="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
+                <UIcon name="i-lucide-sparkles" class="text-primary text-xl" />
+              </div>
+              <div>
+                <h3 class="text-lg font-semibold text-default">
+                  Captain's Market Intelligence
+                </h3>
+                <p class="text-sm text-muted">
+                  Expert analysis by xAI Grok
+                </p>
+              </div>
             </div>
             <div class="w-48">
               <UInput
                 v-model="analysisCategory"
-                placeholder="Category (e.g. Hatteras)"
+                placeholder="Focus: Hatteras, Viking..."
                 class="w-full"
+                icon="i-lucide-target"
               />
             </div>
             <UButton
-              :label="analysisLoading ? 'Analyzing...' : 'Ask AI'"
+              :label="analysisLoading ? 'Analyzing...' : 'Analyze Market'"
               icon="i-lucide-sparkles"
               color="primary"
               :loading="analysisLoading"
@@ -188,7 +311,7 @@ function formatPrice(price: number | null) {
 
           <div
             v-if="analysisResult"
-            class="bg-elevated rounded-lg p-4 mt-4 prose prose-sm max-w-none text-default whitespace-pre-wrap"
+            class="bg-elevated rounded-lg p-5 mt-4 prose prose-sm max-w-none text-default whitespace-pre-wrap"
           >
             {{ analysisResult }}
           </div>
@@ -206,9 +329,15 @@ function formatPrice(price: number | null) {
       </div>
 
       <div v-else-if="boats && boats.length > 0">
-        <h2 class="text-2xl font-bold mb-6">
-          {{ boats.length }} Boats Found
-        </h2>
+        <div class="flex items-center justify-between mb-6">
+          <h2 class="text-2xl font-bold text-default">
+            {{ boats.length }} Boats Found
+          </h2>
+          <div class="flex items-center gap-2 text-sm text-muted">
+            <UIcon name="i-lucide-database" class="text-base" />
+            Multi-source inventory
+          </div>
+        </div>
         <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           <NuxtLink
             v-for="boat in boats"
@@ -217,7 +346,7 @@ function formatPrice(price: number | null) {
             class="card-base rounded-xl overflow-hidden transition-base hover:shadow-elevated group"
           >
             <!-- Image -->
-            <div class="aspect-video bg-muted overflow-hidden">
+            <div class="aspect-video bg-muted overflow-hidden relative">
               <img
                 v-if="boat.images && boat.images.length > 0"
                 :src="boat.images[0]"
@@ -228,24 +357,33 @@ function formatPrice(price: number | null) {
               <div v-else class="w-full h-full flex items-center justify-center text-dimmed">
                 <UIcon name="i-lucide-ship" class="text-4xl" />
               </div>
+              <!-- Source badge -->
+              <div class="absolute top-2 left-2">
+                <UBadge
+                  :label="getSourceLabel(boat.source)"
+                  :color="getSourceColor(boat.source)"
+                  variant="solid"
+                  size="xs"
+                />
+              </div>
             </div>
 
             <!-- Info -->
             <div class="p-4">
               <div class="flex items-start justify-between gap-2">
-                <div>
+                <div class="min-w-0">
                   <h3 class="font-semibold text-default truncate">
                     {{ boat.year }} {{ boat.make }} {{ boat.model }}
                   </h3>
-                  <p class="text-sm text-muted">
-                    {{ boat.length }}ft · {{ boat.location || boat.state || 'Texas' }}
+                  <p class="text-sm text-muted truncate">
+                    {{ boat.length }}ft · {{ boat.city || boat.state || boat.location || 'US' }}
                   </p>
                 </div>
                 <span class="text-lg font-bold text-primary whitespace-nowrap">
                   {{ formatPrice(boat.price) }}
                 </span>
               </div>
-              <div v-if="boat.sellerType" class="mt-2">
+              <div v-if="boat.sellerType" class="mt-2 flex items-center gap-2">
                 <UBadge
                   :label="boat.sellerType"
                   variant="subtle"
@@ -260,10 +398,19 @@ function formatPrice(price: number | null) {
       <div v-else class="text-center py-12">
         <UIcon name="i-lucide-ship" class="text-5xl text-dimmed" />
         <p class="text-lg text-muted mt-4">
-          No boats found
+          No boats found matching your criteria
         </p>
         <p class="text-sm text-dimmed">
-          Run the crawler to populate boat listings.
+          Try adjusting your filters or broadening your search.
+        </p>
+      </div>
+    </UPageSection>
+
+    <!-- Footer -->
+    <UPageSection :ui="{ wrapper: 'py-4' }">
+      <div class="text-center text-sm text-dimmed">
+        <p>
+          Data sourced from boats.com, YachtWorld, BoatTrader, and The Hull Truth · Analysis powered by xAI Grok
         </p>
       </div>
     </UPageSection>
