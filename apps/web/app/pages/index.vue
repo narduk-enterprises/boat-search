@@ -212,13 +212,15 @@ async function applyFilters() {
 
 /**
  * Try to repair truncated JSON from Grok (when response hits token limit mid-string).
- * Closes unterminated strings, arrays, and objects.
+ * Closes unterminated strings, arrays, and objects, and strips trailing commas.
  */
 function repairTruncatedJSON(raw: string): string {
   let repaired = raw.trim()
   // Close any unterminated string
   const quoteCount = (repaired.match(/(?<!\\)"/g) || []).length
   if (quoteCount % 2 !== 0) repaired += '"'
+  // Strip trailing commas before closing brackets (common in truncated JSON)
+  repaired = repaired.replaceAll(/,\s*([}\]])/g, '$1')
   // Close unclosed arrays and objects
   const opens = { '{': 0, '[': 0 }
   const closes = { '}': '{', ']': '[' } as const
@@ -229,6 +231,43 @@ function repairTruncatedJSON(raw: string): string {
   for (let i = 0; i < opens['[']; i++) repaired += ']'
   for (let i = 0; i < opens['{']; i++) repaired += '}'
   return repaired
+}
+
+/**
+ * Sanitize a parsed Grok analysis response — normalize schema violations
+ * like bare strings where arrays are expected.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- Grok returns dynamic JSON; sanitization normalizes arbitrary shapes
+function sanitizeAnalysisResponse(data: any): any {
+  // Ensure boatAnalyses is an array
+  if (data.boatAnalyses && !Array.isArray(data.boatAnalyses)) {
+    data.boatAnalyses = [data.boatAnalyses]
+  }
+
+  // Fix each boat analysis entry
+  if (Array.isArray(data.boatAnalyses)) {
+    for (const ba of data.boatAnalyses) {
+      if (ba.prosAndCons) {
+        // Wrap bare string pros/cons in arrays
+        if (typeof ba.prosAndCons.pros === 'string') {
+          ba.prosAndCons.pros = [ba.prosAndCons.pros]
+        }
+        if (typeof ba.prosAndCons.cons === 'string') {
+          ba.prosAndCons.cons = [ba.prosAndCons.cons]
+        }
+        // Ensure they're always arrays
+        if (!Array.isArray(ba.prosAndCons.pros)) ba.prosAndCons.pros = []
+        if (!Array.isArray(ba.prosAndCons.cons)) ba.prosAndCons.cons = []
+      }
+    }
+  }
+
+  // Ensure topMakes is an array
+  if (data.marketSnapshot?.stats?.topMakes && !Array.isArray(data.marketSnapshot.stats.topMakes)) {
+    data.marketSnapshot.stats.topMakes = [data.marketSnapshot.stats.topMakes]
+  }
+
+  return data
 }
 
 async function runAnalysis() {
@@ -255,12 +294,12 @@ async function runAnalysis() {
 
     // Try parsing JSON — if truncated, try repair
     try {
-      analysisData.value = JSON.parse(raw)
+      analysisData.value = sanitizeAnalysisResponse(JSON.parse(raw))
     } catch {
       // Attempt to repair truncated JSON
       const repaired = repairTruncatedJSON(raw)
       try {
-        analysisData.value = JSON.parse(repaired)
+        analysisData.value = sanitizeAnalysisResponse(JSON.parse(repaired))
       } catch {
         // JSON is too broken to repair — show raw text as fallback
         analysisData.value = null

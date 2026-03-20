@@ -150,6 +150,7 @@ Focus: **${categoryLabel}**${categoryLabel === 'All Fishing Boats' ? ' — analy
 - Compare boats against each other. "This Hatteras is $50K cheaper than the Viking but has newer engines..."
 - Be BOLD and OPINIONATED. If a deal is terrible, say so plainly. If it's a steal, explain exactly why.
 - The JSON must be valid and parseable. No markdown inside — use plain text with line breaks (\\n) for paragraphs.
+- **CRITICAL: \`prosAndCons.pros\` and \`prosAndCons.cons\` MUST ALWAYS be arrays of strings, NEVER a bare string.** Example: \`"cons": ["con 1", "con 2"]\` — never \`"cons": "con 1"\`.
 - Do NOT wrap the JSON in markdown code fences. Return ONLY the raw JSON object.`
 }
 
@@ -237,6 +238,6 @@ Return your analysis as the structured JSON object specified in your system prom
       { role: 'system', content: systemPrompt },
       { role: 'user', content: userPrompt },
     ],
-    { temperature: 0.6, maxTokens: 16384, reasoningEffort: 'high' },
+    { temperature: 0.6, maxTokens: 32768, reasoningEffort: 'high' },
   )
 }
