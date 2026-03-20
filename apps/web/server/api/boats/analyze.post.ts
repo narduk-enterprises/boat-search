@@ -1,7 +1,7 @@
 import { z } from 'zod'
-import { boats, xaiAnalyses } from '~/server/database/schema'
+import { boats, xaiAnalyses } from '~~/server/database/schema'
 import { like, gte, lte, sql, and, desc } from 'drizzle-orm'
-import { analyzeBoats } from '~/server/utils/xai'
+import { analyzeBoats } from '~~/server/utils/xai'
 
 const bodySchema = z.object({
   category: z.string().default('Hatteras'),

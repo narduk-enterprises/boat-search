@@ -1,4 +1,4 @@
-import { boats } from '~/server/database/schema'
+import { boats } from '~~/server/database/schema'
 import { sql } from 'drizzle-orm'
 
 export default defineEventHandler(async (event) => {

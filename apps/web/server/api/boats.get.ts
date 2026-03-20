@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { boats } from '~/server/database/schema'
+import { boats } from '~~/server/database/schema'
 import { desc, like, gte, lte, sql, and } from 'drizzle-orm'
 
 const querySchema = z.object({
