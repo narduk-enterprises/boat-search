@@ -60,10 +60,10 @@ tools/          → Init, validate, and setup scripts
 This project uses **Doppler** — never create `.env` files. All example apps
 share a single Doppler project:
 
-| Doppler Project        | Config     | Used By        |
-| ---------------------- | ---------- | -------------- |
-| `boat-search` | `dev`      | Shared secrets |
-| `boat-search` | `dev_auth` | `example-auth` |
+| Doppler Project | Config     | Used By        |
+| --------------- | ---------- | -------------- |
+| `boat-search`   | `dev`      | Shared secrets |
+| `boat-search`   | `dev_auth` | `example-auth` |
 
 **First-time setup for example-auth:**
 

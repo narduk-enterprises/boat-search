@@ -3,6 +3,7 @@
 **boat-search** — initialized from `narduk-nuxt-template`.
 
 ## Live Site
+
 [https://boat-search.nard.uk](https://boat-search.nard.uk)
 
 ## Local Development

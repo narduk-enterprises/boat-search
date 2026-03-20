@@ -32,7 +32,7 @@ const _props = withDefaults(
     /** Cancel button label. */
     cancelLabel?: string
     /** Confirm button color. */
-    confirmColor?: string
+    confirmColor?: 'error' | 'info' | 'primary' | 'secondary' | 'success' | 'warning' | 'neutral'
     /** Whether the confirm button shows a loading spinner. */
     loading?: boolean
     /** Whether the modal can be closed by clicking outside or pressing Escape. */

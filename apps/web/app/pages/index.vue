@@ -4,11 +4,13 @@ const appName = config.public.appName || 'Boat Search'
 
 useSeo({
   title: `${appName} — Find Your Perfect Sportfishing Boat`,
-  description: 'Search 40-60ft convertible sportfishing boats across the US. AI-powered market analysis by xAI Grok. Data from boats.com, YachtWorld, and more.',
+  description:
+    'Search 40-60ft convertible sportfishing boats across the US. AI-powered market analysis by xAI Grok. Data from boats.com, YachtWorld, and more.',
 })
 useWebPageSchema({
   name: `${appName} — Sportfishing Boat Search`,
-  description: 'Search 40-60ft convertible sportfishing boats across the US with AI-powered market analysis.',
+  description:
+    'Search 40-60ft convertible sportfishing boats across the US with AI-powered market analysis.',
 })
 
 const { fetchBoats, fetchBoatStats, triggerAnalysis } = useBoats()
@@ -23,7 +25,9 @@ const { data: boats, status: boatsStatus } = fetchBoats()
 const { data: stats } = fetchBoatStats()
 
 // Computed stat labels
-const avgPriceLabel = computed(() => stats.value?.avgPrice ? formatPrice(stats.value.avgPrice) : '—')
+const avgPriceLabel = computed(() =>
+  stats.value?.avgPrice ? formatPrice(stats.value.avgPrice) : '—',
+)
 const priceRangeLabel = computed(() => {
   if (!stats.value?.minPrice || !stats.value?.maxPrice) return '—'
   return `${formatPrice(stats.value.minPrice)} – ${formatPrice(stats.value.maxPrice)}`
@@ -59,11 +63,9 @@ async function runAnalysis() {
       userContext: userContext.value || undefined,
     })
     analysisResult.value = result.analysis
-  }
-  catch (error) {
+  } catch (error) {
     analysisResult.value = `Error: ${(error as Error).message}`
-  }
-  finally {
+  } finally {
     analysisLoading.value = false
   }
 }
@@ -75,21 +77,31 @@ function formatPrice(price: number | null) {
 
 function getSourceColor(source: string) {
   switch (source) {
-    case 'boats.com': return 'info'
-    case 'yachtworld.com': return 'primary'
-    case 'boattrader.com': return 'success'
-    case 'thehulltruth.com': return 'warning'
-    default: return 'neutral'
+    case 'boats.com':
+      return 'info'
+    case 'yachtworld.com':
+      return 'primary'
+    case 'boattrader.com':
+      return 'success'
+    case 'thehulltruth.com':
+      return 'warning'
+    default:
+      return 'neutral'
   }
 }
 
 function getSourceLabel(source: string) {
   switch (source) {
-    case 'boats.com': return 'Boats.com'
-    case 'yachtworld.com': return 'YachtWorld'
-    case 'boattrader.com': return 'BoatTrader'
-    case 'thehulltruth.com': return 'Hull Truth'
-    default: return source
+    case 'boats.com':
+      return 'Boats.com'
+    case 'yachtworld.com':
+      return 'YachtWorld'
+    case 'boattrader.com':
+      return 'BoatTrader'
+    case 'thehulltruth.com':
+      return 'Hull Truth'
+    default:
+      return source
   }
 }
 </script>
@@ -100,7 +112,10 @@ function getSourceLabel(source: string) {
     <UPageHero
       title="Find Your Perfect Sportfishing Boat"
       description="Search 40-60ft convertible sportfishing boats across the US. AI-powered market analysis by xAI Grok."
-      :ui="{ title: 'text-4xl sm:text-5xl lg:text-6xl', description: 'text-lg sm:text-xl text-muted max-w-2xl' }"
+      :ui="{
+        title: 'text-4xl sm:text-5xl lg:text-6xl',
+        description: 'text-lg sm:text-xl text-muted max-w-2xl',
+      }"
     >
       <template #links>
         <div class="flex flex-wrap gap-2">
@@ -123,31 +138,12 @@ function getSourceLabel(source: string) {
     </UPageHero>
 
     <!-- Stats Dashboard -->
-    <UPageSection
-      v-if="stats"
-      :ui="{ wrapper: 'py-6' }"
-    >
+    <UPageSection v-if="stats" :ui="{ wrapper: 'py-6' }">
       <UPageGrid>
-        <UPageCard
-          icon="i-lucide-ship"
-          :title="totalBoatsLabel"
-          description="Boats Listed"
-        />
-        <UPageCard
-          icon="i-lucide-dollar-sign"
-          :title="avgPriceLabel"
-          description="Average Price"
-        />
-        <UPageCard
-          icon="i-lucide-trending-up"
-          :title="priceRangeLabel"
-          description="Price Range"
-        />
-        <UPageCard
-          icon="i-lucide-factory"
-          :title="uniqueMakesLabel"
-          description="Boat Makers"
-        />
+        <UPageCard icon="i-lucide-ship" :title="totalBoatsLabel" description="Boats Listed" />
+        <UPageCard icon="i-lucide-dollar-sign" :title="avgPriceLabel" description="Average Price" />
+        <UPageCard icon="i-lucide-trending-up" :title="priceRangeLabel" description="Price Range" />
+        <UPageCard icon="i-lucide-factory" :title="uniqueMakesLabel" description="Boat Makers" />
       </UPageGrid>
     </UPageSection>
 
@@ -160,9 +156,7 @@ function getSourceLabel(source: string) {
         >
           <div class="flex items-center gap-3">
             <UIcon name="i-lucide-info" class="text-primary text-xl" />
-            <h3 class="text-lg font-semibold text-default">
-              How Boat Search Works
-            </h3>
+            <h3 class="text-lg font-semibold text-default">How Boat Search Works</h3>
           </div>
           <UIcon
             :name="showHowItWorks ? 'i-lucide-chevron-up' : 'i-lucide-chevron-down'"
@@ -170,55 +164,59 @@ function getSourceLabel(source: string) {
           />
         </div>
 
-        <div
-          v-if="showHowItWorks"
-          class="px-4 pb-6 space-y-6"
-        >
+        <div v-if="showHowItWorks" class="px-4 pb-6 space-y-6">
           <USeparator />
 
           <div class="grid gap-6 sm:grid-cols-3">
             <!-- Step 1: Data Collection -->
             <div class="space-y-2">
               <div class="flex items-center gap-2">
-                <div class="w-8 h-8 rounded-full bg-primary/10 text-primary flex items-center justify-center font-bold text-sm">
+                <div
+                  class="w-8 h-8 rounded-full bg-primary/10 text-primary flex items-center justify-center font-bold text-sm"
+                >
                   1
                 </div>
-                <h4 class="font-semibold text-default">
-                  Data Collection
-                </h4>
+                <h4 class="font-semibold text-default">Data Collection</h4>
               </div>
               <p class="text-sm text-muted">
-                Automated scrapers crawl <strong>boats.com</strong>, <strong>YachtWorld</strong>, <strong>BoatTrader</strong>, and <strong>The Hull Truth</strong> daily. We use Playwright-powered browsers to extract listings for 40-60ft sportfish and convertible boats under $1M across the entire US.
+                Automated scrapers crawl <strong>boats.com</strong>, <strong>YachtWorld</strong>,
+                <strong>BoatTrader</strong>, and <strong>The Hull Truth</strong> daily. We use
+                Playwright-powered browsers to extract listings for 40-60ft sportfish and
+                convertible boats under $1M across the entire US.
               </p>
             </div>
 
             <!-- Step 2: Filtering & Search -->
             <div class="space-y-2">
               <div class="flex items-center gap-2">
-                <div class="w-8 h-8 rounded-full bg-primary/10 text-primary flex items-center justify-center font-bold text-sm">
+                <div
+                  class="w-8 h-8 rounded-full bg-primary/10 text-primary flex items-center justify-center font-bold text-sm"
+                >
                   2
                 </div>
-                <h4 class="font-semibold text-default">
-                  Smart Filtering
-                </h4>
+                <h4 class="font-semibold text-default">Smart Filtering</h4>
               </div>
               <p class="text-sm text-muted">
-                Filter by make (Hatteras, Viking, Bertram, Cabo), price range, and length. All listings are normalized and deduplicated across sources so you see each boat once with the best available data.
+                Filter by make (Hatteras, Viking, Bertram, Cabo), price range, and length. All
+                listings are normalized and deduplicated across sources so you see each boat once
+                with the best available data.
               </p>
             </div>
 
             <!-- Step 3: AI Analysis -->
             <div class="space-y-2">
               <div class="flex items-center gap-2">
-                <div class="w-8 h-8 rounded-full bg-primary/10 text-primary flex items-center justify-center font-bold text-sm">
+                <div
+                  class="w-8 h-8 rounded-full bg-primary/10 text-primary flex items-center justify-center font-bold text-sm"
+                >
                   3
                 </div>
-                <h4 class="font-semibold text-default">
-                  AI Market Analysis
-                </h4>
+                <h4 class="font-semibold text-default">AI Market Analysis</h4>
               </div>
               <p class="text-sm text-muted">
-                <strong>xAI Grok</strong> acts as "Captain's Market Intelligence" — an expert marine surveyor who analyzes the full inventory. It identifies top values, red flags, engine repower costs, and gives specific negotiation tactics for your target boats.
+                <strong>xAI Grok</strong> acts as "Captain's Market Intelligence" — an expert marine
+                surveyor who analyzes the full inventory. It identifies top values, red flags,
+                engine repower costs, and gives specific negotiation tactics for your target boats.
               </p>
             </div>
           </div>
@@ -227,7 +225,11 @@ function getSourceLabel(source: string) {
             <div class="flex items-start gap-2">
               <UIcon name="i-lucide-sparkles" class="text-primary mt-0.5 shrink-0" />
               <p>
-                <strong class="text-default">About the AI:</strong> Grok analyzes real listing data with market expertise covering hull construction, engine configurations (CAT, MAN, Cummins), maintenance costs ($50K-$100K/year for a 50ft sportfish), repower considerations, and resale value trends. It gives bold, opinionated recommendations — not generic advice.
+                <strong class="text-default">About the AI:</strong> Grok analyzes real listing data
+                with market expertise covering hull construction, engine configurations (CAT, MAN,
+                Cummins), maintenance costs ($50K-$100K/year for a 50ft sportfish), repower
+                considerations, and resale value trends. It gives bold, opinionated recommendations
+                — not generic advice.
               </p>
             </div>
           </div>
@@ -252,12 +254,7 @@ function getSourceLabel(source: string) {
           </div>
           <div class="w-40">
             <UFormField label="Min Price">
-              <UInput
-                v-model.number="minPrice"
-                type="number"
-                placeholder="$0"
-                class="w-full"
-              />
+              <UInput v-model.number="minPrice" type="number" placeholder="$0" class="w-full" />
             </UFormField>
           </div>
           <div class="w-40">
@@ -270,11 +267,7 @@ function getSourceLabel(source: string) {
               />
             </UFormField>
           </div>
-          <UButton
-            label="Search"
-            icon="i-lucide-search"
-            @click="applyFilters"
-          />
+          <UButton label="Search" icon="i-lucide-search" @click="applyFilters" />
         </div>
 
         <!-- AI Analysis -->
@@ -285,12 +278,8 @@ function getSourceLabel(source: string) {
                 <UIcon name="i-lucide-sparkles" class="text-primary text-xl" />
               </div>
               <div>
-                <h3 class="text-lg font-semibold text-default">
-                  Captain's Market Intelligence
-                </h3>
-                <p class="text-sm text-muted">
-                  Expert analysis by xAI Grok
-                </p>
+                <h3 class="text-lg font-semibold text-default">Captain's Market Intelligence</h3>
+                <p class="text-sm text-muted">Expert analysis by xAI Grok</p>
               </div>
             </div>
             <div class="w-48">
@@ -338,16 +327,12 @@ function getSourceLabel(source: string) {
     <UPageSection :ui="{ wrapper: 'py-8' }">
       <div v-if="boatsStatus === 'pending'" class="text-center py-12">
         <UIcon name="i-lucide-loader-2" class="animate-spin text-3xl text-muted" />
-        <p class="text-muted mt-2">
-          Loading boats...
-        </p>
+        <p class="text-muted mt-2">Loading boats...</p>
       </div>
 
       <div v-else-if="boats && boats.length > 0">
         <div class="flex items-center justify-between mb-6">
-          <h2 class="text-2xl font-bold text-default">
-            {{ boats.length }} Boats Found
-          </h2>
+          <h2 class="text-2xl font-bold text-default">{{ boats.length }} Boats Found</h2>
           <div class="flex items-center gap-2 text-sm text-muted">
             <UIcon name="i-lucide-database" class="text-base" />
             Multi-source inventory
@@ -368,7 +353,7 @@ function getSourceLabel(source: string) {
                 :alt="`${boat.year || ''} ${boat.make || ''} ${boat.model || ''}`"
                 class="w-full h-full object-cover group-hover:scale-105 transition-slow"
                 loading="lazy"
-              >
+              />
               <div v-else class="w-full h-full flex items-center justify-center text-dimmed">
                 <UIcon name="i-lucide-ship" class="text-4xl" />
               </div>
@@ -399,11 +384,7 @@ function getSourceLabel(source: string) {
                 </span>
               </div>
               <div v-if="boat.sellerType" class="mt-2 flex items-center gap-2">
-                <UBadge
-                  :label="boat.sellerType"
-                  variant="subtle"
-                  size="sm"
-                />
+                <UBadge :label="boat.sellerType" variant="subtle" size="sm" />
               </div>
             </div>
           </NuxtLink>
@@ -412,12 +393,8 @@ function getSourceLabel(source: string) {
 
       <div v-else class="text-center py-12">
         <UIcon name="i-lucide-ship" class="text-5xl text-dimmed" />
-        <p class="text-lg text-muted mt-4">
-          No boats found matching your criteria
-        </p>
-        <p class="text-sm text-dimmed">
-          Try adjusting your filters or broadening your search.
-        </p>
+        <p class="text-lg text-muted mt-4">No boats found matching your criteria</p>
+        <p class="text-sm text-dimmed">Try adjusting your filters or broadening your search.</p>
       </div>
     </UPageSection>
 
@@ -425,7 +402,8 @@ function getSourceLabel(source: string) {
     <UPageSection :ui="{ wrapper: 'py-4' }">
       <div class="text-center text-sm text-dimmed">
         <p>
-          Data sourced from boats.com, YachtWorld, BoatTrader, and The Hull Truth · Analysis powered by xAI Grok
+          Data sourced from boats.com, YachtWorld, BoatTrader, and The Hull Truth · Analysis powered
+          by xAI Grok
         </p>
       </div>
     </UPageSection>

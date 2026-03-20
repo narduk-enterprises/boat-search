@@ -9,11 +9,7 @@ export default defineEventHandler(async (event) => {
   }
 
   const db = useDatabase(event)
-  const result = await db
-    .select()
-    .from(boats)
-    .where(eq(boats.id, id))
-    .limit(1)
+  const result = await db.select().from(boats).where(eq(boats.id, id)).limit(1)
 
   if (result.length === 0) {
     throw createError({ statusCode: 404, statusMessage: 'Boat not found' })

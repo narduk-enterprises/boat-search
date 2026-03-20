@@ -21,7 +21,7 @@ const props = withDefaults(
     /** Button variant. */
     variant?: 'ghost' | 'soft' | 'outline' | 'solid'
     /** Button color when idle. */
-    color?: string
+    color?: 'error' | 'info' | 'primary' | 'secondary' | 'success' | 'warning' | 'neutral'
     /** Duration (ms) to show the check icon after copying. */
     feedbackDuration?: number
   }>(),

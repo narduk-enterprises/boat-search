@@ -117,27 +117,29 @@ export async function analyzeBoats(
   let totalValue = 0
   let pricedCount = 0
 
-  const boatSummaries = boatList.map((b) => {
-    const make = b.make || 'Unknown'
-    makeGroups.set(make, (makeGroups.get(make) || 0) + 1)
-    const price = b.price ? Number.parseInt(b.price, 10) : 0
-    if (price > 0) {
-      totalValue += price
-      pricedCount++
-    }
+  const boatSummaries = boatList
+    .map((b) => {
+      const make = b.make || 'Unknown'
+      makeGroups.set(make, (makeGroups.get(make) || 0) + 1)
+      const price = b.price ? Number.parseInt(b.price, 10) : 0
+      if (price > 0) {
+        totalValue += price
+        pricedCount++
+      }
 
-    const parts = [
-      b.year ? `${b.year}` : null,
-      b.make,
-      b.model,
-      b.length ? `${b.length}ft` : null,
-      price > 0 ? `$${price.toLocaleString()}` : 'Price N/A',
-      b.location,
-      b.sellerType ? `(${b.sellerType})` : null,
-      b.source ? `[${b.source}]` : null,
-    ].filter(Boolean)
-    return `- ${parts.join(' ')}`
-  }).join('\n')
+      const parts = [
+        b.year ? `${b.year}` : null,
+        b.make,
+        b.model,
+        b.length ? `${b.length}ft` : null,
+        price > 0 ? `$${price.toLocaleString()}` : 'Price N/A',
+        b.location,
+        b.sellerType ? `(${b.sellerType})` : null,
+        b.source ? `[${b.source}]` : null,
+      ].filter(Boolean)
+      return `- ${parts.join(' ')}`
+    })
+    .join('\n')
 
   const avgPrice = pricedCount > 0 ? Math.round(totalValue / pricedCount) : 0
   const topMakes = [...makeGroups.entries()]

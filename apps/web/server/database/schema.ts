@@ -11,52 +11,56 @@ export * from '#layer/server/database/schema'
 
 // ─── App-Specific Tables ────────────────────────────────────
 
-export const boats = sqliteTable('boats', {
-  id: integer('id').primaryKey({ autoIncrement: true }),
-  listingId: text('listing_id'),
-  source: text('source').notNull().default('boats.com'),
-  url: text('url').notNull(),
+export const boats = sqliteTable(
+  'boats',
+  {
+    id: integer('id').primaryKey({ autoIncrement: true }),
+    listingId: text('listing_id'),
+    source: text('source').notNull().default('boats.com'),
+    url: text('url').notNull(),
 
-  // Basic info
-  make: text('make'),
-  model: text('model'),
-  year: integer('year'),
-  length: text('length'),
-  price: text('price'),
-  currency: text('currency').default('USD'),
+    // Basic info
+    make: text('make'),
+    model: text('model'),
+    year: integer('year'),
+    length: text('length'),
+    price: text('price'),
+    currency: text('currency').default('USD'),
 
-  // Location
-  location: text('location'),
-  city: text('city'),
-  state: text('state'),
-  country: text('country').default('US'),
+    // Location
+    location: text('location'),
+    city: text('city'),
+    state: text('state'),
+    country: text('country').default('US'),
 
-  // Details
-  description: text('description'),
-  sellerType: text('seller_type'),
-  listingType: text('listing_type'),
+    // Details
+    description: text('description'),
+    sellerType: text('seller_type'),
+    listingType: text('listing_type'),
 
-  // Images (JSON array stored as text)
-  images: text('images'),
+    // Images (JSON array stored as text)
+    images: text('images'),
 
-  // Metadata
-  fullText: text('full_text'),
-  scrapedAt: text('scraped_at').notNull(),
-  updatedAt: text('updated_at').notNull(),
+    // Metadata
+    fullText: text('full_text'),
+    scrapedAt: text('scraped_at').notNull(),
+    updatedAt: text('updated_at').notNull(),
 
-  // Search criteria (tracking which search found this)
-  searchLengthMin: integer('search_length_min'),
-  searchLengthMax: integer('search_length_max'),
-  searchType: text('search_type'),
-  searchLocation: text('search_location'),
-}, (table) => [
-  index('idx_boats_listing_id').on(table.listingId),
-  index('idx_boats_url').on(table.url),
-  index('idx_boats_make_model').on(table.make, table.model),
-  index('idx_boats_year').on(table.year),
-  index('idx_boats_price').on(table.price),
-  index('idx_boats_state').on(table.state),
-])
+    // Search criteria (tracking which search found this)
+    searchLengthMin: integer('search_length_min'),
+    searchLengthMax: integer('search_length_max'),
+    searchType: text('search_type'),
+    searchLocation: text('search_location'),
+  },
+  (table) => [
+    index('idx_boats_listing_id').on(table.listingId),
+    index('idx_boats_url').on(table.url),
+    index('idx_boats_make_model').on(table.make, table.model),
+    index('idx_boats_year').on(table.year),
+    index('idx_boats_price').on(table.price),
+    index('idx_boats_state').on(table.state),
+  ],
+)
 
 export const crawlJobs = sqliteTable('crawl_jobs', {
   id: integer('id').primaryKey({ autoIncrement: true }),

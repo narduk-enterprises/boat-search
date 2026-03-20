@@ -6,7 +6,10 @@ const { data: boat, status } = fetchBoat(boatId)
 
 const pageTitle = computed(() => {
   if (!boat.value) return 'Boat Details'
-  return `${boat.value.year || ''} ${boat.value.make || ''} ${boat.value.model || ''}`.trim() || 'Boat Details'
+  return (
+    `${boat.value.year || ''} ${boat.value.make || ''} ${boat.value.model || ''}`.trim() ||
+    'Boat Details'
+  )
 })
 
 useSeo({
@@ -39,11 +42,9 @@ async function analyzeThisBoat() {
       make: boat.value.make || undefined,
     })
     analysisResult.value = result.analysis
-  }
-  catch (error) {
+  } catch (error) {
     analysisResult.value = `Error: ${(error as Error).message}`
-  }
-  finally {
+  } finally {
     analysisLoading.value = false
   }
 }
@@ -55,21 +56,31 @@ function formatPrice(price: number | null) {
 
 function getSourceLabel(source: string) {
   switch (source) {
-    case 'boats.com': return 'View on Boats.com'
-    case 'yachtworld.com': return 'View on YachtWorld'
-    case 'boattrader.com': return 'View on BoatTrader'
-    case 'thehulltruth.com': return 'View on Hull Truth'
-    default: return 'View Original Listing'
+    case 'boats.com':
+      return 'View on Boats.com'
+    case 'yachtworld.com':
+      return 'View on YachtWorld'
+    case 'boattrader.com':
+      return 'View on BoatTrader'
+    case 'thehulltruth.com':
+      return 'View on Hull Truth'
+    default:
+      return 'View Original Listing'
   }
 }
 
 function getSourceBadgeLabel(source: string) {
   switch (source) {
-    case 'boats.com': return 'Boats.com'
-    case 'yachtworld.com': return 'YachtWorld'
-    case 'boattrader.com': return 'BoatTrader'
-    case 'thehulltruth.com': return 'Hull Truth'
-    default: return source
+    case 'boats.com':
+      return 'Boats.com'
+    case 'yachtworld.com':
+      return 'YachtWorld'
+    case 'boattrader.com':
+      return 'BoatTrader'
+    case 'thehulltruth.com':
+      return 'Hull Truth'
+    default:
+      return source
   }
 }
 </script>
@@ -83,7 +94,10 @@ function getSourceBadgeLabel(source: string) {
     <template v-else-if="boat">
       <!-- Back nav -->
       <UPageSection :ui="{ wrapper: 'py-4' }">
-        <NuxtLink to="/" class="inline-flex items-center gap-1 text-sm text-muted hover:text-default transition-fast">
+        <NuxtLink
+          to="/"
+          class="inline-flex items-center gap-1 text-sm text-muted hover:text-default transition-fast"
+        >
           <UIcon name="i-lucide-arrow-left" />
           Back to Listings
         </NuxtLink>
@@ -99,19 +113,24 @@ function getSourceBadgeLabel(source: string) {
               :src="boat.images[selectedImage]"
               :alt="pageTitle"
               class="w-full h-full object-cover"
-            >
+            />
             <div v-else class="w-full h-full flex items-center justify-center text-dimmed">
               <UIcon name="i-lucide-ship" class="text-6xl" />
             </div>
           </div>
 
           <!-- Thumbnails -->
-          <div v-if="boat.images && boat.images.length > 1" class="flex lg:flex-col gap-2 overflow-x-auto lg:overflow-y-auto lg:max-h-96">
+          <div
+            v-if="boat.images && boat.images.length > 1"
+            class="flex lg:flex-col gap-2 overflow-x-auto lg:overflow-y-auto lg:max-h-96"
+          >
             <div
               v-for="(img, idx) in boat.images.slice(0, 8)"
               :key="idx"
               class="shrink-0 w-20 h-16 lg:w-full lg:h-20 rounded-lg overflow-hidden cursor-pointer ring-2 transition-fast"
-              :class="idx === selectedImage ? 'ring-primary' : 'ring-transparent hover:ring-primary/50'"
+              :class="
+                idx === selectedImage ? 'ring-primary' : 'ring-transparent hover:ring-primary/50'
+              "
               @click="selectedImage = idx"
             >
               <img
@@ -119,7 +138,7 @@ function getSourceBadgeLabel(source: string) {
                 :alt="`${pageTitle} image ${idx + 1}`"
                 class="w-full h-full object-cover"
                 loading="lazy"
-              >
+              />
             </div>
           </div>
         </div>
@@ -146,33 +165,23 @@ function getSourceBadgeLabel(source: string) {
             <!-- Specs grid -->
             <div class="grid grid-cols-2 sm:grid-cols-4 gap-4">
               <div v-if="boat.year" class="card-base rounded-lg p-3 text-center">
-                <p class="text-xs text-muted">
-                  Year
-                </p>
+                <p class="text-xs text-muted">Year</p>
                 <p class="text-lg font-semibold text-default">
                   {{ boat.year }}
                 </p>
               </div>
               <div v-if="boat.length" class="card-base rounded-lg p-3 text-center">
-                <p class="text-xs text-muted">
-                  Length
-                </p>
-                <p class="text-lg font-semibold text-default">
-                  {{ boat.length }}ft
-                </p>
+                <p class="text-xs text-muted">Length</p>
+                <p class="text-lg font-semibold text-default">{{ boat.length }}ft</p>
               </div>
               <div v-if="boat.make" class="card-base rounded-lg p-3 text-center">
-                <p class="text-xs text-muted">
-                  Make
-                </p>
+                <p class="text-xs text-muted">Make</p>
                 <p class="text-lg font-semibold text-default">
                   {{ boat.make }}
                 </p>
               </div>
               <div v-if="boat.sellerType" class="card-base rounded-lg p-3 text-center">
-                <p class="text-xs text-muted">
-                  Seller
-                </p>
+                <p class="text-xs text-muted">Seller</p>
                 <p class="text-lg font-semibold text-default">
                   {{ boat.sellerType }}
                 </p>
@@ -181,9 +190,7 @@ function getSourceBadgeLabel(source: string) {
 
             <!-- Description -->
             <div v-if="boat.description">
-              <h2 class="text-xl font-semibold mb-3 text-default">
-                Description
-              </h2>
+              <h2 class="text-xl font-semibold mb-3 text-default">Description</h2>
               <div class="text-muted whitespace-pre-wrap">
                 {{ boat.description }}
               </div>
@@ -218,9 +225,7 @@ function getSourceBadgeLabel(source: string) {
             <div class="card-base rounded-xl p-4 space-y-3">
               <div class="flex items-center gap-2">
                 <UIcon name="i-lucide-sparkles" class="text-primary" />
-                <h3 class="font-semibold text-default">
-                  Captain's Intelligence
-                </h3>
+                <h3 class="font-semibold text-default">Captain's Intelligence</h3>
               </div>
               <p class="text-sm text-muted">
                 Expert analysis of {{ boat.make || 'this' }} and similar sportfish boats
@@ -259,7 +264,9 @@ function getSourceBadgeLabel(source: string) {
               </div>
               <div class="flex justify-between">
                 <span class="text-muted">Last Scraped</span>
-                <span class="text-default">{{ boat.scrapedAt ? new Date(boat.scrapedAt).toLocaleDateString() : 'N/A' }}</span>
+                <span class="text-default">{{
+                  boat.scrapedAt ? new Date(boat.scrapedAt).toLocaleDateString() : 'N/A'
+                }}</span>
               </div>
             </div>
           </div>
@@ -269,9 +276,7 @@ function getSourceBadgeLabel(source: string) {
 
     <div v-else class="text-center py-24">
       <UIcon name="i-lucide-ship" class="text-5xl text-dimmed" />
-      <p class="text-lg text-muted mt-4">
-        Boat not found
-      </p>
+      <p class="text-lg text-muted mt-4">Boat not found</p>
       <NuxtLink to="/" class="text-primary hover:underline mt-2 inline-block">
         Back to Listings
       </NuxtLink>

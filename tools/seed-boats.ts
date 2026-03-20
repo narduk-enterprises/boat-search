@@ -20,9 +20,10 @@ const __dirname = dirname(fileURLToPath(import.meta.url))
 const args = process.argv.slice(2)
 const isProduction = args.includes('--production')
 const dbArgIdx = args.indexOf('--db')
-const dbPath = dbArgIdx !== -1 && args[dbArgIdx + 1]
-  ? resolve(args[dbArgIdx + 1])
-  : resolve(__dirname, '../../boat-finder/data/boats.db')
+const dbPath =
+  dbArgIdx !== -1 && args[dbArgIdx + 1]
+    ? resolve(args[dbArgIdx + 1])
+    : resolve(__dirname, '../../boat-finder/data/boats.db')
 
 const D1_DATABASE = 'boat-search-db'
 const WRANGLER_DIR = resolve(__dirname, '../apps/web')
@@ -41,7 +42,9 @@ if (!existsSync(dbPath)) {
 
 // ── Read from SQLite ────────────────────────────────────────
 const db = new Database(dbPath, { readonly: true })
-const rows = db.prepare(`
+const rows = db
+  .prepare(
+    `
   SELECT
     listing_id, source, url, make, model, year, length, price, currency,
     location, city, state, country, description, seller_type, listing_type,
@@ -49,7 +52,9 @@ const rows = db.prepare(`
     search_length_min, search_length_max, search_type, search_location
   FROM boats
   ORDER BY CAST(price AS INTEGER) DESC
-`).all() as Record<string, unknown>[]
+`,
+  )
+  .all() as Record<string, unknown>[]
 db.close()
 
 console.log(`\n📊 Found ${rows.length} boats in SQLite\n`)
@@ -68,10 +73,29 @@ function esc(value: unknown): string {
 
 // ── Build INSERT statements in batches ──────────────────────
 const columns = [
-  'listing_id', 'source', 'url', 'make', 'model', 'year', 'length', 'price',
-  'currency', 'location', 'city', 'state', 'country', 'description',
-  'seller_type', 'listing_type', 'images', 'full_text', 'scraped_at',
-  'updated_at', 'search_length_min', 'search_length_max', 'search_type',
+  'listing_id',
+  'source',
+  'url',
+  'make',
+  'model',
+  'year',
+  'length',
+  'price',
+  'currency',
+  'location',
+  'city',
+  'state',
+  'country',
+  'description',
+  'seller_type',
+  'listing_type',
+  'images',
+  'full_text',
+  'scraped_at',
+  'updated_at',
+  'search_length_min',
+  'search_length_max',
+  'search_type',
   'search_location',
 ]
 
@@ -104,8 +128,7 @@ for (let i = 0; i < rows.length; i += BATCH_SIZE) {
     )
     inserted += batch.length
     process.stdout.write(`   Inserted ${inserted}/${rows.length}\r`)
-  }
-  catch (error) {
+  } catch (error) {
     console.error(`\n❌ Failed at batch starting row ${i}:`, (error as Error).message)
     // Continue with next batch
   }

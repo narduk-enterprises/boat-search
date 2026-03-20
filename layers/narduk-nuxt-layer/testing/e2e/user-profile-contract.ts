@@ -32,9 +32,7 @@ interface SharedUserProfileContractOptions {
   loginPath?: string
 }
 
-export function useSharedUserProfileContract(
-  options: SharedUserProfileContractOptions = {},
-) {
+export function useSharedUserProfileContract(options: SharedUserProfileContractOptions = {}) {
   const {
     appName = 'app',
     basePath = '/',
