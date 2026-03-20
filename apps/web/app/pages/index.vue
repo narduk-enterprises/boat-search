@@ -631,6 +631,13 @@ function getSourceLabel(source: string) {
                   {{ formatPrice(boat.price) }}
                 </span>
               </div>
+              <!-- Description excerpt -->
+              <p
+                v-if="boat.description"
+                class="mt-2 text-xs text-dimmed line-clamp-2"
+              >
+                {{ boat.description }}
+              </p>
               <div v-if="boat.sellerType" class="mt-2 flex items-center gap-2">
                 <UBadge :label="boat.sellerType" variant="subtle" size="sm" />
               </div>
