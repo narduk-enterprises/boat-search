@@ -142,7 +142,7 @@ export async function analyzeBoats(
 
       // Include truncated description for context (condition, engines, features)
       const desc = b.description
-        ? `\n  → ${b.description.slice(0, 300).replace(/\n+/g, ' ').trim()}${b.description.length > 300 ? '...' : ''}`
+        ? `\n  → ${b.description.slice(0, 300).replaceAll(/\n+/g, ' ').trim()}${b.description.length > 300 ? '...' : ''}`
         : ''
 
       return `- ${header.join(' ')}${desc}`
