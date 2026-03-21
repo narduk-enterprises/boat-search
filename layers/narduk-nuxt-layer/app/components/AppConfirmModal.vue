@@ -19,7 +19,7 @@
 
 const modelValue = defineModel<boolean>({ default: false })
 
-const _props = withDefaults(
+const props = withDefaults(
   defineProps<{
     /** Modal title. */
     title?: string
@@ -51,6 +51,7 @@ const _props = withDefaults(
 )
 
 const emit = defineEmits<{
+  'update:modelValue': [value: boolean]
   confirm: []
   cancel: []
 }>()

@@ -13,7 +13,7 @@ import {
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const ROOT_DIR = join(__dirname, '..')
-const TEMPLATE_URL = 'https://github.com/narduk-enterprises/boat-search.git'
+const TEMPLATE_URL = 'https://github.com/narduk-enterprises/narduk-nuxt-template.git'
 
 const strict = process.argv.includes('--strict')
 
@@ -31,7 +31,7 @@ function run(command: string): string {
 
 function isTemplateRepo(): boolean {
   const url = run('git config --get remote.origin.url')
-  return url.includes('narduk-enterprises/boat-search')
+  return url.includes('narduk-enterprises/narduk-nuxt-template')
 }
 
 function getTemplateRef(): string {

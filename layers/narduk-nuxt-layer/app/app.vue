@@ -4,7 +4,7 @@
  * This uses the layer's highly configurable components.
  */
 const route = useRoute()
-const appName = useRuntimeConfig().public.appName || 'Boat Search'
+const appName = useRuntimeConfig().public.appName || 'Nuxt 4 Demo'
 
 const navItems = [{ label: 'Home', to: '/', icon: 'i-lucide-home' }]
 

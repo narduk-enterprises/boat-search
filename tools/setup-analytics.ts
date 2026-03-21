@@ -312,7 +312,7 @@ async function runPosthogSetupOrSkip(): Promise<boolean> {
   console.log('  ⚠️  PostHog: POSTHOG_PUBLIC_KEY not set.')
   console.log('      To use the shared Narduk Analytics project, bind the key from the Hub:')
   console.log(
-    '      doppler secrets set POSTHOG_PUBLIC_KEY="\\\\${boat-search.prd.POSTHOG_PUBLIC_KEY}" --project YOUR_PROJECT --config prd',
+    '      doppler secrets set POSTHOG_PUBLIC_KEY="\\\\${narduk-nuxt-template.prd.POSTHOG_PUBLIC_KEY}" --project YOUR_PROJECT --config prd',
   )
   console.log()
   return false
@@ -771,7 +771,7 @@ async function main() {
 
       case 'posthog':
         console.log(
-          'PostHog projects are shared globally now. Link POSTHOG_PUBLIC_KEY from boat-search.',
+          'PostHog projects are shared globally now. Link POSTHOG_PUBLIC_KEY from narduk-nuxt-template.',
         )
         break
 

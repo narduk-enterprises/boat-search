@@ -117,5 +117,5 @@ export async function uploadBase64ToR2(
   for (let i = 0; i < binary.length; i++) {
     bytes[i] = binary.charCodeAt(i)
   }
-  return uploadToR2(event, key, bytes.buffer as ArrayBuffer, contentType, bindingName)
+  return uploadToR2(event, key, bytes.buffer, contentType, bindingName)
 }

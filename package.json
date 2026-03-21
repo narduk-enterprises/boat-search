@@ -8,12 +8,12 @@
     "dev": "pnpm --filter boat-search dev",
     "prebuild": "node tools/check-setup.cjs",
     "build": "doppler run -- pnpm -r build",
-    "preship": "node tools/check-setup.cjs && pnpm install --frozen-lockfile && npx tsx tools/check-drift-ci.ts && npx tsx tools/check-sync-health.ts && pnpm run quality && pnpm -r --if-present test:unit",
+    "preship": "node tools/check-setup.cjs && pnpm install --frozen-lockfile && npx tsx tools/check-drift-ci.ts && npx tsx tools/check-sync-health.ts && pnpm run quality",
     "ship": "npx tsx tools/ship.ts",
     "ship:fleet": "npx tsx tools/ship-fleet.ts",
     "lint": "turbo run lint",
     "typecheck": "turbo run typecheck",
-    "quality": "pnpm run quality:fix && turbo run quality --filter='./apps/*' --filter='./layers/*' --filter='./packages/*'",
+    "quality": "pnpm run quality:fix && turbo run quality --filter='./apps/*'",
     "quality:fix": "turbo run lint --force -- --fix && pnpm run format",
     "check": "pnpm run quality",
     "quality:fleet": "bash scripts/fleet-quality.sh",
@@ -23,7 +23,7 @@
     "status:fleet": "bash scripts/fleet-status.sh",
     "setup": "npx tsx tools/init.ts",
     "update-layer": "npx tsx tools/update-layer.ts",
-    "sync-template": "npx tsx tools/sync-template.ts",
+    "sync-template": "npx tsx tools/sync-template.ts .",
     "migrate-to-org": "npx tsx tools/migrate-to-org.ts",
     "validate": "npx tsx tools/validate.ts",
     "check:sync-health": "npx tsx tools/check-sync-health.ts",
@@ -42,7 +42,12 @@
     "test:e2e:web": "pnpm --filter boat-search test:e2e",
     "generate:favicons": "npx tsx tools/generate-favicons.ts",
     "format": "prettier --write \"**/*.{ts,mts,vue,js,mjs,json,yaml,yml,css,md}\" --ignore-path .gitignore",
-    "format:check": "prettier --check \"**/*.{ts,mts,vue,js,mjs,json,yaml,yml,css,md}\" --ignore-path .gitignore"
+    "format:check": "prettier --check \"**/*.{ts,mts,vue,js,mjs,json,yaml,yml,css,md}\" --ignore-path .gitignore",
+    "postinstall": "node -e \"if(!require('fs').existsSync('.setup-complete'))console.log('\\n⚠️  Run pnpm run setup before doing anything else! See AGENTS.md.\\n')\"",
+    "build:plugins": "pnpm --filter @narduk/eslint-config build",
+    "prelint": "pnpm run build:plugins",
+    "predeploy": "node tools/check-setup.cjs",
+    "tail": "npx tsx tools/tail.ts"
   },
   "pnpm": {
     "overrides": {

@@ -15,10 +15,10 @@ withDefaults(
     primaryColor?: string
   }>(),
   {
-    title: 'Boat Search',
+    title: 'Nuxt 4 Template',
     description: 'Production-ready Nuxt 4 + Cloudflare Workers',
     icon: '✨',
-    siteName: 'Boat Search',
+    siteName: 'Nuxt 4 Demo',
     // eslint-disable-next-line narduk/no-inline-hex -- OG image default brand color; Tailwind utilities are not available in component props defaults
     primaryColor: '#10b981',
   },

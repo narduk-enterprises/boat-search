@@ -22,7 +22,7 @@ function resolveTemplateDir(args: string[]): string {
       encoding: 'utf-8',
       stdio: ['pipe', 'pipe', 'pipe'],
     }).trim()
-    if (originUrl.includes('narduk-enterprises/boat-search')) {
+    if (originUrl.includes('narduk-enterprises/narduk-nuxt-template')) {
       return ROOT_DIR
     }
   } catch {
@@ -33,14 +33,14 @@ function resolveTemplateDir(args: string[]): string {
     const rootPackage = JSON.parse(readFileSync(join(ROOT_DIR, 'package.json'), 'utf-8')) as {
       name?: string
     }
-    if (rootPackage.name === 'boat-search') {
+    if (rootPackage.name === 'narduk-nuxt-template') {
       return ROOT_DIR
     }
   } catch {
     /* fall through */
   }
 
-  const defaultTemplateDir = join(process.env.HOME || '', 'new-code', 'boat-search')
+  const defaultTemplateDir = join(process.env.HOME || '', 'new-code', 'narduk-nuxt-template')
   if (existsSync(defaultTemplateDir)) {
     return defaultTemplateDir
   }
@@ -53,7 +53,7 @@ const templateDir = resolveTemplateDir(args)
 
 if (!existsSync(join(templateDir, 'layers/narduk-nuxt-layer'))) {
   console.error('Local-first layer sync requires a template checkout.')
-  console.error('Pass --from /path/to/boat-search to select the source template.')
+  console.error('Pass --from /path/to/narduk-nuxt-template to select the source template.')
   process.exit(1)
 }
 

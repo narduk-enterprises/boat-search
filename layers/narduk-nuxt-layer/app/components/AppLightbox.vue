@@ -105,8 +105,6 @@ onUnmounted(() => {
     window.removeEventListener('keydown', handleKeydown)
   }
 })
-
-defineOptions({ inheritAttrs: false })
 </script>
 
 <template>
@@ -168,7 +166,10 @@ defineOptions({ inheritAttrs: false })
             class="max-w-full max-h-[80vh] rounded-lg object-contain select-none"
             draggable="false"
           />
-          <p v-if="currentItem.caption" class="mt-3 text-sm text-white/70 text-center max-w-lg">
+          <p
+            v-if="currentItem.caption"
+            class="mt-3 text-sm text-white/70 text-center max-w-lg"
+          >
             {{ currentItem.caption }}
           </p>
         </div>

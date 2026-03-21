@@ -32,13 +32,15 @@ interface SharedUserProfileContractOptions {
   loginPath?: string
 }
 
-export function useSharedUserProfileContract(options: SharedUserProfileContractOptions = {}) {
+export function defineSharedUserProfileContract(
+  options: SharedUserProfileContractOptions = {},
+) {
   const {
     appName = 'app',
     basePath = '/',
-    _settingsPath = '/settings',
-    _loginPath = '/login',
-  } = options as SharedUserProfileContractOptions & { _settingsPath?: string; _loginPath?: string }
+    settingsPath = '/settings',
+    loginPath = '/login',
+  } = options
 
   test.describe(`${appName} shared user profile contract`, () => {
     test.beforeAll(async ({ browser, baseURL }) => {

@@ -125,7 +125,7 @@ concurrency:
 
 jobs:
   quality:
-    uses: narduk-enterprises/boat-search/.github/workflows/reusable-quality.yml@main
+    uses: narduk-enterprises/narduk-nuxt-template/.github/workflows/reusable-quality.yml@main
     secrets:
       DOPPLER_TOKEN: \${{ secrets.DOPPLER_TOKEN }}
       GH_PACKAGES_TOKEN: \${{ secrets.GH_PACKAGES_TOKEN }}

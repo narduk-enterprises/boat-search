@@ -84,6 +84,16 @@ export const notifications = sqliteTable('notifications', {
     .$defaultFn(() => new Date().toISOString()),
 })
 
+// ─── System Prompts ─────────────────────────────────────────
+export const systemPrompts = sqliteTable('system_prompts', {
+  name: text('name').primaryKey(), // Simple string key, e.g., 'napkin_generator'
+  content: text('content').notNull(),
+  description: text('description').notNull(),
+  updatedAt: text('updated_at')
+    .notNull()
+    .$defaultFn(() => new Date().toISOString()),
+})
+
 // ─── Type helpers ───────────────────────────────────────────
 export type User = typeof users.$inferSelect
 export type NewUser = typeof users.$inferInsert
@@ -95,3 +105,6 @@ export type ApiKey = typeof apiKeys.$inferSelect
 export type NewApiKey = typeof apiKeys.$inferInsert
 export type Notification = typeof notifications.$inferSelect
 export type NewNotification = typeof notifications.$inferInsert
+export type SystemPrompt = typeof systemPrompts.$inferSelect
+export type NewSystemPrompt = typeof systemPrompts.$inferInsert
+
