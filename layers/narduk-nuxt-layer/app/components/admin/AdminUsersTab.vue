@@ -3,14 +3,21 @@ const perPage = 20
 const page = ref(1)
 
 interface UsersResponse {
-  users: Array<{ id: string; name: string | null; email: string; isAdmin: boolean; createdAt: string }>
+  users: Array<{
+    id: string
+    name: string | null
+    email: string
+    isAdmin: boolean
+    createdAt: string
+  }>
   total: number
 }
 
 // Fetch from the layer's generic /api/admin/users endpoint
 const { data: usersData, refresh: refreshUsers } = useAsyncData(
   'layer-admin-users',
-  () => useAppFetch<UsersResponse>('/api/admin/users', { query: { page: page.value, limit: perPage } }),
+  () =>
+    useAppFetch<UsersResponse>('/api/admin/users', { query: { page: page.value, limit: perPage } }),
   {
     watch: [page],
     default: () => ({ users: [], total: 0 }),
@@ -120,10 +127,7 @@ function handleToggleAdmin(user: { id: string; isAdmin: boolean }) {
               class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 rounded-lg border border-default p-4"
             >
               <div class="flex items-center gap-3">
-                <UAvatar
-                  :alt="adminUser.name || adminUser.email"
-                  size="sm"
-                />
+                <UAvatar :alt="adminUser.name || adminUser.email" size="sm" />
                 <div>
                   <p class="font-semibold text-default">{{ adminUser.name || adminUser.email }}</p>
                   <p class="text-sm text-muted">

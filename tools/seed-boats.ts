@@ -105,10 +105,10 @@ let inserted = 0
 const localFlag = isProduction ? '--remote' : '--local'
 console.log('🗑️  Clearing existing boats from D1...')
 try {
-  execSync(
-    `wrangler d1 execute ${D1_DATABASE} ${localFlag} --command "DELETE FROM boats;"`,
-    { cwd: WRANGLER_DIR, stdio: 'pipe' },
-  )
+  execSync(`wrangler d1 execute ${D1_DATABASE} ${localFlag} --command "DELETE FROM boats;"`, {
+    cwd: WRANGLER_DIR,
+    stdio: 'pipe',
+  })
   console.log('   ✅ Table cleared\n')
 } catch (error) {
   console.error('   ⚠️ Could not clear table:', (error as Error).message)
