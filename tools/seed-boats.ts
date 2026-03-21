@@ -101,6 +101,19 @@ const columns = [
 
 let inserted = 0
 
+// Clear existing data to prevent duplicate accumulation across seed runs
+const localFlag = isProduction ? '--remote' : '--local'
+console.log('🗑️  Clearing existing boats from D1...')
+try {
+  execSync(
+    `wrangler d1 execute ${D1_DATABASE} ${localFlag} --command "DELETE FROM boats;"`,
+    { cwd: WRANGLER_DIR, stdio: 'pipe' },
+  )
+  console.log('   ✅ Table cleared\n')
+} catch (error) {
+  console.error('   ⚠️ Could not clear table:', (error as Error).message)
+}
+
 for (let i = 0; i < rows.length; i += BATCH_SIZE) {
   const batch = rows.slice(i, i + BATCH_SIZE)
   const statements: string[] = []
@@ -119,7 +132,6 @@ for (let i = 0; i < rows.length; i += BATCH_SIZE) {
   }
 
   const sql = statements.join('\n')
-  const localFlag = isProduction ? '--remote' : '--local'
 
   try {
     execSync(
