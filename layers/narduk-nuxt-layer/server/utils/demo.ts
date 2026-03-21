@@ -12,10 +12,7 @@ export interface DemoSessionUser {
   isAdmin: boolean | null
 }
 
-export async function resolveDemoSessionUser(
-  event: H3Event,
-  demoEmail: string,
-): Promise<DemoSessionUser> {
+export async function resolveDemoSessionUser(event: H3Event, demoEmail: string): Promise<DemoSessionUser> {
   const db = useDatabase(event)
   const user = await db.select().from(users).where(eq(users.email, demoEmail)).get()
 

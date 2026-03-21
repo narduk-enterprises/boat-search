@@ -31,7 +31,10 @@ export default defineEventHandler(async (event) => {
     updates.name = body.name.trim()
   }
 
-  await db.update(users).set(updates).where(eq(users.id, user.id))
+  await db
+    .update(users)
+    .set(updates)
+    .where(eq(users.id, user.id))
 
   // Refresh session so the sealed cookie reflects the new name
   const session = await getUserSession(event)
