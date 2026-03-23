@@ -373,6 +373,7 @@ function patchWebPackage(
   appDir: string,
   templateDir: string,
   dryRun: boolean,
+  mode: 'full' | 'layer',
   log: (message: string) => void,
 ): boolean {
   const webPackagePath = join(appDir, 'apps/web/package.json')
@@ -392,10 +393,12 @@ function patchWebPackage(
       let changed = false
 
       pkg.scripts = pkg.scripts || {}
-      for (const [name, command] of Object.entries(FLEET_WEB_SCRIPT_PATCHES)) {
-        if (pkg.scripts[name] !== command) {
-          pkg.scripts[name] = command
-          changed = true
+      if (mode === 'full') {
+        for (const [name, command] of Object.entries(FLEET_WEB_SCRIPT_PATCHES)) {
+          if (pkg.scripts[name] !== command) {
+            pkg.scripts[name] = command
+            changed = true
+          }
         }
       }
 
@@ -406,9 +409,13 @@ function patchWebPackage(
         }
         const databaseName = wrangler.d1_databases?.[0]?.database_name
         if (databaseName) {
-          const expectedMigrate = `bash ../../tools/db-migrate.sh ${databaseName} --local --dir drizzle`
-          const expectedReset = `bash ../../tools/db-migrate.sh ${databaseName} --local --dir drizzle --reset && pnpm run db:seed`
+          const layerDrizzleDir =
+            'node_modules/@narduk-enterprises/narduk-nuxt-template-layer/drizzle'
+          const expectedMigrate = `bash ../../tools/db-migrate.sh ${databaseName} --local --dir ${layerDrizzleDir} --dir drizzle`
+          const expectedReset = `bash ../../tools/db-migrate.sh ${databaseName} --local --dir ${layerDrizzleDir} --dir drizzle --reset && pnpm run db:seed`
           const expectedReady = 'pnpm run db:migrate && pnpm run db:seed'
+          const expectedVerify =
+            'node node_modules/@narduk-enterprises/narduk-nuxt-template-layer/testing/verify-local-db.mjs .'
 
           if (pkg.scripts['db:migrate'] !== expectedMigrate) {
             pkg.scripts['db:migrate'] = expectedMigrate
@@ -424,28 +431,35 @@ function patchWebPackage(
             pkg.scripts['db:ready'] = expectedReady
             changed = true
           }
+
+          if (pkg.scripts['db:verify'] !== expectedVerify) {
+            pkg.scripts['db:verify'] = expectedVerify
+            changed = true
+          }
         }
       }
 
-      pkg.dependencies = pkg.dependencies || {}
-      pkg.devDependencies = pkg.devDependencies || {}
-      const templateEslintVersion =
-        templateWebPackage.dependencies?.['@narduk-enterprises/eslint-config']
-      const templateDevEslintVersion = templateWebPackage.devDependencies?.eslint
-      if (pkg.dependencies['@narduk/eslint-config']) {
-        delete pkg.dependencies['@narduk/eslint-config']
-        changed = true
-      }
-      if (
-        templateEslintVersion &&
-        pkg.dependencies['@narduk-enterprises/eslint-config'] !== templateEslintVersion
-      ) {
-        pkg.dependencies['@narduk-enterprises/eslint-config'] = templateEslintVersion
-        changed = true
-      }
-      if (templateDevEslintVersion && pkg.devDependencies.eslint !== templateDevEslintVersion) {
-        pkg.devDependencies.eslint = templateDevEslintVersion
-        changed = true
+      if (mode === 'full') {
+        pkg.dependencies = pkg.dependencies || {}
+        pkg.devDependencies = pkg.devDependencies || {}
+        const templateEslintVersion =
+          templateWebPackage.dependencies?.['@narduk-enterprises/eslint-config']
+        const templateDevEslintVersion = templateWebPackage.devDependencies?.eslint
+        if (pkg.dependencies['@narduk/eslint-config']) {
+          delete pkg.dependencies['@narduk/eslint-config']
+          changed = true
+        }
+        if (
+          templateEslintVersion &&
+          pkg.dependencies['@narduk-enterprises/eslint-config'] !== templateEslintVersion
+        ) {
+          pkg.dependencies['@narduk-enterprises/eslint-config'] = templateEslintVersion
+          changed = true
+        }
+        if (templateDevEslintVersion && pkg.devDependencies.eslint !== templateDevEslintVersion) {
+          pkg.devDependencies.eslint = templateDevEslintVersion
+          changed = true
+        }
       }
 
       touched ||= changed
@@ -723,15 +737,18 @@ export async function runAppSync(options: RunAppSyncOptions) {
   )
 
   const packageTouched = patchRootPackage(options.appDir, options.templateDir, dryRun, mode, log)
+  patchWebPackage(options.appDir, options.templateDir, dryRun, mode, log)
   if (mode === 'full') {
-    patchWebPackage(options.appDir, options.templateDir, dryRun, log)
     patchGitignore(options.appDir, dryRun, log)
     patchNpmrc(options.appDir, dryRun, log)
     ensureSetupComplete(options.appDir, dryRun, log)
     ensureDopplerYaml(options.appDir, dryRun, log)
-    if (templateSha) {
-      writeTemplateVersion(options.appDir, templateSha, dryRun, log)
-    }
+  }
+
+  // Record template HEAD for drift checks and fleet audit — must run for layer-only
+  // sync too, otherwise check-drift-ci keeps comparing against a stale SHA.
+  if (templateSha) {
+    writeTemplateVersion(options.appDir, templateSha, dryRun, log)
   }
 
   if (!skipRewriteRepo) {

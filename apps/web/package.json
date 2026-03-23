@@ -8,9 +8,9 @@
     "db:ready": "pnpm run db:migrate && pnpm run db:seed",
     "dev": "pnpm run db:ready && (doppler run -- nuxt dev || nuxt dev)",
     "quality": "echo 'Turbo dependsOn handles lint + typecheck + format:check'",
-    "db:migrate": "bash ../../tools/db-migrate.sh boat-search-db --local --dir drizzle",
+    "db:migrate": "bash ../../tools/db-migrate.sh boat-search-db --local --dir node_modules/@narduk-enterprises/narduk-nuxt-template-layer/drizzle --dir drizzle",
     "db:seed": "wrangler d1 execute boat-search-db --local --file=node_modules/@narduk-enterprises/narduk-nuxt-template-layer/drizzle/seed.sql",
-    "db:reset": "bash ../../tools/db-migrate.sh boat-search-db --local --dir drizzle --reset && pnpm run db:seed",
+    "db:reset": "bash ../../tools/db-migrate.sh boat-search-db --local --dir node_modules/@narduk-enterprises/narduk-nuxt-template-layer/drizzle --dir drizzle --reset && pnpm run db:seed",
     "db:studio": "drizzle-kit studio",
     "generate": "nuxt generate",
     "preview": "nuxt preview",
@@ -19,7 +19,8 @@
     "prelint": "test -f .nuxt/eslint.config.mjs || nuxt prepare",
     "lint": "eslint . --max-warnings 0",
     "test:e2e": "playwright test --project=web --config=../../playwright.config.ts",
-    "format:check": "prettier --check \"**/*.{ts,mts,vue,js,mjs,json,yaml,yml,css,md}\" --ignore-path ../../.gitignore"
+    "format:check": "prettier --check \"**/*.{ts,mts,vue,js,mjs,json,yaml,yml,css,md}\" --ignore-path ../../.gitignore",
+    "db:verify": "node node_modules/@narduk-enterprises/narduk-nuxt-template-layer/testing/verify-local-db.mjs ."
   },
   "dependencies": {
     "@narduk-enterprises/narduk-nuxt-template-layer": "workspace:*",

@@ -40,7 +40,7 @@ withDefaults(
       background: 'linear-gradient(145deg, #020617 0%, #111827 70%, #0c4a6e 100%)',
       padding: '56px',
       fontFamily: 'Inter, sans-serif',
-      // eslint-disable-next-line narduk/no-inline-hex
+      // eslint-disable-next-line narduk/no-inline-hex -- OG image colors must stay inline for Takumi rendering
       color: '#e2e8f0',
     }"
   >
@@ -50,7 +50,7 @@ withDefaults(
         alignItems: 'center',
         borderRadius: '8px',
         background: primaryColor,
-        // eslint-disable-next-line narduk/no-inline-hex
+        // eslint-disable-next-line narduk/no-inline-hex -- OG image colors must stay inline for Takumi rendering
         color: '#082f49',
         fontSize: '22px',
         fontWeight: '700',
@@ -74,7 +74,7 @@ withDefaults(
       <div
         :style="{
           fontSize: '30px',
-          // eslint-disable-next-line narduk/no-inline-hex
+          // eslint-disable-next-line narduk/no-inline-hex -- OG image colors must stay inline for Takumi rendering
           color: '#cbd5e1',
           lineHeight: '1.35',
         }"
@@ -93,7 +93,7 @@ withDefaults(
     >
       <div
         :style="{
-          // eslint-disable-next-line narduk/no-inline-hex
+          // eslint-disable-next-line narduk/no-inline-hex -- OG image colors must stay inline for Takumi rendering
           color: '#7dd3fc',
         }"
       >

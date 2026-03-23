@@ -2,6 +2,7 @@ import { existsSync, readdirSync, statSync } from 'node:fs'
 import { basename, join } from 'node:path'
 
 export const VERBATIM_SYNC_FILES = [
+  'doppler.template.yaml',
   '.githooks/pre-commit',
   'tools/gsc-toolbox.ts',
   'tools/setup-analytics.ts',
@@ -19,6 +20,9 @@ export const VERBATIM_SYNC_FILES = [
   'tools/db-migrate.sh',
   'tools/check-setup.cjs',
   'scripts/dev-kill.sh',
+  'scripts/playwright-webserver-dev.sh',
+  'scripts/_playwright-webserver-dev-inner.sh',
+  'scripts/run-mapkit-e2e.sh',
   '.github/workflows/weekly-drift-check.yml',
   'turbo.json',
   'pnpm-workspace.yaml',
@@ -55,10 +59,6 @@ export const STALE_SYNC_PATHS = [
   'tools/check-setup.js',
   '.cursor/.DS_Store',
   '.cursor/rules/nuxt-v4-template.mdc',
-  '.agent/skills/ui-ux-pro-max/scripts/__pycache__',
-  '.codex/skills/ui-ux-pro-max/scripts/__pycache__',
-  '.cursor/skills/ui-ux-pro-max/scripts/__pycache__',
-  '.github/prompts/ui-ux-pro-max/scripts/__pycache__',
   '.env',
   '.env.local',
   '.env.example',

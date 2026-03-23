@@ -44,6 +44,7 @@ const buildVersion =
   readGitSha() ||
   appVersion
 const buildTime = process.env.BUILD_TIME || new Date().toISOString()
+const colorModePreference = process.env.NUXT_COLOR_MODE_PREFERENCE || 'system'
 
 export default defineNuxtConfig({
   alias: {
@@ -61,9 +62,9 @@ export default defineNuxtConfig({
   css: [fileURLToPath(new URL('./app/assets/css/main.css', import.meta.url))],
 
   icon: {
-    clientBundle: {
-      scan: true,
-    },
+    // Downstream apps frequently resolve icon names dynamically from props, CMS data,
+    // or database rows. Scan-only client bundles miss those names and icons disappear
+    // after hydration, so keep the client runtime flexible and only constrain SSR.
     serverBundle: {
       collections: ['lucide'],
     },
@@ -84,14 +85,13 @@ export default defineNuxtConfig({
   runtimeConfig: {
     /** Optional: secret for cron routes (e.g. cache warming). Set CRON_SECRET in Doppler; init.ts provisions it. */
     cronSecret: process.env.CRON_SECRET || '',
+    ownerTagSecret: process.env.OWNER_TAG_SECRET || '',
     /** Log level for server route logging. Supports: debug | info | warn | error | silent. Set LOG_LEVEL in env. */
-    logLevel: process.env.LOG_LEVEL || (import.meta.dev ? 'debug' : 'warn'),
+    logLevel: process.env.LOG_LEVEL || 'warn',
     session: {
-      password:
-        process.env.NUXT_SESSION_PASSWORD ||
-        (import.meta.dev ? 'layer-auth-dev-session-secret-min-32-chars' : ''),
+      password: process.env.NUXT_SESSION_PASSWORD || '',
       cookie: {
-        secure: !import.meta.dev,
+        secure: true,
       },
     },
     appleTeamId: process.env.APPLE_TEAM_ID || '',
@@ -107,6 +107,8 @@ export default defineNuxtConfig({
       posthogHost: process.env.POSTHOG_HOST || 'https://us.i.posthog.com',
       cspScriptSrc: process.env.CSP_SCRIPT_SRC || '',
       cspConnectSrc: process.env.CSP_CONNECT_SRC || '',
+      cspFrameSrc: process.env.CSP_FRAME_SRC || '',
+      cspWorkerSrc: process.env.CSP_WORKER_SRC || '',
     },
   },
 
@@ -139,17 +141,29 @@ export default defineNuxtConfig({
     compatibilityVersion: 4,
   },
 
+  $development: {
+    runtimeConfig: {
+      logLevel: process.env.LOG_LEVEL || 'debug',
+      session: {
+        password: process.env.NUXT_SESSION_PASSWORD || 'layer-auth-dev-session-secret-min-32-chars',
+        cookie: {
+          // Safari rejects Secure cookies on local HTTP, so relax this only for `nuxt dev`.
+          secure: false,
+        },
+      },
+    },
+  },
+
   ui: {
     colorMode: true,
   },
 
-  ...(import.meta.dev
-    ? {
-        colorMode: {
-          preference: 'system',
-        },
-      }
-    : {}),
+  // Default follows the OS. Set NUXT_COLOR_MODE_PREFERENCE to light or dark for
+  // deterministic SSR, screenshots, or fleet-wide single-theme surfaces.
+  colorMode: {
+    preference: colorModePreference,
+    fallback: 'dark',
+  },
 
   ogImage: {
     runtimeCacheStorage: {

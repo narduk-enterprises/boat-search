@@ -298,6 +298,20 @@ async function main() {
     } else if (migrateScript) {
       console.log('  ✅ db:migrate script references correct database name')
     }
+
+    if (!migrateScript.includes('@narduk-enterprises/narduk-nuxt-template-layer/drizzle')) {
+      console.error('  ❌ db:migrate is missing the shared layer migration directory')
+      allGood = false
+    } else {
+      console.log('  ✅ db:migrate includes shared layer migrations')
+    }
+
+    if (!migrateScript.includes('--dir drizzle')) {
+      console.error('  ❌ db:migrate is missing the app migration directory')
+      allGood = false
+    } else {
+      console.log('  ✅ db:migrate includes app-owned migrations')
+    }
   } catch (e: any) {
     console.error(`  ❌ Failed to read apps/web/package.json: ${e.message}`)
     allGood = false
