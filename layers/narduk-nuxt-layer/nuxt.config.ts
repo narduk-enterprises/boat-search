@@ -1,7 +1,7 @@
-import { execSync } from 'node:child_process'
 import { existsSync, readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { execFileSync } from 'node:child_process'
 
 function readPackageVersion(): string {
   const candidates = [
@@ -25,7 +25,7 @@ function readPackageVersion(): string {
 
 function readGitSha(): string {
   try {
-    return execSync('git rev-parse --short=12 HEAD', {
+    return execFileSync('git', ['rev-parse', '--short=12', 'HEAD'], {
       cwd: process.cwd(),
       encoding: 'utf-8',
       stdio: ['ignore', 'pipe', 'ignore'],
@@ -45,7 +45,6 @@ const buildVersion =
   appVersion
 const buildTime = process.env.BUILD_TIME || new Date().toISOString()
 const colorModePreference = process.env.NUXT_COLOR_MODE_PREFERENCE || 'system'
-
 export default defineNuxtConfig({
   alias: {
     '#layer': fileURLToPath(new URL('./', import.meta.url)),
@@ -63,8 +62,10 @@ export default defineNuxtConfig({
 
   icon: {
     // Downstream apps frequently resolve icon names dynamically from props, CMS data,
-    // or database rows. Scan-only client bundles miss those names and icons disappear
-    // after hydration, so keep the client runtime flexible and only constrain SSR.
+    // or database rows. Keep the client runtime flexible, but serve Lucide from the
+    // local Nuxt endpoint so fleet apps never depend on Iconify's public API or CORS.
+    provider: 'server',
+    fallbackToApi: false,
     serverBundle: {
       collections: ['lucide'],
     },
@@ -83,14 +84,24 @@ export default defineNuxtConfig({
   },
 
   runtimeConfig: {
-    /** Optional: secret for cron routes (e.g. cache warming). Set CRON_SECRET in Doppler; init.ts provisions it. */
+    /**
+     * `d1` — default; `useDatabase()` uses the D1 `DB` binding.
+     * `postgres` — opt into Postgres via Hyperdrive + a Postgres Drizzle schema (see `useHyperdriveConnectionString`).
+     */
+    databaseBackend: process.env.NUXT_DATABASE_BACKEND === 'postgres' ? 'postgres' : 'd1',
+    /** Must match `hyperdrive[].binding` in wrangler (default `HYPERDRIVE`). */
+    hyperdriveBinding: process.env.NUXT_HYPERDRIVE_BINDING || 'HYPERDRIVE',
+    /** Optional: secret for cron routes (e.g. cache warming). Set CRON_SECRET in Doppler; provisioning sets it. */
     cronSecret: process.env.CRON_SECRET || '',
     ownerTagSecret: process.env.OWNER_TAG_SECRET || '',
+    /** Optional shared UUID for PostHog `identify` after `/api/owner-tag` (same value across fleet = one owner person). */
+    posthogOwnerDistinctId: process.env.POSTHOG_OWNER_DISTINCT_ID || '',
     /** Log level for server route logging. Supports: debug | info | warn | error | silent. Set LOG_LEVEL in env. */
     logLevel: process.env.LOG_LEVEL || 'warn',
     session: {
       password: process.env.NUXT_SESSION_PASSWORD || '',
       cookie: {
+        // `secure: true` for prod; `$development` turns it off for `nuxt dev`. Avoid `import.meta.dev` here (unreliable in nuxt.config — nuxt/nuxt#32098).
         secure: true,
       },
     },
@@ -103,6 +114,7 @@ export default defineNuxtConfig({
       appVersion,
       buildVersion,
       buildTime,
+      controlPlaneUrl: process.env.CONTROL_PLANE_URL || '',
       gaMeasurementId: process.env.GA_MEASUREMENT_ID || '',
       posthogHost: process.env.POSTHOG_HOST || 'https://us.i.posthog.com',
       cspScriptSrc: process.env.CSP_SCRIPT_SRC || '',
@@ -113,7 +125,6 @@ export default defineNuxtConfig({
   },
 
   site: {
-    url: process.env.SITE_URL || 'http://127.0.0.1:3000',
     name: process.env.APP_NAME || 'Nuxt 4 App',
     description: 'A Nuxt 4 application deployed on Cloudflare Workers.',
   },
@@ -166,6 +177,7 @@ export default defineNuxtConfig({
   },
 
   ogImage: {
+    enabled: true,
     runtimeCacheStorage: {
       driver: 'memory',
     },
@@ -193,7 +205,7 @@ export default defineNuxtConfig({
       },
     },
     externals: {
-      inline: ['drizzle-orm'],
+      inline: ['drizzle-orm', '@neondatabase/serverless'],
     },
   },
 

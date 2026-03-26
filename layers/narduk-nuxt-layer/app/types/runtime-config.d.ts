@@ -6,17 +6,24 @@
  */
 declare module 'nuxt/schema' {
   interface RuntimeConfig {
+    /** Primary SQL backend for app code that branches on storage (default `d1`). */
+    databaseBackend: 'd1' | 'postgres'
+    /** Wrangler Hyperdrive binding name; used by `useHyperdriveConnectionString`. */
+    hyperdriveBinding: string
     googleServiceAccountKey: string
     posthogApiKey: string
     gaPropertyId: string
     posthogProjectId: string
     ownerTagSecret: string
+    /** Server-only PostHog distinct id for owner-tagged browsers; optional. */
+    posthogOwnerDistinctId: string
   }
 
   interface PublicRuntimeConfig {
     appUrl: string
     appName: string
     appVersion: string
+    controlPlaneUrl: string
     posthogPublicKey: string
     posthogHost: string
     gaMeasurementId: string
@@ -40,9 +47,11 @@ declare global {
           appVersion: string
           buildVersion: string
           buildTime: string
+          localBuildTime?: string
         }
       | undefined
     __NARDUK_BUILD_LOGGED__?: string | undefined
+    __NARDUK_NATIVE_FETCH__?: typeof fetch
   }
 }
 

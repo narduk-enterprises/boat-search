@@ -5,7 +5,7 @@
   "description": "Narduk Nuxt 4 Layer — shared components, composables, server routes, and Drizzle schema for Cloudflare Workers apps",
   "repository": {
     "type": "git",
-    "url": "https://github.com/narduk-enterprises/boat-search.git",
+    "url": "git@github.com:narduk-enterprises/boat-search.git",
     "directory": "layers/narduk-nuxt-layer"
   },
   "publishConfig": {
@@ -21,7 +21,7 @@
     "typecheck": "nuxt typecheck",
     "prelint": "test -f .nuxt/eslint.config.mjs || nuxt prepare",
     "lint": "eslint . --max-warnings 0",
-    "test:unit": "vitest run",
+    "test:unit": "vitest run --coverage",
     "quality": "pnpm run test:unit",
     "db:generate": "drizzle-kit generate",
     "db:studio": "drizzle-kit studio",
@@ -33,8 +33,10 @@
     "@nuxt/image": "^2.0.0",
     "@nuxt/ui": "4.5.0",
     "@nuxtjs/seo": "^3.4.0",
+    "@iconify-json/lucide": "^1.2.94",
     "@takumi-rs/core": "^0.70.1",
     "@takumi-rs/wasm": "^0.70.1",
+    "@neondatabase/serverless": "^1.0.0",
     "drizzle-orm": "^0.45.1",
     "nuxt-auth-utils": "^0.5.29",
     "jose": "^6.1.3",
@@ -46,8 +48,7 @@
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20250620.0",
-    "@iconify-json/lucide": "^1.2.94",
-    "@narduk-enterprises/eslint-config": "^1.0.13",
+    "@narduk-enterprises/eslint-config": "^1.0.17",
     "@nuxt/test-utils": "^4.0.0",
     "@playwright/test": "^1.58.2",
     "@tailwindcss/vite": "^4.0.0",
@@ -61,6 +62,7 @@
     "prettier": "^3.8.1",
     "tailwindcss": "^4.0.0",
     "typescript": "^5.9.3",
+    "@vitest/coverage-v8": "4.0.18",
     "vitest": "^4.0.18",
     "vue-tsc": "^3.2.5",
     "wrangler": "^4.20.0"
@@ -77,7 +79,7 @@
   "overrides": {
     "@cloudflare/unenv-preset": "2.12.1",
     "@nuxt/fonts": "0.14.0",
-    "nuxt-og-image": "6.0.0-beta.47",
+    "nuxt-og-image": "6.1.2",
     "@takumi-rs/core": ">=0.70.1",
     "@takumi-rs/wasm": ">=0.70.1",
     "vite": "npm:rolldown-vite@7.3.1"
@@ -93,7 +95,11 @@
     "./server/database/schema": {
       "import": "./server/database/schema.ts"
     },
-    "./drizzle/*": "./drizzle/*"
+    "./server/database/pg-schema": {
+      "import": "./server/database/pg-schema.ts"
+    },
+    "./drizzle/*": "./drizzle/*",
+    "./eslint-nuxt-flat-fragments": "./eslint-nuxt-flat-fragments.mjs"
   },
   "files": [
     "app/",
@@ -104,7 +110,10 @@
     "drizzle/",
     "nuxt.config.ts",
     "tsconfig.json",
-    "drizzle.config.ts"
+    "drizzle.config.ts",
+    "eslint.config.mjs",
+    "eslint-nuxt-flat-fragments.mjs",
+    "eslint-plugin-redundant-nuxt-auto-import.mjs"
   ],
   "volta": {
     "node": "22.22.0"

@@ -9,6 +9,7 @@ interface MockRuntimeConfig {
     appVersion: string
     buildVersion: string
     buildTime: string
+    controlPlaneUrl: string
     posthogHost: string
     cspScriptSrc: string
     cspConnectSrc: string
@@ -44,6 +45,7 @@ beforeEach(() => {
       appVersion: '',
       buildVersion: '',
       buildTime: '',
+      controlPlaneUrl: '',
       posthogHost: 'https://us.i.posthog.com',
       cspScriptSrc: '',
       cspConnectSrc: '',
@@ -55,20 +57,20 @@ beforeEach(() => {
 })
 
 describe('securityHeaders middleware', () => {
-  it('includes baseline Iconify API hosts in connect-src', () => {
+  it('does not include external Iconify hosts in the baseline CSP', () => {
     const csp = renderCsp()
     const connectSrc = getDirective(csp, 'connect-src')
 
-    expect(connectSrc).toContain('https://api.iconify.design')
-    expect(connectSrc).toContain('https://api.simplesvg.com')
-    expect(connectSrc).toContain('https://api.unisvg.com')
+    expect(connectSrc).not.toContain('https://api.iconify.design')
+    expect(connectSrc).not.toContain('https://api.simplesvg.com')
+    expect(connectSrc).not.toContain('https://api.unisvg.com')
   })
 
   it('merges custom CSP sources without duplicating existing entries', () => {
     mockConfig.public.posthogHost = 'https://eu.i.posthog.com'
     mockConfig.public.cspScriptSrc = 'https://cdn.example.com, https://cdn.example.com'
     mockConfig.public.cspConnectSrc =
-      'https://api.iconify.design, wss://stream.example.com, wss://stream.example.com'
+      'https://api.example.com, wss://stream.example.com, wss://stream.example.com'
 
     const csp = renderCsp()
     const scriptSrc = getDirective(csp, 'script-src')
@@ -79,7 +81,7 @@ describe('securityHeaders middleware', () => {
 
     expect(connectSrc).toContain('https://eu.i.posthog.com')
     expect(connectSrc).toContain('wss://stream.example.com')
-    expect(connectSrc.match(/https:\/\/api\.iconify\.design/g)).toHaveLength(1)
+    expect(connectSrc.match(/https:\/\/api\.example\.com/g)).toHaveLength(1)
     expect(connectSrc.match(/wss:\/\/stream\.example\.com/g)).toHaveLength(1)
   })
 
@@ -90,9 +92,17 @@ describe('securityHeaders middleware', () => {
     expect(csp).toContain("object-src 'none'")
   })
 
+  it('includes blob: in worker-src for bundled workers', () => {
+    const csp = renderCsp()
+    const workerSrc = getDirective(csp, 'worker-src')
+
+    expect(workerSrc).toContain("'self'")
+    expect(workerSrc).toContain('blob:')
+  })
+
   it('supports frame-src and worker-src overrides', () => {
     mockConfig.public.cspFrameSrc = 'https://embed.example.com, https://embed.example.com'
-    mockConfig.public.cspWorkerSrc = 'blob:, blob:'
+    mockConfig.public.cspWorkerSrc = 'https://workers.cdn.example.com'
 
     const csp = renderCsp()
     const frameSrc = getDirective(csp, 'frame-src')
@@ -102,6 +112,7 @@ describe('securityHeaders middleware', () => {
     expect(frameSrc.match(/https:\/\/embed\.example\.com/g)).toHaveLength(1)
 
     expect(workerSrc).toContain("'self'")
-    expect(workerSrc.match(/blob:/g)).toHaveLength(1)
+    expect(workerSrc).toContain('blob:')
+    expect(workerSrc).toContain('https://workers.cdn.example.com')
   })
 })

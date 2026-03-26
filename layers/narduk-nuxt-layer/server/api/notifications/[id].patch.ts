@@ -3,15 +3,22 @@
  *
  * Mark a single notification as read. Owner-only.
  */
-export default defineEventHandler(async (event) => {
-  const user = await requireAuth(event)
-  const notificationId = getRouterParam(event, 'id')
+import { defineUserMutation } from '#layer/server/utils/mutation'
+import { RATE_LIMIT_POLICIES } from '#layer/server/utils/rateLimit'
 
-  if (!notificationId) {
-    throw createError({ statusCode: 400, message: 'Notification ID is required.' })
-  }
+export default defineUserMutation(
+  {
+    rateLimit: RATE_LIMIT_POLICIES.notifications,
+  },
+  async ({ event, user }) => {
+    const notificationId = getRouterParam(event, 'id')
 
-  await markNotificationAsRead(event, notificationId, user.id)
+    if (!notificationId) {
+      throw createError({ statusCode: 400, message: 'Notification ID is required.' })
+    }
 
-  return { ok: true }
-})
+    await markNotificationAsRead(event, notificationId, user.id)
+
+    return { ok: true }
+  },
+)

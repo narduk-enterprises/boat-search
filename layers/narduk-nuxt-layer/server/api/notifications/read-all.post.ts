@@ -3,10 +3,16 @@
  *
  * Mark all notifications as read for the authenticated user.
  */
-export default defineEventHandler(async (event) => {
-  const user = await requireAuth(event)
+import { defineUserMutation } from '#layer/server/utils/mutation'
+import { RATE_LIMIT_POLICIES } from '#layer/server/utils/rateLimit'
 
-  await markAllNotificationsAsRead(event, user.id)
+export default defineUserMutation(
+  {
+    rateLimit: RATE_LIMIT_POLICIES.notifications,
+  },
+  async ({ event, user }) => {
+    await markAllNotificationsAsRead(event, user.id)
 
-  return { ok: true }
-})
+    return { ok: true }
+  },
+)

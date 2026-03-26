@@ -28,14 +28,12 @@ const BASELINE_CONNECT_SRC = [
   'https://us-assets.i.posthog.com',
   'https://*.apple-mapkit.com',
   'https://*.apple.com',
-  // Nuxt Icon falls back to Iconify's API when an icon is not present in the local bundles.
-  'https://api.iconify.design',
-  // Iconify's public client automatically fails over to these backup hosts.
-  'https://api.simplesvg.com',
-  'https://api.unisvg.com',
 ]
 
 const DEV_CONNECT_SRC = ['http:', 'https:', 'ws:', 'wss:']
+
+/** Libraries that bundle workers (maps, PDF, wasm helpers) often use blob: URLs. */
+const BASELINE_WORKER_SRC = ["'self'", 'blob:']
 
 function parseCspSources(value: string | undefined): string[] {
   if (!value) return []
@@ -89,7 +87,7 @@ export default defineEventHandler((event) => {
   )
   const finalWorkerSrc = buildDirective(
     'worker-src',
-    mergeCspSources(["'self'"], parseCspSources(config.public.cspWorkerSrc)),
+    mergeCspSources(BASELINE_WORKER_SRC, parseCspSources(config.public.cspWorkerSrc)),
   )
 
   const diagnosticHeaders: Record<string, string> = {}

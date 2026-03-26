@@ -1,12 +1,12 @@
 {
-  "name": "boat-search",
+  "name": "web",
   "type": "module",
   "private": true,
   "version": "1.17.2",
   "scripts": {
     "build": "nuxt build",
     "db:ready": "pnpm run db:migrate && pnpm run db:seed",
-    "dev": "pnpm run db:ready && (doppler run -- nuxt dev || nuxt dev)",
+    "dev": "(doppler run -- nuxt dev || nuxt dev)",
     "quality": "echo 'Turbo dependsOn handles lint + typecheck + format:check'",
     "db:migrate": "bash ../../tools/db-migrate.sh boat-search-db --local --dir node_modules/@narduk-enterprises/narduk-nuxt-template-layer/drizzle --dir drizzle",
     "db:seed": "wrangler d1 execute boat-search-db --local --file=node_modules/@narduk-enterprises/narduk-nuxt-template-layer/drizzle/seed.sql",
@@ -20,11 +20,12 @@
     "lint": "eslint . --max-warnings 0",
     "test:e2e": "playwright test --project=web --config=../../playwright.config.ts",
     "format:check": "prettier --check \"**/*.{ts,mts,vue,js,mjs,json,yaml,yml,css,md}\" --ignore-path ../../.gitignore",
-    "db:verify": "node node_modules/@narduk-enterprises/narduk-nuxt-template-layer/testing/verify-local-db.mjs ."
+    "db:verify": "node node_modules/@narduk-enterprises/narduk-nuxt-template-layer/testing/verify-local-db.mjs .",
+    "predev": "pnpm run db:ready"
   },
   "dependencies": {
     "@narduk-enterprises/narduk-nuxt-template-layer": "workspace:*",
-    "@narduk-enterprises/eslint-config": "^1.0.12",
+    "@narduk-enterprises/eslint-config": "^1.0.17",
     "drizzle-orm": "^0.45.1",
     "nuxt": "^4.3.1",
     "zod": "^4.3.6"

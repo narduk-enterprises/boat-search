@@ -1,9 +1,11 @@
 {
   "source": "control-plane/apps/web/server/data/managed-repos.ts",
-  "repoCount": 20,
+  "repoCount": 30,
   "repos": [
     "ai-media-gen",
     "austin-texas-net",
+    "bluebonnet-status-online",
+    "boat-search",
     "circuit-breaker-online",
     "clawdle",
     "control-plane",
@@ -12,15 +14,23 @@
     "favicon-checker",
     "flashcard-pro",
     "imessage-dictionary",
+    "lucys-loomies",
     "nagolnagemluapleira",
+    "napkinbets",
+    "narduk-ai",
     "narduk-enterprises-portfolio",
     "neon-sewer-raid",
     "ogpreview-app",
     "old-austin-grouch",
     "papa-everetts-pizza",
+    "paul",
     "sailing-passage-map",
+    "scorchin-tims",
     "tide-check",
+    "tideye",
     "tiny-invoice",
-    "video-grab"
+    "video-grab",
+    "wan-video-review",
+    "where-run"
   ]
 }
