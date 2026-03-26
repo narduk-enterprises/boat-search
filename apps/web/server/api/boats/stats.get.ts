@@ -31,6 +31,6 @@ export default defineEventHandler(async (event) => {
 
   return {
     ...stats,
-    topMakes: topMakes.filter((m) => m.make),
+    topMakes: topMakes.filter((m: (typeof topMakes)[number]) => m.make),
   }
 })

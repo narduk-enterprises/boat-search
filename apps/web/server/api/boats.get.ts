@@ -1,6 +1,6 @@
 import { z } from 'zod'
 import { boats } from '~~/server/database/schema'
-import { desc, like, gte, lte, sql, and } from 'drizzle-orm'
+import { desc, like, gte, lte, sql, and, type SQL } from 'drizzle-orm'
 
 const querySchema = z.object({
   make: z.string().optional(),
@@ -16,7 +16,7 @@ export default defineEventHandler(async (event) => {
   const db = useDatabase(event)
   const query = querySchema.parse(getQuery(event))
 
-  const conditions = []
+  const conditions: SQL[] = []
 
   if (query.make) {
     conditions.push(like(boats.make, `%${query.make}%`))
@@ -69,7 +69,7 @@ export default defineEventHandler(async (event) => {
     .offset(query.offset)
 
   // Parse images JSON and clean descriptions for each result
-  const cleaned = results.map((boat) => ({
+  const cleaned = results.map((boat: (typeof results)[number]) => ({
     ...boat,
     images: boat.images ? JSON.parse(boat.images) : [],
     price: boat.price ? Number.parseInt(boat.price, 10) : null,
@@ -78,7 +78,7 @@ export default defineEventHandler(async (event) => {
 
   // Deduplicate by make+model+year (keep first = highest price from ordering)
   const seen = new Set<string>()
-  return cleaned.filter((boat) => {
+  return cleaned.filter((boat: (typeof cleaned)[number]) => {
     const key = `${boat.make || ''}-${boat.model || ''}-${boat.year || ''}`.toLowerCase()
     if (seen.has(key)) return false
     seen.add(key)
