@@ -10,6 +10,7 @@ import { sqliteTable, text, integer, index, primaryKey } from 'drizzle-orm/sqlit
 import { users } from '#layer/server/database/schema'
 
 export * from '#layer/server/database/schema'
+export * from '#server/database/auth-bridge-schema'
 
 export const boats = sqliteTable(
   'boats',

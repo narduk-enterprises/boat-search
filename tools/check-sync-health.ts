@@ -34,6 +34,16 @@ const ROOT_PACKAGE_PATH = join(ROOT_DIR, 'package.json')
 const LAYER_PACKAGE_PATH = join(ROOT_DIR, 'layers', 'narduk-nuxt-layer', 'package.json')
 const APP_NUXT_CONFIG_PATH = join(ROOT_DIR, 'apps', 'web', 'nuxt.config.ts')
 const PUBLIC_DIR = join(ROOT_DIR, 'apps', 'web', 'public')
+const LAYER_PUBLIC_DIR = join(ROOT_DIR, 'layers', 'narduk-nuxt-layer', 'public')
+
+/** Paths referenced by `layers/narduk-nuxt-layer/nuxt.config.ts` `app.head.link`. */
+const LAYER_HEAD_ASSET_FILES = [
+  'favicon.svg',
+  'favicon-32x32.png',
+  'favicon-16x16.png',
+  'apple-touch-icon.png',
+  'site.webmanifest',
+] as const
 const LOCKFILE_PATH = join(ROOT_DIR, 'pnpm-lock.yaml')
 const PNPM_VIRTUAL_STORE_DIR = join(ROOT_DIR, 'node_modules', '.pnpm')
 const TEMPLATE_REPO_DIR_HINTS = [
@@ -254,6 +264,84 @@ function checkPublicJunk(): CheckResult {
   }
 }
 
+function manifestIconPathsMissing(publicDir: string): string[] {
+  const manifestPath = join(publicDir, 'site.webmanifest')
+  if (!existsSync(manifestPath)) {
+    return ['site.webmanifest (missing)']
+  }
+
+  const manifest = readJson<{ icons?: Array<{ src?: string }> }>(manifestPath)
+  const icons = manifest?.icons
+  if (!Array.isArray(icons)) {
+    return []
+  }
+
+  const missing: string[] = []
+  for (const icon of icons) {
+    const src = icon?.src
+    if (typeof src !== 'string' || !src.startsWith('/')) continue
+    const relative = src.slice(1)
+    if (!existsSync(join(publicDir, relative))) {
+      missing.push(relative)
+    }
+  }
+  return missing
+}
+
+function checkLayerHeadPublicAssets(): CheckResult {
+  if (!existsSync(LAYER_PUBLIC_DIR)) {
+    return {
+      status: 'warn',
+      summary: 'layer public directory not found',
+    }
+  }
+
+  const missingHead = LAYER_HEAD_ASSET_FILES.filter(
+    (name) => !existsSync(join(LAYER_PUBLIC_DIR, name)),
+  )
+  const missingManifest = manifestIconPathsMissing(LAYER_PUBLIC_DIR)
+
+  const allMissing = [...new Set([...missingHead, ...missingManifest])]
+  if (allMissing.length === 0) {
+    return {
+      status: 'pass',
+      summary: 'layer public assets match nuxt head + webmanifest icon paths',
+    }
+  }
+
+  return {
+    status: 'fail',
+    summary: `${allMissing.length} missing layer public file(s) for head/manifest`,
+    detail: [
+      ...allMissing.map((f) => `layers/narduk-nuxt-layer/public/${f}`),
+      'Run: pnpm run generate:favicons -- --target=layers/narduk-nuxt-layer/public',
+    ].join('\n'),
+  }
+}
+
+function checkAppWebmanifestIcons(): CheckResult {
+  if (!existsSync(PUBLIC_DIR) || !existsSync(join(PUBLIC_DIR, 'site.webmanifest'))) {
+    return {
+      status: 'pass',
+      summary: 'apps/web/site.webmanifest not present (using layer merge only)',
+    }
+  }
+
+  const missing = manifestIconPathsMissing(PUBLIC_DIR)
+  if (missing.length === 0) {
+    return {
+      status: 'pass',
+      summary: 'apps/web site.webmanifest icon paths resolve under public/',
+    }
+  }
+
+  return {
+    status: 'fail',
+    summary: 'apps/web site.webmanifest references missing files',
+    detail: missing.map((f) => `apps/web/public/${f}`).join('\n'),
+  }
+}
+
 function checkReferenceBaselines(): CheckResult {
   const missing = REFERENCE_BASELINE_FILES.filter(
     (relativePath) => !existsSync(join(ROOT_DIR, relativePath)),
@@ -398,6 +486,8 @@ async function main() {
     ['pnpm lockfile', checkLockfileState(rootPkg)],
     ['og-image config', checkOgImageConfig()],
     ['public junk', checkPublicJunk()],
+    ['layer head public assets', checkLayerHeadPublicAssets()],
+    ['app webmanifest icons', checkAppWebmanifestIcons()],
     ['reference baselines', checkReferenceBaselines()],
     ['fleet manifest parity', await checkFleetManifestParity()],
   ]

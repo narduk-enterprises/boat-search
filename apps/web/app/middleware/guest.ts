@@ -1,8 +1,5 @@
-/**
- * Guest-only middleware — same as the layer default, but when a signed-in user hits
- * `/login?redirect=…` we send them to that safe path instead of the global default.
- */
-export default defineNuxtRouteMiddleware(async (to) => {
+export default defineNuxtRouteMiddleware(async () => {
+  const config = useRuntimeConfig()
   const { loggedIn, fetch: refreshSession, clear } = useUserSession()
 
   try {
@@ -12,13 +9,6 @@ export default defineNuxtRouteMiddleware(async (to) => {
   }
 
   if (loggedIn.value) {
-    const r = to.query.redirect
-    if (typeof r === 'string' && r.startsWith('/') && !r.startsWith('//')) {
-      return navigateTo(r, { replace: true })
-    }
-    const appConfig = useAppConfig()
-    const redirectPath =
-      (appConfig as { auth?: { redirectPath?: string } }).auth?.redirectPath ?? '/browse'
-    return navigateTo(redirectPath, { replace: true })
+    return navigateTo(config.public.authRedirectPath, { replace: true })
   }
 })
