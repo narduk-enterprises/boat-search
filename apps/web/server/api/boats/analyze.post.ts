@@ -64,7 +64,7 @@ export default definePublicMutation(
 
     const { category, make, minLength, maxLength, userContext } = body.data
 
-    const db = useDatabase(event)
+    const db = useAppDatabase(event)
 
     // Build filter conditions
     const conditions: SQL[] = []

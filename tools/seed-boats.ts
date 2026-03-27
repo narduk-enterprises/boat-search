@@ -4,7 +4,7 @@
  * Usage:
  *   pnpm tsx tools/seed-boats.ts [--db path/to/boats.db] [--production]
  *
- * By default reads from ../boat-finder/data/boats.db (sibling repo).
+ * By default reads from packages/boat-crawler/data/boats.db (monorepo crawler output).
  * Uses `wrangler d1 execute` to run INSERT statements against D1.
  */
 
@@ -23,7 +23,7 @@ const dbArgIdx = args.indexOf('--db')
 const dbPath =
   dbArgIdx !== -1 && args[dbArgIdx + 1]
     ? resolve(args[dbArgIdx + 1])
-    : resolve(__dirname, '../../boat-finder/data/boats.db')
+    : resolve(__dirname, '../packages/boat-crawler/data/boats.db')
 
 const D1_DATABASE = 'boat-search-db'
 const WRANGLER_DIR = resolve(__dirname, '../apps/web')

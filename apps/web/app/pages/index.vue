@@ -1,15 +1,17 @@
 <script setup lang="ts">
-const config = useRuntimeConfig()
-const appName = config.public.appName || 'Boat Search'
-
 useSeo({
-  title: `${appName} — Find Your Perfect Fishing Boat`,
+  title: 'Boat Search | Find Boats Smarter',
   description:
-    'Search fishing boats 20-60ft across the US. AI-powered market analysis by xAI Grok. Data from boats.com, YachtWorld, and more.',
+    'Search boats by type, budget, size, location, and use case. Save your criteria, get alerts for new matches, and get AI recommendations that improve as you share more.',
+  ogImage: {
+    title: 'Boat Search',
+    description: 'Search-first boat discovery with alerts and AI guidance.',
+    icon: '⛵',
+  },
 })
 useWebPageSchema({
-  name: `${appName} — Fishing Boat Search`,
-  description: 'Search fishing boats across the US with AI-powered market analysis.',
+  name: 'Boat Search',
+  description: 'Search boats with filters, transparent sources, and buyer-focused AI.',
 })
 
 const { fetchBoats, fetchBoatStats, triggerAnalysis } = useBoats()
@@ -327,44 +329,14 @@ function formatPrice(price: number | null) {
   if (!price) return 'Price N/A'
   return `$${price.toLocaleString()}`
 }
-
-function getSourceColor(source: string) {
-  switch (source) {
-    case 'boats.com':
-      return 'info'
-    case 'yachtworld.com':
-      return 'primary'
-    case 'boattrader.com':
-      return 'success'
-    case 'thehulltruth.com':
-      return 'warning'
-    default:
-      return 'neutral'
-  }
-}
-
-function getSourceLabel(source: string) {
-  switch (source) {
-    case 'boats.com':
-      return 'Boats.com'
-    case 'yachtworld.com':
-      return 'YachtWorld'
-    case 'boattrader.com':
-      return 'BoatTrader'
-    case 'thehulltruth.com':
-      return 'Hull Truth'
-    default:
-      return source
-  }
-}
 </script>
 
 <template>
   <UPage>
     <!-- Hero -->
     <UPageHero
-      title="Find Your Perfect Sportfishing Boat"
-      description="Search 40-60ft convertible sportfishing boats across the US. AI-powered market analysis by xAI Grok."
+      title="Search boats smarter"
+      description="Find boats by type, budget, size, location, and use case — then get alerts and AI recommendations that improve as you tell us more."
       :ui="{
         title: 'text-4xl sm:text-5xl lg:text-6xl',
         description: 'text-lg sm:text-xl text-muted max-w-2xl',
@@ -372,18 +344,35 @@ function getSourceLabel(source: string) {
     >
       <template #links>
         <div class="flex flex-wrap gap-2">
+          <UButton to="/search" label="Search boats" icon="i-lucide-search" size="lg" />
+          <UButton
+            to="/ai-boat-finder"
+            label="Get matched"
+            color="neutral"
+            variant="soft"
+            size="lg"
+          />
+          <UButton
+            to="/boat-alerts"
+            label="Create alerts"
+            color="neutral"
+            variant="outline"
+            size="lg"
+          />
+        </div>
+        <div class="flex flex-wrap gap-2 mt-3">
           <UBadge
             color="primary"
             variant="subtle"
             size="lg"
-            label="Hatteras · Viking · Bertram"
-            icon="i-lucide-anchor"
+            label="Multi-source listings"
+            icon="i-lucide-database"
           />
           <UBadge
             color="neutral"
             variant="subtle"
             size="lg"
-            label="AI-Powered Analysis"
+            label="AI match guidance"
             icon="i-lucide-sparkles"
           />
         </div>
@@ -904,59 +893,7 @@ function getSourceLabel(source: string) {
           </div>
         </div>
         <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          <NuxtLink
-            v-for="boat in boats"
-            :key="boat.id"
-            :to="`/boats/${boat.id}`"
-            class="card-base rounded-xl overflow-hidden transition-base hover:shadow-elevated group"
-          >
-            <!-- Image -->
-            <div class="aspect-video bg-muted overflow-hidden relative">
-              <img
-                v-if="boat.images && boat.images.length > 0"
-                :src="boat.images[0]"
-                :alt="`${boat.year || ''} ${boat.make || ''} ${boat.model || ''}`"
-                class="w-full h-full object-cover group-hover:scale-105 transition-slow"
-                loading="lazy"
-              />
-              <div v-else class="w-full h-full flex items-center justify-center text-dimmed">
-                <UIcon name="i-lucide-ship" class="text-4xl" />
-              </div>
-              <!-- Source badge -->
-              <div class="absolute top-2 left-2">
-                <UBadge
-                  :label="getSourceLabel(boat.source)"
-                  :color="getSourceColor(boat.source)"
-                  variant="solid"
-                  size="xs"
-                />
-              </div>
-            </div>
-
-            <!-- Info -->
-            <div class="p-4">
-              <div class="flex items-start justify-between gap-2">
-                <div class="min-w-0">
-                  <h3 class="font-semibold text-default truncate">
-                    {{ boat.year }} {{ boat.make }} {{ boat.model }}
-                  </h3>
-                  <p class="text-sm text-muted truncate">
-                    {{ boat.length }}ft · {{ boat.city || boat.state || boat.location || 'US' }}
-                  </p>
-                </div>
-                <span class="text-lg font-bold text-primary whitespace-nowrap">
-                  {{ formatPrice(boat.price) }}
-                </span>
-              </div>
-              <!-- Description excerpt -->
-              <p v-if="boat.description" class="mt-2 text-xs text-dimmed line-clamp-2">
-                {{ boat.description }}
-              </p>
-              <div v-if="boat.sellerType" class="mt-2 flex items-center gap-2">
-                <UBadge :label="boat.sellerType" variant="subtle" size="sm" />
-              </div>
-            </div>
-          </NuxtLink>
+          <BoatListingCard v-for="boat in boats" :key="boat.id" :boat="boat" />
         </div>
       </div>
 

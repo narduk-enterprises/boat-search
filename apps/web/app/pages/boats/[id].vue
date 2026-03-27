@@ -2,28 +2,40 @@
 const route = useRoute()
 const boatId = route.params.id as string
 const { fetchBoat, triggerAnalysis } = useBoats()
-const { data: boat, status } = fetchBoat(boatId)
+const { data: boat, status } = await fetchBoat(boatId)
 
 const pageTitle = computed(() => {
-  if (!boat.value) return 'Boat Details'
+  if (!boat.value) return 'Boat details'
   return (
     `${boat.value.year || ''} ${boat.value.make || ''} ${boat.value.model || ''}`.trim() ||
-    'Boat Details'
+    'Boat details'
   )
 })
 
+const b = boat.value
+const seoTitle = pageTitle.value
+const seoDesc = b
+  ? `${seoTitle} — ${b.length || '?'}ft boat for sale${b.location ? ` in ${b.location}` : ''}. Source: ${b.source}.`
+  : 'Boat listing details on Boat Search.'
+
 useSeo({
-  title: pageTitle.value,
-  description: computed(() =>
-    boat.value
-      ? `${pageTitle.value} — ${boat.value.length}ft sport fishing boat for sale in ${boat.value.location || 'the US'}`
-      : 'Boat details',
-  ).value,
+  title: seoTitle,
+  description: seoDesc,
+  ogImage: { title: seoTitle, description: seoDesc, icon: '⛵' },
 })
 useWebPageSchema({
-  name: pageTitle.value,
-  description: `Sport fishing boat for sale in the US`,
+  name: seoTitle,
+  description: seoDesc,
+  type: 'ItemPage',
 })
+
+const session = useUserSession()
+const numericBoatId = computed(() => boat.value?.id)
+const { favorited, saving: favSaving, toggleFavorite } = useFavoriteBoat(numericBoatId)
+
+function goLoginForFavorite() {
+  navigateTo({ path: '/login', query: { redirect: route.fullPath } })
+}
 
 // Selected image index for gallery
 const selectedImage = ref(0)
@@ -95,11 +107,11 @@ function getSourceBadgeLabel(source: string) {
       <!-- Back nav -->
       <UPageSection :ui="{ wrapper: 'py-4' }">
         <NuxtLink
-          to="/"
+          to="/search"
           class="inline-flex items-center gap-1 text-sm text-muted hover:text-default transition-fast"
         >
           <UIcon name="i-lucide-arrow-left" />
-          Back to Listings
+          Back to search
         </NuxtLink>
       </UPageSection>
 
@@ -221,6 +233,26 @@ function getSourceBadgeLabel(source: string) {
               block
             />
 
+            <UButton
+              v-if="session.loggedIn"
+              :label="favorited ? 'Saved to favorites' : 'Save to favorites'"
+              icon="i-lucide-heart"
+              :color="favorited ? 'primary' : 'neutral'"
+              variant="outline"
+              :loading="favSaving"
+              block
+              @click="toggleFavorite"
+            />
+            <UButton
+              v-else
+              label="Sign in to save"
+              icon="i-lucide-heart"
+              color="neutral"
+              variant="outline"
+              block
+              @click="goLoginForFavorite"
+            />
+
             <!-- AI Analysis -->
             <div class="card-base rounded-xl p-4 space-y-3">
               <div class="flex items-center gap-2">
@@ -277,8 +309,8 @@ function getSourceBadgeLabel(source: string) {
     <div v-else class="text-center py-24">
       <UIcon name="i-lucide-ship" class="text-5xl text-dimmed" />
       <p class="text-lg text-muted mt-4">Boat not found</p>
-      <NuxtLink to="/" class="text-primary hover:underline mt-2 inline-block">
-        Back to Listings
+      <NuxtLink to="/search" class="text-primary hover:underline mt-2 inline-block">
+        Back to search
       </NuxtLink>
     </div>
   </UPage>

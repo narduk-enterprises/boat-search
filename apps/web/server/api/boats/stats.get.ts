@@ -2,7 +2,7 @@ import { boats } from '~~/server/database/schema'
 import { sql } from 'drizzle-orm'
 
 export default defineEventHandler(async (event) => {
-  const db = useDatabase(event)
+  const db = useAppDatabase(event)
 
   const result = await db
     .select({

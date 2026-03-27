@@ -1,4 +1,4 @@
-import { sqliteTable, text, integer, index } from 'drizzle-orm/sqlite-core'
+import { sqliteTable, text, integer, index, primaryKey } from 'drizzle-orm/sqlite-core'
 
 /**
  * App-specific database schema.
@@ -7,6 +7,8 @@ import { sqliteTable, text, integer, index } from 'drizzle-orm/sqlite-core'
  * drizzle-kit can discover them from this workspace. Add app-specific
  * tables below the re-export.
  */
+import { users } from '#layer/server/database/schema'
+
 export * from '#layer/server/database/schema'
 
 // ─── App-Specific Tables ────────────────────────────────────
@@ -83,3 +85,54 @@ export const xaiAnalyses = sqliteTable('xai_analyses', {
   tokensUsed: integer('tokens_used'),
   createdAt: text('created_at').notNull(),
 })
+
+export const buyerProfiles = sqliteTable('buyer_profiles', {
+  userId: text('user_id')
+    .primaryKey()
+    .references(() => users.id, { onDelete: 'cascade' }),
+  dataJson: text('data_json').notNull().default('{}'),
+  updatedAt: text('updated_at')
+    .notNull()
+    .$defaultFn(() => new Date().toISOString()),
+})
+
+export const savedSearches = sqliteTable(
+  'saved_searches',
+  {
+    id: integer('id').primaryKey({ autoIncrement: true }),
+    userId: text('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    name: text('name').notNull(),
+    filterJson: text('filter_json').notNull(),
+    frequency: text('frequency').notNull().default('daily'),
+    paused: integer('paused', { mode: 'boolean' }).notNull().default(false),
+    lastNotifiedAt: text('last_notified_at'),
+    createdAt: text('created_at')
+      .notNull()
+      .$defaultFn(() => new Date().toISOString()),
+    updatedAt: text('updated_at')
+      .notNull()
+      .$defaultFn(() => new Date().toISOString()),
+  },
+  (table) => [index('idx_saved_searches_user_id').on(table.userId)],
+)
+
+export const boatFavorites = sqliteTable(
+  'boat_favorites',
+  {
+    userId: text('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    boatId: integer('boat_id')
+      .notNull()
+      .references(() => boats.id, { onDelete: 'cascade' }),
+    createdAt: text('created_at')
+      .notNull()
+      .$defaultFn(() => new Date().toISOString()),
+  },
+  (table) => [
+    primaryKey({ columns: [table.userId, table.boatId] }),
+    index('idx_boat_favorites_user_id').on(table.userId),
+  ],
+)

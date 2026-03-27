@@ -8,7 +8,7 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 400, statusMessage: 'Invalid boat ID' })
   }
 
-  const db = useDatabase(event)
+  const db = useAppDatabase(event)
   const result = await db.select().from(boats).where(eq(boats.id, id)).limit(1)
 
   if (result.length === 0) {

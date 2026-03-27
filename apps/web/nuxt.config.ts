@@ -48,7 +48,7 @@ export default defineNuxtConfig({
     url: process.env.SITE_URL || 'https://boat-search.nard.uk',
     name: 'Boat Search',
     description:
-      'Search 40-60ft convertible sportfishing boats across the US. AI-powered market analysis by xAI Grok. Data from boats.com, YachtWorld, BoatTrader, and The Hull Truth.',
+      'Search boats by type, budget, size, and location. Save criteria, get alerts, and use AI guidance that improves as you share how you boat.',
     defaultLocale: 'en',
   },
 
