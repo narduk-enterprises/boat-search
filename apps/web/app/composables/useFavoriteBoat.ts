@@ -1,8 +1,9 @@
-export function useFavoriteBoat(boatId: MaybeRefOrGetter<number | undefined>) {
+export function useFavoriteBoat(boatId: MaybeRefOrGetter<number | null | undefined>) {
   const appFetch = useAppFetch()
   const { capture } = usePosthog()
   const session = useUserSession()
-  const id = computed(() => toValue(boatId))
+  const boatIdRef = toRef(boatId)
+  const id = computed(() => boatIdRef.value ?? undefined)
 
   const { data, refresh } = useAsyncData(
     () => `favorite-status-${id.value ?? 'none'}`,

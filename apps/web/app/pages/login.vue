@@ -1,7 +1,7 @@
 <script setup lang="ts">
 useSeo({
   title: 'Sign In',
-  description: 'Sign in to save searches, favorites, and your buyer profile.',
+  description: 'Sign in before starting the AI-first fishing boat finder.',
   ogImage: {
     title: 'Sign In',
     description: 'Access your Boat Search account.',
@@ -10,14 +10,14 @@ useSeo({
 })
 useWebPageSchema({
   name: 'Sign In',
-  description: 'Sign in to save searches, favorites, and your buyer profile.',
+  description: 'Sign in before starting the AI-first fishing boat finder.',
 })
 definePageMeta({ middleware: ['guest'] })
 
 const route = useRoute()
 const redirectPath = computed(() => {
   const r = route.query.redirect
-  if (typeof r !== 'string' || !r.startsWith('/') || r.startsWith('//')) return '/browse'
+  if (typeof r !== 'string' || !r.startsWith('/') || r.startsWith('//')) return '/ai-boat-finder'
   return r
 })
 </script>
@@ -26,7 +26,7 @@ const redirectPath = computed(() => {
   <div class="flex items-center justify-center min-h-[calc(100vh-8rem)]">
     <AuthLoginCard
       title="Welcome back"
-      subtitle="Sign in to save searches and favorite listings"
+      subtitle="Sign in before we build your fishing-boat shortlist"
       :redirect-path="redirectPath"
     />
   </div>

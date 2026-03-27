@@ -1,57 +1,52 @@
 <script setup lang="ts">
+import {
+  buyerProfileSchema,
+  createEmptyBuyerProfile,
+  normalizeBuyerProfileDraft,
+  type BuyerProfileDraft,
+} from '~~/lib/boatFinder'
+
 definePageMeta({ middleware: ['auth'] })
 
 useSeo({
-  title: 'Buyer profile',
-  description: 'Your boating preferences and enrichment prompts.',
+  title: 'Buyer Profile',
+  description: 'Edit the saved fishing brief that powers your shortlist and boat commentary.',
   ogImage: {
-    title: 'Buyer profile',
-    description: 'Your boating preferences and enrichment prompts.',
+    title: 'Buyer Profile',
+    description: 'Saved fishing questionnaire and rerun controls for Boat Search.',
     icon: '⛵',
   },
 })
 useWebPageSchema({
-  name: 'Buyer profile',
-  description: 'Your boating preferences and enrichment prompts.',
+  name: 'Buyer Profile',
+  description: 'Saved fishing questionnaire and rerun controls for Boat Search.',
 })
 
 const toast = useToast()
-const { data, status, saveProfile } = useBuyerProfile()
+const { profile, status, saveProfile } = useBuyerProfile()
+const { createSession } = useRecommendationSessions()
 
-const notes = ref('')
-const budgetMax = ref<number | undefined>(undefined)
-const preferredMakes = ref('')
+const draftProfile = ref<BuyerProfileDraft>(createEmptyBuyerProfile())
+const saving = shallowRef(false)
+const rerunning = shallowRef(false)
 
 watch(
-  () => data.value?.profile,
-  (p) => {
-    if (!p) return
-    notes.value = typeof p.notes === 'string' ? p.notes : ''
-    const b = p.budgetMax
-    if (typeof b === 'number' && !Number.isNaN(b)) {
-      budgetMax.value = b
-    } else if (typeof b === 'string' && b.trim()) {
-      const n = Number.parseFloat(b)
-      budgetMax.value = Number.isNaN(n) ? undefined : n
-    } else {
-      budgetMax.value = undefined
-    }
-    preferredMakes.value = typeof p.preferredMakes === 'string' ? p.preferredMakes : ''
+  profile,
+  (nextProfile) => {
+    draftProfile.value = normalizeBuyerProfileDraft(nextProfile)
   },
   { immediate: true },
 )
 
-const saving = ref(false)
+function parseDraftProfile() {
+  return buyerProfileSchema.parse(draftProfile.value)
+}
 
-async function onSave() {
+async function handleSave() {
   saving.value = true
   try {
-    await saveProfile({
-      notes: notes.value,
-      budgetMax: budgetMax.value,
-      preferredMakes: preferredMakes.value.trim(),
-    })
-    toast.add({ title: 'Profile saved', color: 'success' })
+    await saveProfile(parseDraftProfile())
+    toast.add({ title: 'Buyer profile saved', color: 'success' })
   } catch (error: unknown) {
     const err = error as { data?: { statusMessage?: string }; message?: string }
     toast.add({
@@ -63,46 +58,71 @@ async function onSave() {
     saving.value = false
   }
 }
+
+async function handleSaveAndRerun() {
+  rerunning.value = true
+  try {
+    const response = await createSession(parseDraftProfile())
+    toast.add({
+      title: 'Shortlist refreshed',
+      description: 'Your updated fishing brief is now driving the recommendation board.',
+      color: 'success',
+    })
+    await navigateTo({
+      path: '/search',
+      query: { sessionId: String(response.session.id) },
+    })
+  } catch (error: unknown) {
+    const err = error as { data?: { statusMessage?: string }; message?: string }
+    toast.add({
+      title: 'Could not rerun finder',
+      description: err.data?.statusMessage || err.message || 'Try again.',
+      color: 'error',
+    })
+  } finally {
+    rerunning.value = false
+  }
+}
 </script>
 
 <template>
   <UPage>
     <UPageSection>
-      <h1 class="text-2xl font-bold text-default">Buyer profile</h1>
-      <p class="mt-1 text-muted max-w-2xl">
-        Optional context we can use for recommendations and AI-assisted flows as those features
-        expand.
-      </p>
+      <div class="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+        <div>
+          <h1 class="text-3xl font-bold text-default">Saved buyer profile</h1>
+          <p class="mt-2 max-w-3xl text-muted">
+            This is the fishing brief used to search, rank, and explain boats everywhere else in the
+            product.
+          </p>
+        </div>
 
-      <div v-if="status === 'pending'" class="flex justify-center py-16">
-        <UIcon name="i-lucide-loader-2" class="size-8 animate-spin text-muted" />
-      </div>
-      <UCard
-        v-else
-        class="card-base border-default mt-8 max-w-2xl"
-        :ui="{ body: 'p-4 sm:p-6 space-y-4' }"
-      >
-        <UFormField
-          label="Preferred makes (comma-separated)"
-          hint="e.g. Boston Whaler, Grady-White"
-        >
-          <UInput v-model="preferredMakes" class="w-full" placeholder="Optional" />
-        </UFormField>
-        <UFormField label="Budget ceiling (USD)" hint="Rough max price for matching and tips.">
-          <UInput v-model.number="budgetMax" type="number" class="w-full" placeholder="Optional" />
-        </UFormField>
-        <UFormField label="Notes" hint="How you use the boat, must-haves, timeline, etc.">
-          <UTextarea v-model="notes" class="w-full min-h-32" autoresize />
-        </UFormField>
-        <div class="flex justify-end pt-2">
+        <div class="flex flex-wrap gap-2">
           <UButton
             label="Save profile"
             icon="i-lucide-save"
-            color="primary"
+            color="neutral"
+            variant="soft"
             :loading="saving"
-            @click="onSave"
+            @click="handleSave"
+          />
+          <UButton
+            label="Save and rerun finder"
+            icon="i-lucide-sparkles"
+            :loading="rerunning"
+            @click="handleSaveAndRerun"
           />
         </div>
+      </div>
+    </UPageSection>
+
+    <UPageSection>
+      <div v-if="status === 'pending'" class="flex items-center justify-center py-24">
+        <UIcon name="i-lucide-loader-2" class="animate-spin text-3xl text-muted" />
+      </div>
+
+      <UCard v-else class="card-base border-default" :ui="{ body: 'p-5 sm:p-6 space-y-6' }">
+        <BoatFinderProfileFields v-model="draftProfile" />
       </UCard>
     </UPageSection>
   </UPage>

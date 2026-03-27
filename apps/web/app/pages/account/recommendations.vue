@@ -2,29 +2,144 @@
 definePageMeta({ middleware: ['auth'] })
 
 useSeo({
-  title: 'Recommendations',
-  description: 'Ranked matches from your profile and behavior.',
+  title: 'Recommendation History',
+  description: 'Replay previous AI finder runs and reopen saved fishing boat shortlists.',
   ogImage: {
-    title: 'Recommendations',
-    description: 'Ranked matches from your profile and behavior.',
+    title: 'Recommendation History',
+    description: 'Saved AI shortlist runs for Boat Search.',
     icon: '⛵',
   },
 })
 useWebPageSchema({
-  name: 'Recommendations',
-  description: 'Ranked matches from your profile and behavior.',
+  name: 'Recommendation History',
+  description: 'Saved AI shortlist runs for Boat Search.',
 })
+
+const toast = useToast()
+const { sessionsData, sessionsStatus, createSession } = useRecommendationSessions()
+const rerunning = shallowRef(false)
+
+async function handleRerunLatest() {
+  rerunning.value = true
+  try {
+    const response = await createSession()
+    toast.add({
+      title: 'Finder rerun complete',
+      description: 'A new shortlist has been generated from your saved brief.',
+      color: 'success',
+    })
+    await navigateTo({
+      path: '/search',
+      query: { sessionId: String(response.session.id) },
+    })
+  } catch (error: unknown) {
+    const err = error as { data?: { statusMessage?: string }; message?: string }
+    toast.add({
+      title: 'Could not rerun finder',
+      description: err.data?.statusMessage || err.message || 'Try again.',
+      color: 'error',
+    })
+  } finally {
+    rerunning.value = false
+  }
+}
 </script>
 
 <template>
   <UPage>
     <UPageSection>
-      <h1 class="text-2xl font-bold text-default">Recommendations</h1>
-      <p class="mt-4 text-muted max-w-2xl">
-        Signed-in experience is being wired to saved searches, alerts, and recommendations. Check
-        back after the next milestone.
-      </p>
-      <UButton class="mt-6" to="/search" label="Go to search" icon="i-lucide-search" />
+      <div class="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+        <div>
+          <h1 class="text-3xl font-bold text-default">Recommendation history</h1>
+          <p class="mt-2 max-w-3xl text-muted">
+            Every finder run stores the exact buyer brief, generated filters, and ranked shortlist
+            so you can reopen or compare sessions later.
+          </p>
+        </div>
+
+        <div class="flex flex-wrap gap-2">
+          <UButton
+            label="Rerun saved brief"
+            icon="i-lucide-refresh-cw"
+            :loading="rerunning"
+            @click="handleRerunLatest"
+          />
+          <UButton
+            to="/account/profile"
+            label="Edit buyer profile"
+            color="neutral"
+            variant="soft"
+            icon="i-lucide-user-round"
+          />
+        </div>
+      </div>
+    </UPageSection>
+
+    <UPageSection>
+      <div v-if="sessionsStatus === 'pending'" class="flex items-center justify-center py-24">
+        <UIcon name="i-lucide-loader-2" class="animate-spin text-3xl text-muted" />
+      </div>
+
+      <div
+        v-else-if="!sessionsData?.sessions?.length"
+        class="card-base rounded-2xl border-default px-6 py-12 text-center"
+      >
+        <UIcon name="i-lucide-history" class="mx-auto text-4xl text-dimmed" />
+        <h2 class="mt-4 text-xl font-semibold text-default">No finder runs yet</h2>
+        <p class="mt-2 text-muted max-w-2xl mx-auto">
+          Run the AI finder once and this page becomes your history view for saved shortlists.
+        </p>
+        <UButton
+          class="mt-6"
+          to="/ai-boat-finder"
+          label="Open the finder"
+          icon="i-lucide-sparkles"
+        />
+      </div>
+
+      <div v-else class="space-y-4">
+        <UCard
+          v-for="session in sessionsData.sessions"
+          :key="session.id"
+          class="card-base border-default"
+          :ui="{ body: 'p-5 space-y-4' }"
+        >
+          <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+            <div class="space-y-2">
+              <div class="flex flex-wrap items-center gap-2">
+                <UBadge
+                  :label="
+                    session.resultSummary.generatedBy === 'ai' ? 'AI ranked' : 'Fallback ranked'
+                  "
+                  color="primary"
+                  variant="subtle"
+                />
+                <span class="text-sm text-dimmed">
+                  {{ new Date(session.createdAt).toLocaleString() }}
+                </span>
+              </div>
+              <h2 class="text-xl font-semibold text-default">
+                {{ session.resultSummary.querySummary }}
+              </h2>
+              <p class="text-sm text-muted max-w-3xl">
+                {{ session.resultSummary.overallAdvice }}
+              </p>
+              <p class="text-sm text-default">
+                Top pick:
+                <span class="font-medium">{{ session.topPickLabel || 'None selected' }}</span>
+              </p>
+            </div>
+
+            <div class="flex flex-wrap gap-2">
+              <UButton
+                :to="{ path: '/search', query: { sessionId: String(session.id) } }"
+                label="Open shortlist"
+                icon="i-lucide-arrow-right"
+              />
+            </div>
+          </div>
+        </UCard>
+      </div>
     </UPageSection>
   </UPage>
 </template>

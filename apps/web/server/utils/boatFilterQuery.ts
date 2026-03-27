@@ -1,12 +1,13 @@
 import { z } from 'zod'
 import { boats } from '~~/server/database/schema'
-import { and, desc, gt, gte, like, lte, sql, type SQL } from 'drizzle-orm'
+import { and, desc, gt, gte, like, lte, or, sql, type SQL } from 'drizzle-orm'
 import type { DrizzleD1Database } from 'drizzle-orm/d1'
 import type * as schema from '~~/server/database/schema'
 
 /** Filters shared by /api/boats, saved searches, and cron matching. */
 export const boatSearchFilterSchema = z.object({
   make: z.string().optional(),
+  location: z.string().optional(),
   minLength: z.coerce.number().optional(),
   maxLength: z.coerce.number().optional(),
   minPrice: z.coerce.number().optional(),
@@ -19,6 +20,17 @@ export function boatFilterConditions(filter: BoatSearchFilter): SQL[] {
   const conditions: SQL[] = []
   if (filter.make) {
     conditions.push(like(boats.make, `%${filter.make}%`))
+  }
+  if (filter.location) {
+    const needle = `%${filter.location}%`
+    conditions.push(
+      or(
+        like(boats.location, needle),
+        like(boats.city, needle),
+        like(boats.state, needle),
+        like(boats.country, needle),
+      )!,
+    )
   }
   if (filter.minLength != null) {
     conditions.push(gte(sql`CAST(${boats.length} AS REAL)`, filter.minLength))

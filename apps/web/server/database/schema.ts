@@ -11,8 +11,6 @@ import { users } from '#layer/server/database/schema'
 
 export * from '#layer/server/database/schema'
 
-// ─── App-Specific Tables ────────────────────────────────────
-
 export const boats = sqliteTable(
   'boats',
   {
@@ -20,35 +18,23 @@ export const boats = sqliteTable(
     listingId: text('listing_id'),
     source: text('source').notNull().default('boats.com'),
     url: text('url').notNull(),
-
-    // Basic info
     make: text('make'),
     model: text('model'),
     year: integer('year'),
     length: text('length'),
     price: text('price'),
     currency: text('currency').default('USD'),
-
-    // Location
     location: text('location'),
     city: text('city'),
     state: text('state'),
     country: text('country').default('US'),
-
-    // Details
     description: text('description'),
     sellerType: text('seller_type'),
     listingType: text('listing_type'),
-
-    // Images (JSON array stored as text)
     images: text('images'),
-
-    // Metadata
     fullText: text('full_text'),
     scrapedAt: text('scraped_at').notNull(),
     updatedAt: text('updated_at').notNull(),
-
-    // Search criteria (tracking which search found this)
     searchLengthMin: integer('search_length_min'),
     searchLengthMax: integer('search_length_max'),
     searchType: text('search_type'),
@@ -134,5 +120,47 @@ export const boatFavorites = sqliteTable(
   (table) => [
     primaryKey({ columns: [table.userId, table.boatId] }),
     index('idx_boat_favorites_user_id').on(table.userId),
+  ],
+)
+
+export const recommendationSessions = sqliteTable(
+  'recommendation_sessions',
+  {
+    id: integer('id').primaryKey({ autoIncrement: true }),
+    userId: text('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    profileSnapshotJson: text('profile_snapshot_json').notNull(),
+    generatedFilterJson: text('generated_filter_json').notNull(),
+    resultSummaryJson: text('result_summary_json').notNull(),
+    rankedBoatIdsJson: text('ranked_boat_ids_json').notNull(),
+    createdAt: text('created_at')
+      .notNull()
+      .$defaultFn(() => new Date().toISOString()),
+  },
+  (table) => [index('idx_recommendation_sessions_user_id').on(table.userId, table.createdAt)],
+)
+
+export const boatFitSummaries = sqliteTable(
+  'boat_fit_summaries',
+  {
+    id: integer('id').primaryKey({ autoIncrement: true }),
+    userId: text('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    boatId: integer('boat_id')
+      .notNull()
+      .references(() => boats.id, { onDelete: 'cascade' }),
+    sessionId: integer('session_id').references(() => recommendationSessions.id, {
+      onDelete: 'set null',
+    }),
+    summaryJson: text('summary_json').notNull(),
+    createdAt: text('created_at')
+      .notNull()
+      .$defaultFn(() => new Date().toISOString()),
+  },
+  (table) => [
+    index('idx_boat_fit_summaries_lookup').on(table.userId, table.boatId, table.createdAt),
+    index('idx_boat_fit_summaries_session').on(table.sessionId),
   ],
 )

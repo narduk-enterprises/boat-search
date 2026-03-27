@@ -2,15 +2,23 @@
 const route = useRoute()
 const config = useRuntimeConfig()
 const appName = config.public.appName || 'Boat Search'
+const { loggedIn } = useUserSession()
 
-const navLinks = [
-  { label: 'Home', to: '/', icon: 'i-lucide-home' },
-  { label: 'Search', to: '/search', icon: 'i-lucide-search' },
-  { label: 'Browse', to: '/browse', icon: 'i-lucide-compass' },
-  { label: 'Guides', to: '/guides', icon: 'i-lucide-book-open' },
-  { label: 'Alerts', to: '/boat-alerts', icon: 'i-lucide-bell' },
-  { label: 'AI finder', to: '/ai-boat-finder', icon: 'i-lucide-sparkles' },
-]
+const navLinks = computed(() => {
+  const base = [
+    { label: 'Home', to: '/', icon: 'i-lucide-home' },
+    { label: 'Fishing finder', to: '/ai-boat-finder', icon: 'i-lucide-sparkles' },
+  ]
+
+  if (loggedIn.value) {
+    base.push(
+      { label: 'Recommendations', to: '/search', icon: 'i-lucide-ship-wheel' },
+      { label: 'Profile', to: '/account/profile', icon: 'i-lucide-user-round' },
+    )
+  }
+
+  return base
+})
 
 const isFullBleedLayout = computed(() => {
   const m = route.meta.layout
@@ -37,7 +45,22 @@ const footerLinkClass = 'text-sm text-muted hover:text-default transition-fast'
           </NuxtLink>
         </template>
         <template #actions>
+          <AppUserMenu
+            v-if="loggedIn"
+            :menu-links="[
+              { label: 'Finder', to: '/ai-boat-finder', icon: 'i-lucide-sparkles' },
+              { label: 'Shortlist', to: '/search', icon: 'i-lucide-ship-wheel' },
+              { label: 'Buyer profile', to: '/account/profile', icon: 'i-lucide-user-round' },
+              {
+                label: 'Recommendation history',
+                to: '/account/recommendations',
+                icon: 'i-lucide-history',
+              },
+            ]"
+            logout-redirect="/login"
+          />
           <UButton
+            v-if="!loggedIn"
             to="/login"
             label="Sign in"
             color="neutral"
@@ -72,17 +95,9 @@ const footerLinkClass = 'text-sm text-muted hover:text-default transition-fast'
                 <span class="text-xs font-semibold text-dimmed uppercase tracking-wide"
                   >Product</span
                 >
-                <NuxtLink :class="footerLinkClass" to="/search">Search boats</NuxtLink>
-                <NuxtLink :class="footerLinkClass" to="/boat-alerts">Boat alerts</NuxtLink>
-                <NuxtLink :class="footerLinkClass" to="/ai-boat-finder">AI boat finder</NuxtLink>
-              </div>
-              <div class="flex flex-col gap-2">
-                <span class="text-xs font-semibold text-dimmed uppercase tracking-wide"
-                  >Browse</span
-                >
-                <NuxtLink :class="footerLinkClass" to="/browse">All browse paths</NuxtLink>
-                <NuxtLink :class="footerLinkClass" to="/boats-for-sale">Boats for sale</NuxtLink>
-                <NuxtLink :class="footerLinkClass" to="/guides">Buying guides</NuxtLink>
+                <NuxtLink :class="footerLinkClass" to="/ai-boat-finder">Fishing finder</NuxtLink>
+                <NuxtLink :class="footerLinkClass" to="/search">Ranked matches</NuxtLink>
+                <NuxtLink :class="footerLinkClass" to="/account/profile">Saved profile</NuxtLink>
               </div>
               <div class="flex flex-col gap-2">
                 <span class="text-xs font-semibold text-dimmed uppercase tracking-wide"
@@ -96,7 +111,8 @@ const footerLinkClass = 'text-sm text-muted hover:text-default transition-fast'
               </div>
             </div>
             <p class="text-sm text-muted text-center md:text-right">
-              Listings attributed to original sources. AI output is advisory only.
+              Fishing niche launch. Listings stay attributed to original sources. AI output is
+              advisory only.
             </p>
           </div>
         </template>

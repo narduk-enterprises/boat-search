@@ -10,11 +10,17 @@ test.describe('web smoke', () => {
     await warmUpApp(browser, baseURL)
   })
 
-  test('home page renders the coming soon hero', async ({ page }) => {
+  test('home page renders the AI finder hero', async ({ page }) => {
     await page.goto('/')
     await waitForHydration(page)
-    await expect(page.getByText('Coming Soon').first()).toBeVisible()
-    await expect(page.getByText('Something amazing is on the way').first()).toBeVisible()
-    await expect(page).toHaveTitle(/Coming Soon/)
+    await expect(
+      page.getByRole('heading', {
+        name: /Save one fishing brief and let AI rank the right boats/i,
+      }),
+    ).toBeVisible()
+    await expect(
+      page.getByText(/signed-in buyer workflow for fishing and offshore shoppers/i).first(),
+    ).toBeVisible()
+    await expect(page).toHaveTitle(/AI Fishing Boat Finder/)
   })
 })

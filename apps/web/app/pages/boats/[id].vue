@@ -1,99 +1,73 @@
 <script setup lang="ts">
 const route = useRoute()
+const session = useUserSession()
+const { fetchBoat } = useBoats()
+const { formatPrice, getSourceLabel } = useBoatListingDisplay()
+
 const boatId = route.params.id as string
-const { fetchBoat, triggerAnalysis } = useBoats()
-const { data: boat, status } = await fetchBoat(boatId)
-
-const pageTitle = computed(() => {
-  if (!boat.value) return 'Boat details'
-  return (
-    `${boat.value.year || ''} ${boat.value.make || ''} ${boat.value.model || ''}`.trim() ||
-    'Boat details'
-  )
+const sessionId = computed(() => {
+  const raw = route.query.sessionId
+  if (typeof raw !== 'string') return null
+  const parsed = Number.parseInt(raw, 10)
+  return Number.isNaN(parsed) ? null : parsed
 })
+const fitSummarySessionId = computed(() => sessionId.value ?? undefined)
 
-const b = boat.value
-const seoTitle = pageTitle.value
-const seoDesc = b
-  ? `${seoTitle} — ${b.length || '?'}ft boat for sale${b.location ? ` in ${b.location}` : ''}. Source: ${b.source}.`
-  : 'Boat listing details on Boat Search.'
+const { data: boat, status } = await fetchBoat(boatId)
+const numericBoatId = computed(() => boat.value?.id ?? null)
+const { favorited, saving: favoriteSaving, toggleFavorite } = useFavoriteBoat(numericBoatId)
+const {
+  summary,
+  status: fitStatus,
+  error: fitError,
+} = useBoatFitSummary(numericBoatId, fitSummarySessionId)
+
+const pageTitle =
+  `${boat.value?.year || ''} ${boat.value?.make || ''} ${boat.value?.model || ''}`.trim() ||
+  'Boat details'
+const seoDescription = boat.value
+  ? `${pageTitle} — ${boat.value.length || '?'}ft fishing boat${boat.value.location ? ` in ${boat.value.location}` : ''}.`
+  : 'Fishing boat listing details on Boat Search.'
 
 useSeo({
-  title: seoTitle,
-  description: seoDesc,
-  ogImage: { title: seoTitle, description: seoDesc, icon: '⛵' },
+  title: pageTitle,
+  description: seoDescription,
+  ogImage: { title: pageTitle, description: seoDescription, icon: '⛵' },
 })
 useWebPageSchema({
-  name: seoTitle,
-  description: seoDesc,
+  name: pageTitle,
+  description: seoDescription,
   type: 'ItemPage',
 })
 
-const session = useUserSession()
-const numericBoatId = computed(() => boat.value?.id)
-const { favorited, saving: favSaving, toggleFavorite } = useFavoriteBoat(numericBoatId)
+const selectedImage = shallowRef(0)
+const backToSearch = computed(() => ({
+  path: '/search',
+  query: sessionId.value ? { sessionId: String(sessionId.value) } : undefined,
+}))
+const loginPath = computed(() => `/login?redirect=${encodeURIComponent(route.fullPath)}`)
+const fitErrorMessage = computed(() => {
+  const error = fitError.value as { data?: { statusMessage?: string }; message?: string } | null
+  return error?.data?.statusMessage || error?.message || null
+})
+
+function sourceCta(source: string) {
+  switch (source) {
+    case 'boats.com':
+      return 'Open on Boats.com'
+    case 'yachtworld.com':
+      return 'Open on YachtWorld'
+    case 'boattrader.com':
+      return 'Open on BoatTrader'
+    case 'thehulltruth.com':
+      return 'Open on Hull Truth'
+    default:
+      return 'Open source listing'
+  }
+}
 
 function goLoginForFavorite() {
   navigateTo({ path: '/login', query: { redirect: route.fullPath } })
-}
-
-// Selected image index for gallery
-const selectedImage = ref(0)
-
-// AI Analysis for this specific boat
-const analysisResult = ref<string | null>(null)
-const analysisLoading = ref(false)
-
-async function analyzeThisBoat() {
-  if (!boat.value) return
-  analysisLoading.value = true
-  analysisResult.value = null
-  try {
-    const result = await triggerAnalysis({
-      category: boat.value.make || 'Hatteras',
-      make: boat.value.make || undefined,
-    })
-    analysisResult.value = result.analysis
-  } catch (error) {
-    analysisResult.value = `Error: ${(error as Error).message}`
-  } finally {
-    analysisLoading.value = false
-  }
-}
-
-function formatPrice(price: number | null) {
-  if (!price) return 'Price N/A'
-  return `$${price.toLocaleString()}`
-}
-
-function getSourceLabel(source: string) {
-  switch (source) {
-    case 'boats.com':
-      return 'View on Boats.com'
-    case 'yachtworld.com':
-      return 'View on YachtWorld'
-    case 'boattrader.com':
-      return 'View on BoatTrader'
-    case 'thehulltruth.com':
-      return 'View on Hull Truth'
-    default:
-      return 'View Original Listing'
-  }
-}
-
-function getSourceBadgeLabel(source: string) {
-  switch (source) {
-    case 'boats.com':
-      return 'Boats.com'
-    case 'yachtworld.com':
-      return 'YachtWorld'
-    case 'boattrader.com':
-      return 'BoatTrader'
-    case 'thehulltruth.com':
-      return 'Hull Truth'
-    default:
-      return source
-  }
 }
 </script>
 
@@ -104,214 +78,134 @@ function getSourceBadgeLabel(source: string) {
     </div>
 
     <template v-else-if="boat">
-      <!-- Back nav -->
       <UPageSection :ui="{ wrapper: 'py-4' }">
-        <NuxtLink
-          to="/search"
-          class="inline-flex items-center gap-1 text-sm text-muted hover:text-default transition-fast"
-        >
-          <UIcon name="i-lucide-arrow-left" />
-          Back to search
-        </NuxtLink>
+        <UButton
+          :to="backToSearch"
+          label="Back to shortlist"
+          icon="i-lucide-arrow-left"
+          color="neutral"
+          variant="ghost"
+        />
       </UPageSection>
 
-      <!-- Image Gallery -->
       <UPageSection :ui="{ wrapper: 'py-2' }">
-        <div class="grid gap-4 lg:grid-cols-3">
-          <!-- Main image -->
-          <div class="lg:col-span-2 aspect-video bg-muted rounded-xl overflow-hidden">
-            <img
-              v-if="boat.images && boat.images.length > 0"
-              :src="boat.images[selectedImage]"
-              :alt="pageTitle"
-              class="w-full h-full object-cover"
-            />
-            <div v-else class="w-full h-full flex items-center justify-center text-dimmed">
-              <UIcon name="i-lucide-ship" class="text-6xl" />
+        <div class="grid gap-4 lg:grid-cols-[1.4fr_0.6fr]">
+          <div class="space-y-4">
+            <div class="aspect-video overflow-hidden rounded-2xl bg-muted">
+              <img
+                v-if="boat.images.length > 0"
+                :src="boat.images[selectedImage]"
+                :alt="pageTitle"
+                class="h-full w-full object-cover"
+              />
+              <div v-else class="flex h-full items-center justify-center text-dimmed">
+                <UIcon name="i-lucide-ship" class="text-6xl" />
+              </div>
+            </div>
+
+            <div v-if="boat.images.length > 1" class="flex gap-2 overflow-x-auto pb-2">
+              <UButton
+                v-for="(image, index) in boat.images.slice(0, 8)"
+                :key="image"
+                color="neutral"
+                variant="ghost"
+                class="h-20 w-28 shrink-0 overflow-hidden rounded-xl border border-default p-0"
+                :class="index === selectedImage ? 'ring-2 ring-primary' : ''"
+                @click="selectedImage = index"
+              >
+                <img
+                  :src="image"
+                  :alt="`${pageTitle} image ${index + 1}`"
+                  class="h-full w-full object-cover"
+                />
+              </UButton>
             </div>
           </div>
 
-          <!-- Thumbnails -->
-          <div
-            v-if="boat.images && boat.images.length > 1"
-            class="flex lg:flex-col gap-2 overflow-x-auto lg:overflow-y-auto lg:max-h-96"
-          >
-            <div
-              v-for="(img, idx) in boat.images.slice(0, 8)"
-              :key="idx"
-              class="shrink-0 w-20 h-16 lg:w-full lg:h-20 rounded-lg overflow-hidden cursor-pointer ring-2 transition-fast"
-              :class="
-                idx === selectedImage ? 'ring-primary' : 'ring-transparent hover:ring-primary/50'
-              "
-              @click="selectedImage = idx"
-            >
-              <img
-                :src="img"
-                :alt="`${pageTitle} image ${idx + 1}`"
-                class="w-full h-full object-cover"
-                loading="lazy"
-              />
-            </div>
+          <div class="space-y-4">
+            <UCard class="card-base border-default" :ui="{ body: 'p-5 space-y-4' }">
+              <div class="space-y-2">
+                <UBadge :label="boat.source" color="primary" variant="subtle" />
+                <h1 class="text-3xl font-bold text-default">{{ pageTitle }}</h1>
+                <p class="text-muted">
+                  {{ boat.length || '?' }}ft ·
+                  {{ boat.city || boat.state || boat.location || 'US' }}
+                </p>
+              </div>
+
+              <p class="text-3xl font-semibold text-primary">{{ formatPrice(boat.price) }}</p>
+
+              <div class="grid gap-3 sm:grid-cols-2">
+                <div class="rounded-xl bg-muted px-4 py-3">
+                  <p class="text-xs text-dimmed">Seller</p>
+                  <p class="mt-1 text-sm font-medium text-default">
+                    {{ boat.sellerType || 'Unknown' }}
+                  </p>
+                </div>
+                <div class="rounded-xl bg-muted px-4 py-3">
+                  <p class="text-xs text-dimmed">Source</p>
+                  <p class="mt-1 text-sm font-medium text-default">
+                    {{ getSourceLabel(boat.source) }}
+                  </p>
+                </div>
+              </div>
+
+              <div class="flex flex-col gap-3">
+                <UButton
+                  v-if="boat.url"
+                  :to="boat.url"
+                  external
+                  target="_blank"
+                  :label="sourceCta(boat.source)"
+                  icon="i-lucide-external-link"
+                />
+                <UButton
+                  v-if="session.loggedIn"
+                  :label="favorited ? 'Saved to favorites' : 'Save to favorites'"
+                  icon="i-lucide-heart"
+                  :color="favorited ? 'primary' : 'neutral'"
+                  variant="soft"
+                  :loading="favoriteSaving"
+                  @click="toggleFavorite"
+                />
+                <UButton
+                  v-else
+                  label="Sign in to save"
+                  icon="i-lucide-heart"
+                  color="neutral"
+                  variant="soft"
+                  @click="goLoginForFavorite"
+                />
+              </div>
+            </UCard>
           </div>
         </div>
       </UPageSection>
 
-      <!-- Details -->
       <UPageSection :ui="{ wrapper: 'py-6' }">
-        <div class="grid gap-8 lg:grid-cols-3">
-          <!-- Main info -->
-          <div class="lg:col-span-2 space-y-6">
-            <div>
-              <h1 class="text-3xl font-bold text-default">
-                {{ pageTitle }}
-              </h1>
-              <p class="text-lg text-muted mt-1">
-                {{ boat.length }}ft · {{ boat.city || boat.state || boat.location || 'US' }}
-              </p>
-            </div>
-
-            <div class="text-3xl font-bold text-primary">
-              {{ formatPrice(boat.price) }}
-            </div>
-
-            <!-- Specs grid -->
-            <div class="grid grid-cols-2 sm:grid-cols-4 gap-4">
-              <div v-if="boat.year" class="card-base rounded-lg p-3 text-center">
-                <p class="text-xs text-muted">Year</p>
-                <p class="text-lg font-semibold text-default">
-                  {{ boat.year }}
-                </p>
-              </div>
-              <div v-if="boat.length" class="card-base rounded-lg p-3 text-center">
-                <p class="text-xs text-muted">Length</p>
-                <p class="text-lg font-semibold text-default">{{ boat.length }}ft</p>
-              </div>
-              <div v-if="boat.make" class="card-base rounded-lg p-3 text-center">
-                <p class="text-xs text-muted">Make</p>
-                <p class="text-lg font-semibold text-default">
-                  {{ boat.make }}
-                </p>
-              </div>
-              <div v-if="boat.sellerType" class="card-base rounded-lg p-3 text-center">
-                <p class="text-xs text-muted">Seller</p>
-                <p class="text-lg font-semibold text-default">
-                  {{ boat.sellerType }}
-                </p>
-              </div>
-            </div>
-
-            <!-- Description -->
-            <div v-if="boat.description">
-              <h2 class="text-xl font-semibold mb-3 text-default">Description</h2>
-              <div class="text-muted whitespace-pre-wrap">
+        <div class="grid gap-8 xl:grid-cols-[1.2fr_0.8fr]">
+          <div class="space-y-6">
+            <UCard
+              v-if="boat.description"
+              class="card-base border-default"
+              :ui="{ body: 'p-5 space-y-3' }"
+            >
+              <h2 class="text-xl font-semibold text-default">Listing description</h2>
+              <p class="whitespace-pre-wrap text-sm text-muted">
                 {{ boat.description }}
-              </div>
-            </div>
-          </div>
-
-          <!-- Sidebar -->
-          <div class="space-y-4">
-            <!-- View Original -->
-            <UBadge
-              v-if="boat.source"
-              :label="getSourceBadgeLabel(boat.source)"
-              color="primary"
-              variant="subtle"
-              size="lg"
-              class="mb-3"
-            />
-
-            <UButton
-              v-if="boat.url"
-              :to="boat.url"
-              external
-              target="_blank"
-              :label="getSourceLabel(boat.source)"
-              icon="i-lucide-external-link"
-              color="primary"
-              variant="solid"
-              block
-            />
-
-            <UButton
-              v-if="session.loggedIn"
-              :label="favorited ? 'Saved to favorites' : 'Save to favorites'"
-              icon="i-lucide-heart"
-              :color="favorited ? 'primary' : 'neutral'"
-              variant="outline"
-              :loading="favSaving"
-              block
-              @click="toggleFavorite"
-            />
-            <UButton
-              v-else
-              label="Sign in to save"
-              icon="i-lucide-heart"
-              color="neutral"
-              variant="outline"
-              block
-              @click="goLoginForFavorite"
-            />
-
-            <!-- AI Analysis -->
-            <div class="card-base rounded-xl p-4 space-y-3">
-              <div class="flex items-center gap-2">
-                <UIcon name="i-lucide-sparkles" class="text-primary" />
-                <h3 class="font-semibold text-default">Captain's Intelligence</h3>
-              </div>
-              <p class="text-sm text-muted">
-                Expert analysis of {{ boat.make || 'this' }} and similar sportfish boats
               </p>
-              <UButton
-                :label="analysisLoading ? 'Analyzing...' : 'Analyze with AI'"
-                icon="i-lucide-sparkles"
-                color="primary"
-                variant="subtle"
-                :loading="analysisLoading"
-                :disabled="analysisLoading"
-                block
-                @click="analyzeThisBoat"
-              />
-              <div
-                v-if="analysisResult"
-                class="bg-elevated rounded-lg p-3 text-sm text-default whitespace-pre-wrap max-h-96 overflow-y-auto"
-              >
-                {{ analysisResult }}
-              </div>
-            </div>
-
-            <!-- Metadata -->
-            <div class="card-base rounded-xl p-4 text-sm space-y-2">
-              <div class="flex justify-between">
-                <span class="text-muted">Source</span>
-                <span class="text-default">{{ boat.source }}</span>
-              </div>
-              <div class="flex justify-between">
-                <span class="text-muted">Listing Type</span>
-                <span class="text-default">{{ boat.listingType || 'N/A' }}</span>
-              </div>
-              <div class="flex justify-between">
-                <span class="text-muted">Currency</span>
-                <span class="text-default">{{ boat.currency || 'USD' }}</span>
-              </div>
-              <div class="flex justify-between">
-                <span class="text-muted">Last Scraped</span>
-                <span class="text-default">{{
-                  boat.scrapedAt ? new Date(boat.scrapedAt).toLocaleDateString() : 'N/A'
-                }}</span>
-              </div>
-            </div>
+            </UCard>
           </div>
+
+          <BoatFitSummaryCard
+            :summary="summary"
+            :loading="fitStatus === 'pending'"
+            :error-message="fitErrorMessage"
+            :logged-in="session.loggedIn.value"
+            :login-to="loginPath"
+          />
         </div>
       </UPageSection>
     </template>
-
-    <div v-else class="text-center py-24">
-      <UIcon name="i-lucide-ship" class="text-5xl text-dimmed" />
-      <p class="text-lg text-muted mt-4">Boat not found</p>
-      <NuxtLink to="/search" class="text-primary hover:underline mt-2 inline-block">
-        Back to search
-      </NuxtLink>
-    </div>
   </UPage>
 </template>

@@ -1,6 +1,6 @@
 export default defineAppConfig({
   auth: {
-    redirectPath: '/browse',
+    redirectPath: '/ai-boat-finder',
   },
   ui: {
     colors: {
