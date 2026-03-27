@@ -3,6 +3,7 @@ import type { DrizzleD1Database } from 'drizzle-orm/d1'
 import {
   boatFitSummarySchema,
   buyerProfileSchema,
+  ratingFromScore,
   recommendationSessionSchema,
   recommendationSummarySchema,
   type BoatFitSummary,
@@ -212,12 +213,6 @@ function scoreBoatAgainstProfile(
     reasons: [...new Set(reasons)].slice(0, 3),
     tradeoffs: [...new Set(tradeoffs)].slice(0, 3),
   }
-}
-
-function ratingFromScore(score: number): RecommendationEntry['rating'] {
-  if (score >= 82) return 'best-fit'
-  if (score >= 68) return 'strong-fit'
-  return 'stretch'
 }
 
 function buildRecommendationHeadline(boat: InventoryBoat, rating: RecommendationEntry['rating']) {

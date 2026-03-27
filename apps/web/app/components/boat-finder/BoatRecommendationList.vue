@@ -1,5 +1,9 @@
 <script setup lang="ts">
-import type { RecommendationEntry, RecommendationSession } from '~~/lib/boatFinder'
+import {
+  ratingFromScore,
+  type RecommendationEntry,
+  type RecommendationSession,
+} from '~~/lib/boatFinder'
 
 interface RecommendationBoat {
   id: number
@@ -30,16 +34,25 @@ const props = defineProps<{
 }>()
 
 function syntheticEntriesForRankedIds(session: RecommendationSession): RecommendationEntry[] {
-  return session.rankedBoatIds.map((boatId, index) => ({
-    boatId,
-    rating: 'strong-fit' as const,
-    headline: 'Shortlist match',
-    whyItFits:
-      session.resultSummary.overallAdvice.slice(0, 300).trim() ||
-      'This listing appeared in your latest shortlist run.',
-    tradeoffs: 'Verify engine hours, maintenance, and survey details on the source listing.',
-    score: Math.max(50, 72 - index * 2),
-  }))
+  return session.rankedBoatIds.map((boatId, index) => {
+    const score = Math.max(50, 72 - index * 2)
+    const rating = ratingFromScore(score)
+    return {
+      boatId,
+      rating,
+      headline:
+        rating === 'best-fit'
+          ? 'Top of this shortlist run'
+          : rating === 'strong-fit'
+            ? 'Shortlist match'
+            : 'Ranked option — review trade-offs',
+      whyItFits:
+        session.resultSummary.overallAdvice.slice(0, 300).trim() ||
+        'This listing appeared in your latest shortlist run.',
+      tradeoffs: 'Verify engine hours, maintenance, and survey details on the source listing.',
+      score,
+    }
+  })
 }
 
 const recommendationMap = computed(() => {
@@ -64,7 +77,9 @@ const orderedBoats = computed(() => {
       ? session.resultSummary.recommendations.map((e) => e.boatId)
       : session.rankedBoatIds
 
-  return orderIds.map((id) => byId.get(id)).filter((boat): boat is RecommendationBoat => Boolean(boat))
+  return orderIds
+    .map((id) => byId.get(id))
+    .filter((boat): boat is RecommendationBoat => Boolean(boat))
 })
 
 const topPickLabel = computed(() => {

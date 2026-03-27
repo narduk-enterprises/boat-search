@@ -32,6 +32,9 @@ logs
 # Build artifacts
 *.bak
 
+# Local crawler checkpoints
+packages/boat-crawler/data/checkpoints/
+
 # Test artifacts
 playwright-report/
 test-results/

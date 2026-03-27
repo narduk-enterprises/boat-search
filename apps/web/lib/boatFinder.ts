@@ -156,6 +156,13 @@ export type RecommendationSession = z.infer<typeof recommendationSessionSchema>
 export type RecommendationSessionListItem = z.infer<typeof recommendationSessionListItemSchema>
 export type BoatFitSummary = z.infer<typeof boatFitSummarySchema>
 
+/** Aligns with server scoring labels in `boatRecommendations.ts` (badge + numeric score). */
+export function ratingFromScore(score: number): RecommendationEntry['rating'] {
+  if (score >= 82) return 'best-fit'
+  if (score >= 68) return 'strong-fit'
+  return 'stretch'
+}
+
 function normalizeOptionValue<const TValue extends string>(
   value: unknown,
   options: readonly TValue[],
