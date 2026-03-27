@@ -107,6 +107,10 @@ function buildKeywordSet(profile: BuyerProfile, filters: RecommendationFilters) 
     .filter(Boolean)
 }
 
+function profilePhraseTokenSet(phrases: string[]) {
+  return new Set(phrases.map((p) => p.trim().toLowerCase()).filter(Boolean))
+}
+
 function scoreBoatAgainstProfile(
   boat: InventoryBoat,
   profile: BuyerProfile,
@@ -186,7 +190,13 @@ function scoreBoatAgainstProfile(
     }
   }
 
+  const mustHaveTokens = profilePhraseTokenSet(profile.mustHaves)
+  const dealBreakerTokens = profilePhraseTokenSet(profile.dealBreakers)
+
   for (const keyword of buildKeywordSet(profile, filters)) {
+    if (mustHaveTokens.has(keyword) || dealBreakerTokens.has(keyword)) {
+      continue
+    }
     if (text.includes(keyword)) {
       score += 3
     }
@@ -379,6 +389,13 @@ export async function buildRecommendationSessionResult(
       const aiSummary = await buildAiRecommendationSummary(apiKey, profile, filters, candidates)
       if (aiSummary) {
         summary = aiSummary
+        if (summary.recommendations.length === 0 && fallbackSummary.recommendations.length > 0) {
+          summary = {
+            ...summary,
+            recommendations: fallbackSummary.recommendations,
+            topPickBoatId: summary.topPickBoatId ?? fallbackSummary.topPickBoatId,
+          }
+        }
       }
     } catch {
       summary = fallbackSummary

@@ -95,9 +95,9 @@ export function hydrateBoatRow(row: BoatRow): InventoryBoat {
 }
 
 export function deriveRecommendationFilters(profile: BuyerProfile): RecommendationFilters {
-  const keywords = [...profile.mustHaves]
-  if (profile.primaryUse) keywords.push(profile.primaryUse)
-  if (profile.dealBreakers.length) keywords.push(...profile.dealBreakers.slice(0, 2))
+  // Only soft positive hints here. Must-haves and deal-breakers are scored separately
+  // in scoreBoatAgainstProfile; including them would double-count (+3 keyword vs +5 / −12).
+  const keywords = profile.primaryUse ? [profile.primaryUse] : []
 
   return {
     budgetMin: profile.budgetMin,

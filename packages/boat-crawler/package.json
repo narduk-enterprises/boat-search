@@ -9,6 +9,7 @@
     "scrape:boats": "node scripts/scrape-boats.mjs",
     "setup:db": "node scripts/setup-db.mjs",
     "crawl:texas": "node scripts/crawl-texas-boats.mjs",
+    "crawl:yachtworld": "node scripts/crawl-yachtworld.mjs",
     "view:texas": "node scripts/view-texas-boats.mjs",
     "clean:db": "node scripts/clean-database.mjs",
     "ui": "node server.mjs",
