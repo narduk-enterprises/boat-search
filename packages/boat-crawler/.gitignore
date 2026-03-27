@@ -1,0 +1,5 @@
+data/*.db
+data/debug-page.html
+storage/
+.env
+.env.*

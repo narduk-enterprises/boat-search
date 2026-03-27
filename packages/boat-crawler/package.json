@@ -1,0 +1,26 @@
+{
+  "name": "boat-crawler",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "crawl:test": "node scripts/crawl-test.mjs",
+    "crawl:test:doppler": "doppler run --project narduk-nuxt-template --config prd -- node scripts/crawl-test.mjs",
+    "scrape:boats": "node scripts/scrape-boats.mjs",
+    "setup:db": "node scripts/setup-db.mjs",
+    "crawl:texas": "node scripts/crawl-texas-boats.mjs",
+    "view:texas": "node scripts/view-texas-boats.mjs",
+    "clean:db": "node scripts/clean-database.mjs",
+    "ui": "node server.mjs",
+    "start": "node server.mjs"
+  },
+  "dependencies": {
+    "@crawlee/playwright": "^3.9.0",
+    "better-sqlite3": "^11.7.0",
+    "express": "^4.18.2",
+    "playwright": "^1.48.0",
+    "playwright-extra": "^4.3.6",
+    "puppeteer-extra-plugin-stealth": "^2.11.2"
+  },
+  "description": "Local Playwright/Crawlee scrapers for boats.com, YachtWorld, BoatTrader, Hull Truth — writes SQLite for D1 seeding"
+}

@@ -1,0 +1,42 @@
+# Boat data exploration – boats.com / YachtWorld (40–60 ft fishing)
+
+## Token (Cloudflare crawl API)
+
+- ✅ Found via narduk-cli: CLOUDFLARE_CRAWL_TOKEN exists in `narduk-nuxt-template` / `prd` (and `paul`).
+- ✅ Token is valid and has "Browser Rendering - Edit" permission (tested successfully).
+- ✅ CLOUDFLARE_ACCOUNT_ID is in `0_global-canonical-tokens` / `cloudflare`.
+- To use: `doppler run --project narduk-nuxt-template --config prd -- node scripts/crawl-test.mjs`
+  Or set env: CLOUDFLARE_CRAWL_TOKEN and CLOUDFLARE_ACCOUNT_ID.
+
+## Boats.com
+
+- URL tested: https://www.boats.com/boats-for-sale/?length=40-60&type=fishing
+- In-browser snapshot: page loads, listing links visible. Each link name looks like: "Contender 44 ST Metairie, Louisiana 2020 $700,000 Private Seller 24" (model, location, year, price, seller type, number).
+- ❌ Cloudflare /crawl: Returns 403 Forbidden — boats.com blocks the Browser Rendering crawler (bot protection).
+- ✅ Playwright works: Real browser snapshot successfully captured listing structure.
+- Strategy: Use Playwright for boats.com (real browser bypasses bot detection that blocks the crawl API).
+
+## YachtWorld
+
+- URL tested: https://www.yachtworld.com/core/listing/pl-search/?length=40-60&sale_type=used&boat_type_id=2
+- In-browser snapshot: only "Show Details" and "Reload" visible; after clicking "Show Details", "Copy error details" appeared — likely an error page or bot/block.
+- May require real browser (Playwright) with cookies/consent or different handling; crawl API may be blocked or hit the same error.
+
+## Data strategy (for local DB + agents)
+
+1. ✅ Cloudflare /crawl works (token found, API tested successfully).
+   - Use for sites that allow the crawler (e.g. Cloudflare docs worked).
+   - Benefits: Single API call, formats: ["json"] + jsonOptions for structured extraction.
+   - ❌ boats.com blocks it (403 Forbidden).
+
+2. ✅ Playwright is required for boats.com (and likely YachtWorld).
+   - Real browser bypasses bot detection that blocks the crawl API.
+   - In-browser snapshot of boats.com successfully captured listing structure.
+   - Strategy: Use Playwright to extract listing URLs, then crawl detail pages.
+
+3. Next steps:
+   - ✅ Token resolved via narduk-cli (exists in narduk-nuxt-template/prd).
+   - ✅ Crawl API confirmed working (tested on Cloudflare docs).
+   - ⏭️ Build Playwright scraper for boats.com: extract listing links from search pages, then visit detail pages to get full boat data (make, model, length, year, price, location, specs, images).
+   - ⏭️ Design local DB schema (boats, listings, raw_html/markdown, source_url, crawled_at) and ingestion pipeline.
+   - ⏭️ For sites that allow crawl API, use formats: ["json"] with response_format schema for structured extraction.
