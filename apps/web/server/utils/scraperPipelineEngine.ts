@@ -2,6 +2,8 @@ import { desc, eq, inArray } from 'drizzle-orm'
 import type { H3Event } from 'h3'
 import { load, type CheerioAPI } from 'cheerio'
 import type {
+  ScraperBrowserRunRecord,
+  ScraperBrowserRunSummary,
   ScraperFieldRule,
   ScraperPipelineDraft,
   ScraperRunRecord,
@@ -142,6 +144,35 @@ function createEmptyCandidate(source: string): ExtractedBoatCandidate {
     rawFields: {},
     warnings: [],
   }
+}
+
+function fromBrowserRunRecord(
+  record: ScraperBrowserRunRecord,
+  fallbackSource: string,
+): ExtractedBoatCandidate {
+  const candidate = createEmptyCandidate(record.source || fallbackSource)
+  candidate.url = record.url
+  candidate.listingId = record.listingId
+  candidate.title = record.title
+  candidate.make = record.make
+  candidate.model = record.model
+  candidate.year = record.year
+  candidate.length = record.length
+  candidate.price = record.price
+  candidate.currency = record.currency
+  candidate.location = record.location
+  candidate.city = record.city
+  candidate.state = record.state
+  candidate.country = record.country
+  candidate.description = record.description
+  candidate.sellerType = record.sellerType
+  candidate.listingType = record.listingType
+  candidate.images = record.images
+  candidate.fullText = record.fullText
+  candidate.rawFields = record.rawFields
+  candidate.warnings = [...record.warnings]
+  finalizeCandidate(candidate)
+  return candidate
 }
 
 function assignFieldValue(
@@ -581,34 +612,42 @@ async function recordCrawlJob(
   return job?.id ?? null
 }
 
-export async function previewScraperPipeline(draft: ScraperPipelineDraft) {
-  const { summary } = await executeScraperPipeline(draft)
-  return summary
-}
-
-export async function runScraperPipeline(
+export async function ingestScraperPipelineRun(
   event: H3Event,
   params: {
     pipelineId: number
     draft: ScraperPipelineDraft
+    records: ScraperBrowserRunRecord[]
+    summary: ScraperBrowserRunSummary
+    startedAt?: string
   },
 ) {
-  const startedAt = new Date().toISOString()
+  const startedAt = params.startedAt || new Date().toISOString()
 
   try {
-    const { draft, summary } = await executeScraperPipeline(params.draft)
-    const persisted = await persistCandidates(event, summary.records as ExtractedBoatCandidate[])
+    const candidates = params.records.map((record) =>
+      fromBrowserRunRecord(record, params.draft.boatSource),
+    )
+    const persisted = await persistCandidates(event, candidates)
     const completedAt = new Date().toISOString()
     const finalSummary: ScraperRunSummary = {
-      ...summary,
+      pagesVisited: params.summary.pagesVisited,
+      itemsSeen: params.summary.itemsSeen,
+      itemsExtracted: params.summary.itemsExtracted,
       inserted: persisted.inserted,
       updated: persisted.updated,
+      visitedUrls: params.summary.visitedUrls,
+      warnings: dedupeStrings([
+        ...params.summary.warnings,
+        ...candidates.flatMap((candidate) => candidate.warnings),
+      ]),
+      records: candidates as ScraperRunRecord[],
     }
 
     const jobId = await recordCrawlJob(event, {
       pipelineId: params.pipelineId,
-      pipelineName: draft.name,
-      searchUrl: draft.config.startUrls.join('\n'),
+      pipelineName: params.draft.name,
+      searchUrl: params.draft.config.startUrls.join('\n'),
       status: 'completed',
       startedAt,
       completedAt,
@@ -625,6 +664,54 @@ export async function runScraperPipeline(
       jobId,
       summary: finalSummary,
     }
+  } catch (error: unknown) {
+    const message =
+      error instanceof Error ? error.message : 'The scraper pipeline failed before completion.'
+
+    await recordCrawlJob(event, {
+      pipelineId: params.pipelineId,
+      pipelineName: params.draft.name,
+      searchUrl: params.draft.config.startUrls.join('\n'),
+      status: 'failed',
+      startedAt,
+      completedAt: new Date().toISOString(),
+      pagesVisited: params.summary.pagesVisited,
+      boatsFound: params.summary.itemsSeen,
+      boatsScraped: params.summary.itemsExtracted,
+      summary: null,
+      error: message,
+    })
+
+    throw createError({
+      statusCode: 500,
+      statusMessage: message,
+    })
+  }
+}
+
+export async function previewScraperPipeline(draft: ScraperPipelineDraft) {
+  const { summary } = await executeScraperPipeline(draft)
+  return summary
+}
+
+export async function runScraperPipeline(
+  event: H3Event,
+  params: {
+    pipelineId: number
+    draft: ScraperPipelineDraft
+  },
+) {
+  const startedAt = new Date().toISOString()
+
+  try {
+    const { draft, summary } = await executeScraperPipeline(params.draft)
+    return await ingestScraperPipelineRun(event, {
+      pipelineId: params.pipelineId,
+      draft,
+      records: summary.records as ScraperBrowserRunRecord[],
+      summary,
+      startedAt,
+    })
   } catch (error: unknown) {
     const message =
       error instanceof Error ? error.message : 'The scraper pipeline failed before completion.'

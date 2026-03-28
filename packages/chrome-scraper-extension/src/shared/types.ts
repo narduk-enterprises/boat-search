@@ -103,6 +103,70 @@ export interface FieldPreviewResult {
   sampleValues: string[]
 }
 
+export interface BrowserScrapeRecord {
+  source: string
+  url: string | null
+  listingId: string | null
+  title: string | null
+  make: string | null
+  model: string | null
+  year: number | null
+  length: string | null
+  price: string | null
+  currency: string | null
+  location: string | null
+  city: string | null
+  state: string | null
+  country: string | null
+  description: string | null
+  sellerType: string | null
+  listingType: string | null
+  images: string[]
+  fullText: string | null
+  rawFields: Record<string, string | string[]>
+  warnings: string[]
+}
+
+export interface SearchPageExtractRequest {
+  draft: ScraperPipelineDraft
+}
+
+export interface SearchPageExtractResponse {
+  pageUrl: string
+  itemCount: number
+  nextPageUrl: string | null
+  records: BrowserScrapeRecord[]
+  warnings: string[]
+}
+
+export interface DetailPageExtractRequest {
+  draft: ScraperPipelineDraft
+}
+
+export interface DetailPageExtractResponse {
+  pageUrl: string
+  record: Partial<BrowserScrapeRecord>
+  warnings: string[]
+}
+
+export interface BrowserScrapeSummary {
+  pagesVisited: number
+  itemsSeen: number
+  itemsExtracted: number
+  visitedUrls: string[]
+  warnings: string[]
+}
+
+export interface BrowserScrapeProgress {
+  stage: 'search' | 'detail' | 'upload'
+  currentUrl: string | null
+  pagesVisited: number
+  itemsSeen: number
+  itemsExtracted: number
+  detailPagesCompleted: number
+  detailPagesTotal: number
+}
+
 export interface PickerProgress {
   kind: PickerKind
   selectionCount: number
@@ -124,6 +188,8 @@ export type ContentMessage =
   | { type: 'EXTENSION_ANALYZE_PAGE' }
   | { type: 'EXTENSION_START_PICKER'; picker: PickerRequest }
   | { type: 'EXTENSION_PREVIEW_FIELD'; preview: FieldPreviewRequest }
+  | { type: 'EXTENSION_EXTRACT_SEARCH_PAGE'; request: SearchPageExtractRequest }
+  | { type: 'EXTENSION_EXTRACT_DETAIL_PAGE'; request: DetailPageExtractRequest }
   | { type: 'EXTENSION_CLEAR_PREVIEW' }
   | { type: 'EXTENSION_STOP_PICKER' }
 

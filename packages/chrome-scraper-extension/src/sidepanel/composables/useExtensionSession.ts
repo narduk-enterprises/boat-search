@@ -4,7 +4,12 @@ import { buildImportUrl, hostToSourceName } from '@/shared/transfer'
 import type {
   AutoDetectedAnalysis,
   BackgroundMessage,
+  BrowserScrapeProgress,
+  BrowserScrapeRecord,
+  BrowserScrapeSummary,
+  DetailPageExtractResponse,
   FieldPreviewResult,
+  SearchPageExtractResponse,
   PickerProgress,
   PickerRequest,
   PickerResult,
@@ -45,6 +50,8 @@ type RemoteRunState = {
   summary: RemoteRunSummary
 } | null
 
+type BrowserRunProgressState = BrowserScrapeProgress | null
+
 function uniqueStrings(values: string[]) {
   return [...new Set(values.filter(Boolean))]
 }
@@ -55,6 +62,19 @@ function makeFieldId(field: Pick<ScraperFieldRule, 'key' | 'scope'>) {
 
 function isWebPageUrl(url: string | undefined) {
   return Boolean(url && /^https?:\/\//i.test(url))
+}
+
+function isAllowedDomainUrl(url: string, allowedDomains: string[]) {
+  try {
+    const hostname = new URL(url).hostname.toLowerCase()
+    const normalizedDomains = allowedDomains.map((domain) => domain.trim().toLowerCase()).filter(Boolean)
+
+    return normalizedDomains.some(
+      (domain) => hostname === domain || hostname.endsWith(`.${domain}`),
+    )
+  } catch {
+    return false
+  }
 }
 
 function hasMissingReceiverError(error: unknown) {
@@ -235,6 +255,7 @@ export function useExtensionSession() {
   const itemSelectorTraining = shallowRef<ItemSelectorTrainingState>(null)
   const itemSelectorPreview = shallowRef<ItemSelectorPreviewState>(null)
   const remoteRun = shallowRef<RemoteRunState>(null)
+  const browserRunProgress = shallowRef<BrowserRunProgressState>(null)
   const startingRemoteRun = shallowRef(false)
   let previewSequence = 0
 
@@ -694,13 +715,215 @@ export function useExtensionSession() {
     }
   }
 
-  async function runDraftViaBoatSearchApi() {
+  async function navigateTab(tabId: number, url: string, timeoutMs = 30_000) {
+    const nextTab = await chrome.tabs.update(tabId, { url, active: false })
+    if (!nextTab || !nextTab.id) {
+      throw new Error('Could not reuse the scraper tab.')
+    }
+
+    return await waitForTabComplete(nextTab.id, timeoutMs)
+  }
+
+  function mergeBrowserRecord(baseRecord: BrowserScrapeRecord, detailPatch: Partial<BrowserScrapeRecord>) {
+    const nextRecord: BrowserScrapeRecord = {
+      ...baseRecord,
+      rawFields: {
+        ...baseRecord.rawFields,
+        ...(detailPatch.rawFields || {}),
+      },
+      warnings: uniqueStrings([...baseRecord.warnings, ...(detailPatch.warnings || [])]),
+      images: uniqueStrings([...baseRecord.images, ...(detailPatch.images || [])]),
+    }
+
+    const scalarKeys = [
+      'url',
+      'listingId',
+      'title',
+      'make',
+      'model',
+      'year',
+      'length',
+      'price',
+      'currency',
+      'location',
+      'city',
+      'state',
+      'country',
+      'description',
+      'sellerType',
+      'listingType',
+      'fullText',
+    ] as const
+
+    for (const key of scalarKeys) {
+      const nextValue = detailPatch[key]
+      if (nextValue != null && nextValue !== '') {
+        nextRecord[key] = nextValue as never
+      }
+    }
+
+    return nextRecord
+  }
+
+  async function crawlDraftInBrowser(draft: ScraperPipelineDraft) {
+    if (!draft.config.startUrls.length) {
+      throw new Error('Add at least one start URL before starting a browser scrape.')
+    }
+
+    const allowedDomains = uniqueStrings([
+      ...draft.config.allowedDomains,
+      ...draft.config.startUrls.map((url) => {
+        try {
+          return new URL(url).hostname
+        } catch {
+          return ''
+        }
+      }),
+    ])
+    const searchRecords: BrowserScrapeRecord[] = []
+    const searchWarnings: string[] = []
+    const visitedUrls: string[] = []
+    const seenSearchUrls = new Set<string>()
+    let pagesVisited = 0
+    let itemsSeen = 0
+    let crawlTab: chrome.tabs.Tab | null = null
+
+    try {
+      crawlTab = await chrome.tabs.create({ url: draft.config.startUrls[0], active: false })
+      if (!crawlTab.id) {
+        throw new Error('Could not create a background scraper tab.')
+      }
+
+      for (const startUrl of draft.config.startUrls) {
+        let currentUrl: string | null = startUrl
+        let pageIndex = 0
+
+        while (
+          currentUrl &&
+          pageIndex < draft.config.maxPages &&
+          searchRecords.length < draft.config.maxItemsPerRun
+        ) {
+          if (!isAllowedDomainUrl(currentUrl, allowedDomains)) {
+            searchWarnings.push(`Blocked cross-domain page during browser scrape: ${currentUrl}`)
+            break
+          }
+
+          if (seenSearchUrls.has(currentUrl)) {
+            searchWarnings.push(`Stopped pagination loop at ${currentUrl}`)
+            break
+          }
+
+          browserRunProgress.value = {
+            stage: 'search',
+            currentUrl,
+            pagesVisited,
+            itemsSeen,
+            itemsExtracted: searchRecords.length,
+            detailPagesCompleted: 0,
+            detailPagesTotal: 0,
+          }
+          statusMessage.value = `Scraping search results in the browser: ${currentUrl}`
+
+          const readyTab = await navigateTab(crawlTab.id, currentUrl)
+          const pageResult = await sendToTab<SearchPageExtractResponse>(readyTab, {
+            type: 'EXTENSION_EXTRACT_SEARCH_PAGE',
+            request: { draft },
+          })
+
+          seenSearchUrls.add(pageResult.pageUrl)
+          visitedUrls.push(pageResult.pageUrl)
+          pagesVisited += 1
+          pageIndex += 1
+          itemsSeen += pageResult.itemCount
+          searchWarnings.push(...pageResult.warnings)
+
+          for (const record of pageResult.records) {
+            if (searchRecords.length >= draft.config.maxItemsPerRun) {
+              break
+            }
+
+            searchRecords.push(record)
+          }
+
+          currentUrl = pageResult.nextPageUrl
+        }
+      }
+
+      const detailRecords = draft.config.fetchDetailPages
+        ? searchRecords.filter((record) => Boolean(record.url))
+        : []
+
+      for (let index = 0; index < detailRecords.length; index += 1) {
+        const record = detailRecords[index]
+        if (!record?.url) {
+          continue
+        }
+
+        if (!isAllowedDomainUrl(record.url, allowedDomains)) {
+          searchWarnings.push(`Blocked cross-domain detail page during browser scrape: ${record.url}`)
+          continue
+        }
+
+        browserRunProgress.value = {
+          stage: 'detail',
+          currentUrl: record.url,
+          pagesVisited,
+          itemsSeen,
+          itemsExtracted: searchRecords.length,
+          detailPagesCompleted: index,
+          detailPagesTotal: detailRecords.length,
+        }
+        statusMessage.value = `Scraping detail page ${index + 1} of ${detailRecords.length}: ${record.url}`
+
+        const readyTab = await navigateTab(crawlTab.id, record.url)
+        const detailResult = await sendToTab<DetailPageExtractResponse>(readyTab, {
+          type: 'EXTENSION_EXTRACT_DETAIL_PAGE',
+          request: { draft },
+        })
+
+        const recordIndex = searchRecords.findIndex((entry) => entry.url === record.url)
+        if (recordIndex >= 0) {
+          searchRecords.splice(
+            recordIndex,
+            1,
+            mergeBrowserRecord(searchRecords[recordIndex]!, detailResult.record),
+          )
+        }
+
+        searchWarnings.push(...detailResult.warnings)
+      }
+
+      return {
+        records: searchRecords,
+        summary: {
+          pagesVisited,
+          itemsSeen,
+          itemsExtracted: searchRecords.length,
+          visitedUrls,
+          warnings: uniqueStrings([
+            ...searchWarnings,
+            ...searchRecords.flatMap((record) => record.warnings),
+          ]),
+        } satisfies BrowserScrapeSummary,
+      }
+    } finally {
+      if (crawlTab?.id) {
+        await chrome.tabs.remove(crawlTab.id).catch(() => {})
+      }
+    }
+  }
+
+  async function uploadBrowserRunToBoatSearchApi(
+    draft: ScraperPipelineDraft,
+    records: BrowserScrapeRecord[],
+    summary: BrowserScrapeSummary,
+  ) {
     const base = session.value.appBaseUrl.trim().replace(/\/+$/g, '')
     if (!base) {
       throw new Error('Set the Boat Search app URL before starting a scrape.')
     }
 
-    const response = await fetch(`${base}/api/admin/scraper-pipelines/import-run`, {
+    const response = await fetch(`${base}/api/admin/scraper-pipelines/browser-run`, {
       method: 'POST',
       credentials: 'include',
       headers: {
@@ -708,7 +931,11 @@ export function useExtensionSession() {
         'Content-Type': 'application/json',
         'X-Requested-With': 'XMLHttpRequest',
       },
-      body: JSON.stringify(session.value.draft),
+      body: JSON.stringify({
+        draft,
+        records,
+        summary,
+      }),
     })
 
     if (!response.ok) {
@@ -745,38 +972,37 @@ export function useExtensionSession() {
     errorMessage.value = ''
     startingRemoteRun.value = true
     remoteRun.value = null
-    statusMessage.value = 'Saving the draft and starting the scrape in Boat Search...'
+    browserRunProgress.value = null
+    statusMessage.value = 'Scraping the site in a real browser tab...'
 
     try {
-      const response = await runDraftViaBoatSearchApi()
+      const draft = structuredClone(session.value.draft)
+      const browserRun = await crawlDraftInBrowser(draft)
+      browserRunProgress.value = {
+        stage: 'upload',
+        currentUrl: null,
+        pagesVisited: browserRun.summary.pagesVisited,
+        itemsSeen: browserRun.summary.itemsSeen,
+        itemsExtracted: browserRun.summary.itemsExtracted,
+        detailPagesCompleted: draft.config.fetchDetailPages ? browserRun.records.length : 0,
+        detailPagesTotal: draft.config.fetchDetailPages ? browserRun.records.length : 0,
+      }
+      statusMessage.value = 'Uploading browser-scraped records into Boat Search...'
+
+      const response = await uploadBrowserRunToBoatSearchApi(
+        draft,
+        browserRun.records,
+        browserRun.summary,
+      )
       remoteRun.value = response
-      statusMessage.value = `Scrape complete. Inserted ${response.summary.inserted} and updated ${response.summary.updated} boats.`
+      browserRunProgress.value = null
+      statusMessage.value = `Browser scrape complete. Inserted ${response.summary.inserted} and updated ${response.summary.updated} boats.`
       return
     } catch (error: unknown) {
-      const directRunMessage =
-        error instanceof Error
-          ? error.message
-          : 'Could not start the scrape directly from the extension.'
-
-      statusMessage.value = `${directRunMessage} Opening Boat Search and starting the scrape there...`
-
-      try {
-        const url = buildImportUrl(session.value.appBaseUrl, session.value.draft, {
-          autoRun: true,
-        })
-        await chrome.runtime.sendMessage({
-          type: 'EXTENSION_OPEN_URL',
-          url,
-        } satisfies BackgroundMessage)
-      } catch (openError: unknown) {
-        const message =
-          openError instanceof Error
-            ? openError.message
-            : 'Could not open Boat Search to continue the scrape.'
-        errorMessage.value = `${directRunMessage} ${message}`.trim()
-        statusMessage.value = 'Could not start the scrape'
-        return
-      }
+      const message =
+        error instanceof Error ? error.message : 'Could not finish the browser scrape.'
+      errorMessage.value = message
+      statusMessage.value = 'Browser scrape failed'
     } finally {
       startingRemoteRun.value = false
     }
@@ -790,6 +1016,7 @@ export function useExtensionSession() {
     itemSelectorTraining.value = null
     itemSelectorPreview.value = null
     remoteRun.value = null
+    browserRunProgress.value = null
     void clearFieldPreview()
   }
 
@@ -897,6 +1124,7 @@ export function useExtensionSession() {
     itemSelectorTraining,
     itemSelectorPreview,
     remoteRun,
+    browserRunProgress,
     startingRemoteRun,
     statusMessage,
     errorMessage,

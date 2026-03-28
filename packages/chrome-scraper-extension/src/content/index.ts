@@ -3,13 +3,18 @@ import { hostToSourceName } from '../shared/transfer'
 import type {
   AutoDetectedAnalysis,
   BackgroundMessage,
+  BrowserScrapeRecord,
   ContentMessage,
+  DetailPageExtractRequest,
+  DetailPageExtractResponse,
   FieldPreviewRequest,
   FieldPreviewResult,
   PickerProgress,
   PickerRequest,
   PickerResult,
   ScraperFieldRule,
+  SearchPageExtractRequest,
+  SearchPageExtractResponse,
 } from '../shared/types'
 
 const PRICE_PATTERN = /\$\s?[\d,.]+/
@@ -278,7 +283,59 @@ function readAttributeValue(target: Element, attribute: string) {
   return target.getAttribute(attribute) || ''
 }
 
-function extractFieldValue(target: Element, field: ScraperFieldRule) {
+function applyRegex(value: string, pattern: string) {
+  if (!pattern.trim()) {
+    return value
+  }
+
+  try {
+    const match = value.match(new RegExp(pattern, 'i'))
+    if (!match) {
+      return null
+    }
+
+    return normalizeText(match[1] || match[0] || '')
+  } catch {
+    return value
+  }
+}
+
+function toAbsoluteUrl(value: string, baseUrl: string) {
+  try {
+    return new URL(value, baseUrl).toString()
+  } catch {
+    return null
+  }
+}
+
+function applyFieldTransform(value: string, field: ScraperFieldRule, baseUrl: string) {
+  const withRegex = applyRegex(value, field.regex)
+  if (!withRegex) {
+    return null
+  }
+
+  switch (field.transform) {
+    case 'price': {
+      const digits = withRegex.replaceAll(/\D/g, '')
+      return digits || null
+    }
+    case 'year': {
+      const match = withRegex.match(/\b(19|20)\d{2}\b/)
+      return match?.[0] || null
+    }
+    case 'integer': {
+      const match = withRegex.match(/\d+/)
+      return match?.[0] || null
+    }
+    case 'url':
+      return toAbsoluteUrl(withRegex, baseUrl)
+    case 'text':
+    default:
+      return normalizeText(withRegex)
+  }
+}
+
+function extractFieldValue(target: Element, field: ScraperFieldRule, baseUrl = window.location.href) {
   const rawValue =
     field.extract === 'attr'
       ? readAttributeValue(target, field.attribute)
@@ -289,17 +346,7 @@ function extractFieldValue(target: Element, field: ScraperFieldRule) {
   const normalizedValue = normalizeText(
     field.extract === 'html' ? rawValue.replace(/<[^>]+>/g, ' ') : rawValue,
   )
-
-  if (!field.regex.trim()) {
-    return normalizedValue
-  }
-
-  try {
-    const match = normalizedValue.match(new RegExp(field.regex))
-    return normalizeText(match?.[1] || match?.[0] || normalizedValue)
-  } catch {
-    return normalizedValue
-  }
+  return applyFieldTransform(normalizedValue, field, baseUrl)
 }
 
 function resolveFieldMatches({ field, itemSelector }: FieldPreviewRequest) {
@@ -314,6 +361,213 @@ function resolveFieldMatches({ field, itemSelector }: FieldPreviewRequest) {
   }
 
   return queryRelativeMatches(document.documentElement, selector)
+}
+
+function createEmptyBrowserRecord(source: string): BrowserScrapeRecord {
+  return {
+    source,
+    url: null,
+    listingId: null,
+    title: null,
+    make: null,
+    model: null,
+    year: null,
+    length: null,
+    price: null,
+    currency: null,
+    location: null,
+    city: null,
+    state: null,
+    country: null,
+    description: null,
+    sellerType: null,
+    listingType: null,
+    images: [],
+    fullText: null,
+    rawFields: {},
+    warnings: [],
+  }
+}
+
+function resolveFieldTargets(root: Element | Document, selector: string) {
+  if (!selector.trim()) {
+    return []
+  }
+
+  if (root instanceof Document) {
+    return queryRelativeMatches(document.documentElement, selector)
+  }
+
+  return queryRelativeMatches(root, selector)
+}
+
+function readSelectionValues(root: Element | Document, field: ScraperFieldRule, baseUrl: string) {
+  const targets = field.selector === ':root' && root instanceof Element
+    ? [root]
+    : resolveFieldTargets(root, field.selector)
+
+  if (!targets.length) {
+    return null
+  }
+
+  const resolvedValues = targets
+    .map((target) => extractFieldValue(target, field, baseUrl))
+    .filter((value): value is string => Boolean(value))
+
+  if (!resolvedValues.length) {
+    return null
+  }
+
+  if (field.multiple || field.key === 'images') {
+    return [...new Set(resolvedValues)]
+  }
+
+  return resolvedValues[0] || null
+}
+
+function assignFieldValue(
+  record: BrowserScrapeRecord,
+  field: ScraperFieldRule,
+  value: string | string[] | null,
+) {
+  if (value == null || (Array.isArray(value) && value.length === 0)) {
+    if (field.required) {
+      record.warnings.push(`Missing required field: ${field.key}`)
+    }
+    return
+  }
+
+  record.rawFields[field.key] = value
+
+  if (field.key === 'images') {
+    record.images = Array.isArray(value) ? [...new Set(value)] : [value]
+    return
+  }
+
+  if (field.key === 'year') {
+    record.year = typeof value === 'string' ? Number.parseInt(value, 10) || null : null
+    return
+  }
+
+  const nextValue = Array.isArray(value) ? value.join(field.joinWith) : value
+
+  switch (field.key) {
+    case 'url':
+      record.url = nextValue
+      break
+    case 'listingId':
+      record.listingId = nextValue
+      break
+    case 'title':
+      record.title = nextValue
+      break
+    case 'make':
+      record.make = nextValue
+      break
+    case 'model':
+      record.model = nextValue
+      break
+    case 'length':
+      record.length = nextValue
+      break
+    case 'price':
+      record.price = nextValue
+      break
+    case 'currency':
+      record.currency = nextValue
+      break
+    case 'location':
+      record.location = nextValue
+      break
+    case 'city':
+      record.city = nextValue
+      break
+    case 'state':
+      record.state = nextValue
+      break
+    case 'country':
+      record.country = nextValue
+      break
+    case 'description':
+      record.description = nextValue
+      break
+    case 'sellerType':
+      record.sellerType = nextValue
+      break
+    case 'listingType':
+      record.listingType = nextValue
+      break
+    case 'fullText':
+      record.fullText = nextValue
+      break
+  }
+}
+
+function extractSearchPage(request: SearchPageExtractRequest): SearchPageExtractResponse {
+  const itemSelector = request.draft.config.itemSelector.trim()
+  const itemFields = request.draft.config.fields.filter((field) => field.scope === 'item')
+  const warnings: string[] = []
+
+  if (!itemSelector) {
+    return {
+      pageUrl: window.location.href,
+      itemCount: 0,
+      nextPageUrl: null,
+      records: [],
+      warnings: ['Item selector is required before scraping search pages.'],
+    }
+  }
+
+  const itemRoots = queryAll<HTMLElement>(document, itemSelector)
+  const records: BrowserScrapeRecord[] = []
+
+  for (const root of itemRoots) {
+    if (records.length >= request.draft.config.maxItemsPerRun) {
+      break
+    }
+
+    const record = createEmptyBrowserRecord(request.draft.boatSource)
+
+    for (const field of itemFields) {
+      assignFieldValue(record, field, readSelectionValues(root, field, window.location.href))
+    }
+
+    if (!record.url) {
+      warnings.push('Skipped a search result because no URL could be extracted.')
+      continue
+    }
+
+    records.push(record)
+  }
+
+  const nextHref = request.draft.config.nextPageSelector.trim()
+    ? queryAll<HTMLAnchorElement>(document, request.draft.config.nextPageSelector)
+        .find((element) => Boolean(element.getAttribute('href')))
+        ?.getAttribute('href') || null
+    : null
+
+  return {
+    pageUrl: window.location.href,
+    itemCount: itemRoots.length,
+    nextPageUrl: nextHref ? toAbsoluteUrl(nextHref, window.location.href) : null,
+    records,
+    warnings,
+  }
+}
+
+function extractDetailPage(request: DetailPageExtractRequest): DetailPageExtractResponse {
+  const detailFields = request.draft.config.fields.filter((field) => field.scope === 'detail')
+  const record = createEmptyBrowserRecord(request.draft.boatSource)
+
+  for (const field of detailFields) {
+    assignFieldValue(record, field, readSelectionValues(document, field, window.location.href))
+  }
+
+  return {
+    pageUrl: window.location.href,
+    record,
+    warnings: [...record.warnings],
+  }
 }
 
 function refreshPreviewLayout() {
@@ -357,7 +611,7 @@ function previewField(request: FieldPreviewRequest): FieldPreviewResult {
   const uniqueMatches = [...new Set(resolveFieldMatches(request))]
   const sampleValues = uniqueMatches
     .map((target) => extractFieldValue(target, request.field))
-    .filter(Boolean)
+    .filter((value): value is string => Boolean(value))
     .slice(0, 3)
 
   const highlightLimit = request.mode === 'itemSelector' ? 24 : 6
@@ -1248,6 +1502,16 @@ chrome.runtime.onMessage.addListener((message: ContentMessage, _sender, sendResp
 
   if (message.type === 'EXTENSION_PREVIEW_FIELD') {
     sendResponse(previewField(message.preview))
+    return false
+  }
+
+  if (message.type === 'EXTENSION_EXTRACT_SEARCH_PAGE') {
+    sendResponse(extractSearchPage(message.request))
+    return false
+  }
+
+  if (message.type === 'EXTENSION_EXTRACT_DETAIL_PAGE') {
+    sendResponse(extractDetailPage(message.request))
     return false
   }
 

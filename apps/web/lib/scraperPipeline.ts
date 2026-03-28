@@ -119,9 +119,51 @@ export const scraperPipelineDraftSchema = z.object({
 export const scraperPipelineMutationSchema = scraperPipelineDraftSchema
 export const scraperPipelinePreviewSchema = scraperPipelineDraftSchema
 
+const scraperBrowserFieldValueSchema = z.union([z.string(), z.array(z.string())])
+
+export const scraperBrowserRunRecordSchema = z.object({
+  source: z.string().trim().min(1).max(80),
+  url: z.string().url().nullable(),
+  listingId: z.string().trim().nullable(),
+  title: z.string().trim().nullable(),
+  make: z.string().trim().nullable(),
+  model: z.string().trim().nullable(),
+  year: z.number().int().nullable(),
+  length: z.string().trim().nullable(),
+  price: z.string().trim().nullable(),
+  currency: z.string().trim().nullable(),
+  location: z.string().trim().nullable(),
+  city: z.string().trim().nullable(),
+  state: z.string().trim().nullable(),
+  country: z.string().trim().nullable(),
+  description: z.string().trim().nullable(),
+  sellerType: z.string().trim().nullable(),
+  listingType: z.string().trim().nullable(),
+  images: z.array(z.string().url()).default([]),
+  fullText: z.string().trim().nullable(),
+  rawFields: z.record(z.string(), scraperBrowserFieldValueSchema).default({}),
+  warnings: z.array(z.string()).default([]),
+})
+
+export const scraperBrowserRunSummarySchema = z.object({
+  pagesVisited: z.number().int().min(0),
+  itemsSeen: z.number().int().min(0),
+  itemsExtracted: z.number().int().min(0),
+  visitedUrls: z.array(z.string().url()).default([]),
+  warnings: z.array(z.string()).default([]),
+})
+
+export const scraperPipelineBrowserRunSchema = z.object({
+  draft: scraperPipelineDraftSchema,
+  records: z.array(scraperBrowserRunRecordSchema),
+  summary: scraperBrowserRunSummarySchema,
+})
+
 export type ScraperFieldRule = z.infer<typeof scraperFieldSchema>
 export type ScraperPipelineConfig = z.infer<typeof scraperPipelineConfigSchema>
 export type ScraperPipelineDraft = z.infer<typeof scraperPipelineDraftSchema>
+export type ScraperBrowserRunRecord = z.infer<typeof scraperBrowserRunRecordSchema>
+export type ScraperBrowserRunSummary = z.infer<typeof scraperBrowserRunSummarySchema>
 
 export interface ScraperRunRecord {
   url: string | null

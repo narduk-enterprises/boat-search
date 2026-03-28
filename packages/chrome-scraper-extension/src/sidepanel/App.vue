@@ -81,6 +81,7 @@ const hasDetailFields = computed(() => detailFieldCount.value > 0)
 const itemSelectorTraining = computed(() => extension.itemSelectorTraining.value)
 const itemSelectorPreview = computed(() => extension.itemSelectorPreview.value)
 const remoteRun = computed(() => extension.remoteRun.value)
+const browserRunProgress = computed(() => extension.browserRunProgress.value)
 const startingRemoteRun = computed(() => extension.startingRemoteRun.value)
 const detectedCardCount = computed(
   () => itemSelectorPreview.value?.matchCount || itemSelectorTraining.value?.matchCount || 0,
@@ -601,7 +602,7 @@ onMounted(async () => {
     <WorkflowStepCard
       :step="6"
       title="Review detail fields and export"
-      subtitle="Preview each detail mapping against the open listing page, then finalize the pipeline and export it."
+      subtitle="Preview each detail mapping against the open listing page, then run the scrape in Chrome and upload the finished records into Boat Search."
       :status="workflowSteps[5]?.status ?? 'upcoming'"
       :note="workflowSteps[5]?.note"
     >
@@ -618,7 +619,7 @@ onMounted(async () => {
           :disabled="!exportReady || startingRemoteRun"
           @click="extension.startScrapeInBoatSearch"
         >
-          {{ startingRemoteRun ? 'Starting scrape…' : 'Start scrape now' }}
+          {{ startingRemoteRun ? 'Running browser scrape…' : 'Start browser scrape' }}
         </button>
         <button
           type="button"
@@ -684,6 +685,38 @@ onMounted(async () => {
           >
             {{ label }}
           </span>
+        </div>
+      </div>
+
+      <div
+        v-if="browserRunProgress"
+        class="remote-run-card"
+      >
+        <div class="remote-run-card__grid">
+          <div>
+            <span>Stage</span>
+            <strong>{{ browserRunProgress.stage }}</strong>
+          </div>
+          <div>
+            <span>Search pages</span>
+            <strong>{{ browserRunProgress.pagesVisited }}</strong>
+          </div>
+          <div>
+            <span>Listings seen</span>
+            <strong>{{ browserRunProgress.itemsSeen }}</strong>
+          </div>
+          <div>
+            <span>Listings extracted</span>
+            <strong>{{ browserRunProgress.itemsExtracted }}</strong>
+          </div>
+          <div>
+            <span>Detail pages</span>
+            <strong>{{ browserRunProgress.detailPagesCompleted }} / {{ browserRunProgress.detailPagesTotal }}</strong>
+          </div>
+          <div>
+            <span>Current URL</span>
+            <strong>{{ browserRunProgress.currentUrl || 'Uploading results' }}</strong>
+          </div>
         </div>
       </div>
 
