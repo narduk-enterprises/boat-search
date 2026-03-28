@@ -159,11 +159,45 @@ export const scraperPipelineBrowserRunSchema = z.object({
   summary: scraperBrowserRunSummarySchema,
 })
 
+export const scraperPipelineStreamStartSchema = z.object({
+  draft: scraperPipelineDraftSchema,
+})
+
+export const scraperPipelineStreamRecordSchema = z.object({
+  pipelineId: z.number().int().positive(),
+  jobId: z.number().int().positive(),
+  draft: scraperPipelineDraftSchema,
+  record: scraperBrowserRunRecordSchema,
+})
+
+export const scraperPipelineStreamCompleteSchema = z.object({
+  pipelineId: z.number().int().positive(),
+  jobId: z.number().int().positive(),
+  draft: scraperPipelineDraftSchema,
+  summary: scraperBrowserRunSummarySchema,
+  inserted: z.number().int().min(0),
+  updated: z.number().int().min(0),
+})
+
+export const scraperPipelineStreamFailSchema = z.object({
+  pipelineId: z.number().int().positive(),
+  jobId: z.number().int().positive(),
+  draft: scraperPipelineDraftSchema,
+  summary: scraperBrowserRunSummarySchema,
+  inserted: z.number().int().min(0),
+  updated: z.number().int().min(0),
+  error: z.string().trim().min(1).max(500),
+})
+
 export type ScraperFieldRule = z.infer<typeof scraperFieldSchema>
 export type ScraperPipelineConfig = z.infer<typeof scraperPipelineConfigSchema>
 export type ScraperPipelineDraft = z.infer<typeof scraperPipelineDraftSchema>
 export type ScraperBrowserRunRecord = z.infer<typeof scraperBrowserRunRecordSchema>
 export type ScraperBrowserRunSummary = z.infer<typeof scraperBrowserRunSummarySchema>
+export type ScraperPipelineStreamStart = z.infer<typeof scraperPipelineStreamStartSchema>
+export type ScraperPipelineStreamRecord = z.infer<typeof scraperPipelineStreamRecordSchema>
+export type ScraperPipelineStreamComplete = z.infer<typeof scraperPipelineStreamCompleteSchema>
+export type ScraperPipelineStreamFail = z.infer<typeof scraperPipelineStreamFailSchema>
 
 export interface ScraperRunRecord {
   url: string | null

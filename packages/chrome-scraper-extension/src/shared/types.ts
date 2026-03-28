@@ -165,6 +165,52 @@ export interface BrowserScrapeProgress {
   itemsExtracted: number
   detailPagesCompleted: number
   detailPagesTotal: number
+  recordsPersisted: number
+  imagesUploaded: number
+}
+
+export interface ExtensionConnection {
+  apiKey: string
+  verifiedAt: string | null
+  verifiedEmail: string | null
+  verifiedName: string | null
+  imageUploadEnabled: boolean
+}
+
+export interface ExtensionAuthStatusResponse {
+  authenticated: true
+  user: {
+    id: string
+    email: string
+    name: string | null
+  }
+  imageUploadEnabled: boolean
+  uploadEndpoint: string
+}
+
+export interface ExtensionRunStartResponse {
+  pipelineId: number
+  jobId: number
+  startedAt: string
+}
+
+export interface ExtensionRunRecordResponse {
+  inserted: number
+  updated: number
+  warnings: string[]
+}
+
+export interface ExtensionRunCompleteResponse {
+  jobId: number
+  summary: {
+    pagesVisited: number
+    itemsSeen: number
+    itemsExtracted: number
+    inserted: number
+    updated: number
+    visitedUrls: string[]
+    warnings: string[]
+  }
 }
 
 export interface PickerProgress {
@@ -177,6 +223,7 @@ export interface PickerProgress {
 
 export interface ExtensionSession {
   appBaseUrl: string
+  connection: ExtensionConnection
   currentTabUrl: string | null
   stage: 'search' | 'detail'
   sampleDetailUrl: string | null

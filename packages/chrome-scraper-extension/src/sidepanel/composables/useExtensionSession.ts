@@ -8,6 +8,10 @@ import type {
   BrowserScrapeRecord,
   BrowserScrapeSummary,
   DetailPageExtractResponse,
+  ExtensionAuthStatusResponse,
+  ExtensionRunCompleteResponse,
+  ExtensionRunRecordResponse,
+  ExtensionRunStartResponse,
   FieldPreviewResult,
   SearchPageExtractResponse,
   PickerProgress,
@@ -19,7 +23,7 @@ import type {
   ExtensionSession,
 } from '@/shared/types'
 
-const STORAGE_KEY = 'boat-search-extension-session-v2'
+const STORAGE_KEY = 'boat-search-extension-session-v3'
 
 type FieldPreviewState = FieldPreviewResult & {
   field: ScraperFieldRule
@@ -108,6 +112,24 @@ async function readErrorMessage(response: Response) {
 
   const text = await response.text()
   return text.trim() || `Request failed with ${response.status}.`
+}
+
+function getBoatSearchBaseUrl(sessionValue: ExtensionSession) {
+  return sessionValue.appBaseUrl.trim().replace(/\/+$/g, '')
+}
+
+function createBoatSearchHeaders(sessionValue: ExtensionSession, extraHeaders: HeadersInit = {}) {
+  const apiKey = sessionValue.connection.apiKey.trim()
+  if (!apiKey) {
+    throw new Error('Add a Boat Search API key before starting a browser scrape.')
+  }
+
+  return {
+    'Accept': 'application/json',
+    'Authorization': `Bearer ${apiKey}`,
+    'X-Requested-With': 'XMLHttpRequest',
+    ...extraHeaders,
+  }
 }
 
 function toStringArray(value: unknown) {
@@ -207,6 +229,33 @@ function normalizeSession(value: unknown): ExtensionSession {
     ...fallback,
     ...raw,
     appBaseUrl: typeof raw.appBaseUrl === 'string' ? raw.appBaseUrl : fallback.appBaseUrl,
+    connection:
+      raw.connection && typeof raw.connection === 'object'
+        ? {
+            ...fallback.connection,
+            ...raw.connection,
+            apiKey:
+              typeof raw.connection.apiKey === 'string'
+                ? raw.connection.apiKey.trim()
+                : fallback.connection.apiKey,
+            verifiedAt:
+              typeof raw.connection.verifiedAt === 'string'
+                ? raw.connection.verifiedAt
+                : fallback.connection.verifiedAt,
+            verifiedEmail:
+              typeof raw.connection.verifiedEmail === 'string'
+                ? raw.connection.verifiedEmail
+                : fallback.connection.verifiedEmail,
+            verifiedName:
+              typeof raw.connection.verifiedName === 'string'
+                ? raw.connection.verifiedName
+                : fallback.connection.verifiedName,
+            imageUploadEnabled:
+              typeof raw.connection.imageUploadEnabled === 'boolean'
+                ? raw.connection.imageUploadEnabled
+                : fallback.connection.imageUploadEnabled,
+          }
+        : structuredClone(fallback.connection),
     currentTabUrl: typeof raw.currentTabUrl === 'string' ? raw.currentTabUrl : null,
     stage: raw.stage === 'detail' ? 'detail' : 'search',
     sampleDetailUrl: typeof raw.sampleDetailUrl === 'string' ? raw.sampleDetailUrl : null,
@@ -257,6 +306,7 @@ export function useExtensionSession() {
   const remoteRun = shallowRef<RemoteRunState>(null)
   const browserRunProgress = shallowRef<BrowserRunProgressState>(null)
   const startingRemoteRun = shallowRef(false)
+  const verifyingConnection = shallowRef(false)
   let previewSequence = 0
 
   async function loadSession() {
@@ -765,7 +815,184 @@ export function useExtensionSession() {
     return nextRecord
   }
 
-  async function crawlDraftInBrowser(draft: ScraperPipelineDraft) {
+  async function fetchBoatSearchJson<T>(path: string, init: RequestInit = {}) {
+    const base = getBoatSearchBaseUrl(session.value)
+    if (!base) {
+      throw new Error('Set the Boat Search app URL before starting a scrape.')
+    }
+
+    const isFormData = typeof FormData !== 'undefined' && init.body instanceof FormData
+    const headers = isFormData
+      ? createBoatSearchHeaders(session.value, init.headers || {})
+      : createBoatSearchHeaders(session.value, {
+          'Content-Type': 'application/json',
+          ...(init.headers || {}),
+        })
+
+    const response = await fetch(`${base}${path}`, {
+      ...init,
+      headers,
+    })
+
+    if (!response.ok) {
+      throw new Error(await readErrorMessage(response))
+    }
+
+    return (await response.json()) as T
+  }
+
+  async function verifyBoatSearchConnection(force = false) {
+    if (!force && session.value.connection.verifiedAt && session.value.connection.apiKey.trim()) {
+      return
+    }
+
+    verifyingConnection.value = true
+    errorMessage.value = ''
+
+    try {
+      const result = await fetchBoatSearchJson<ExtensionAuthStatusResponse>(
+        '/api/admin/scraper-extension/auth',
+      )
+      session.value.connection.verifiedAt = new Date().toISOString()
+      session.value.connection.verifiedEmail = result.user.email
+      session.value.connection.verifiedName = result.user.name
+      session.value.connection.imageUploadEnabled = result.imageUploadEnabled
+      statusMessage.value = `Connected to Boat Search as ${result.user.email}.`
+      return result
+    } catch (error: unknown) {
+      session.value.connection.verifiedAt = null
+      session.value.connection.verifiedEmail = null
+      session.value.connection.verifiedName = null
+      session.value.connection.imageUploadEnabled = false
+      throw error
+    } finally {
+      verifyingConnection.value = false
+    }
+  }
+
+  function inferFileExtension(contentType: string | null, imageUrl: string) {
+    const normalizedType = (contentType || '').toLowerCase()
+    if (normalizedType.includes('png')) return 'png'
+    if (normalizedType.includes('webp')) return 'webp'
+    if (normalizedType.includes('gif')) return 'gif'
+    if (normalizedType.includes('avif')) return 'avif'
+    if (normalizedType.includes('svg')) return 'svg'
+    if (normalizedType.includes('jpeg') || normalizedType.includes('jpg')) return 'jpg'
+
+    try {
+      const pathname = new URL(imageUrl).pathname
+      const match = pathname.match(/\.([a-z0-9]{2,5})$/i)
+      return match?.[1]?.toLowerCase() || 'jpg'
+    } catch {
+      return 'jpg'
+    }
+  }
+
+  function inferUploadFileName(imageUrl: string, contentType: string | null) {
+    try {
+      const pathname = new URL(imageUrl).pathname
+      const lastSegment = pathname.split('/').filter(Boolean).at(-1) || 'scraped-image'
+      const stem = lastSegment.replace(/\.[a-z0-9]{2,5}$/i, '').replace(/[^a-z0-9-_]+/gi, '-')
+      return `${stem || 'scraped-image'}.${inferFileExtension(contentType, imageUrl)}`
+    } catch {
+      return `scraped-image.${inferFileExtension(contentType, imageUrl)}`
+    }
+  }
+
+  async function uploadImageToBoatSearch(imageUrl: string, uploadCache: Map<string, string>) {
+    if (uploadCache.has(imageUrl)) {
+      return uploadCache.get(imageUrl)!
+    }
+
+    const imageResponse = await fetch(imageUrl)
+    if (!imageResponse.ok) {
+      throw new Error(`Could not download an image from ${imageUrl} (${imageResponse.status}).`)
+    }
+
+    const contentType = imageResponse.headers.get('content-type')
+    const blob = await imageResponse.blob()
+    const formData = new FormData()
+    formData.append('file', blob, inferUploadFileName(imageUrl, contentType))
+
+    const uploadResult = await fetchBoatSearchJson<{ key: string; url: string } | Array<{ key: string; url: string }>>(
+      '/api/upload',
+      {
+        method: 'POST',
+        body: formData,
+      },
+    )
+    const uploaded = Array.isArray(uploadResult) ? uploadResult[0] : uploadResult
+    if (!uploaded?.url) {
+      throw new Error(`Boat Search did not return an image URL for ${imageUrl}.`)
+    }
+
+    uploadCache.set(imageUrl, uploaded.url)
+    return uploaded.url
+  }
+
+  async function storeRecordImagesInR2(
+    record: BrowserScrapeRecord,
+    uploadCache: Map<string, string>,
+  ) {
+    if (!record.images.length) {
+      return {
+        record,
+        uploadedCount: 0,
+      }
+    }
+
+    const nextWarnings = [...record.warnings]
+    const nextImages: string[] = []
+    let uploadedCount = 0
+
+    for (const imageUrl of record.images.slice(0, 12)) {
+      try {
+        const uploadedUrl = await uploadImageToBoatSearch(imageUrl, uploadCache)
+        nextImages.push(uploadedUrl)
+        if (uploadedUrl !== imageUrl) {
+          uploadedCount += 1
+        }
+      } catch (error: unknown) {
+        const message =
+          error instanceof Error ? error.message : `Could not upload image ${imageUrl}.`
+        nextWarnings.push(message)
+      }
+    }
+
+    return {
+      record: {
+        ...record,
+        images: uniqueStrings(nextImages),
+        warnings: uniqueStrings(nextWarnings),
+      } satisfies BrowserScrapeRecord,
+      uploadedCount,
+    }
+  }
+
+  async function persistBrowserRecordToBoatSearch(
+    run: ExtensionRunStartResponse,
+    draft: ScraperPipelineDraft,
+    record: BrowserScrapeRecord,
+  ) {
+    return await fetchBoatSearchJson<ExtensionRunRecordResponse>(
+      '/api/admin/scraper-extension/run/record',
+      {
+        method: 'POST',
+        body: JSON.stringify({
+          pipelineId: run.pipelineId,
+          jobId: run.jobId,
+          draft,
+          record,
+        }),
+      },
+    )
+  }
+
+  async function crawlDraftInBrowser(
+    draft: ScraperPipelineDraft,
+    runState: { recordsPersisted: number; imagesUploaded: number },
+    onRecord: (record: BrowserScrapeRecord) => Promise<void>,
+  ) {
     if (!draft.config.startUrls.length) {
       throw new Error('Add at least one start URL before starting a browser scrape.')
     }
@@ -821,6 +1048,8 @@ export function useExtensionSession() {
             itemsExtracted: searchRecords.length,
             detailPagesCompleted: 0,
             detailPagesTotal: 0,
+            recordsPersisted: runState.recordsPersisted,
+            imagesUploaded: runState.imagesUploaded,
           }
           statusMessage.value = `Scraping search results in the browser: ${currentUrl}`
 
@@ -843,6 +1072,10 @@ export function useExtensionSession() {
             }
 
             searchRecords.push(record)
+
+            if (!draft.config.fetchDetailPages) {
+              await onRecord(record)
+            }
           }
 
           currentUrl = pageResult.nextPageUrl
@@ -855,12 +1088,18 @@ export function useExtensionSession() {
 
       for (let index = 0; index < detailRecords.length; index += 1) {
         const record = detailRecords[index]
-        if (!record?.url) {
+        if (!record) {
+          continue
+        }
+
+        if (!record.url) {
+          await onRecord(record)
           continue
         }
 
         if (!isAllowedDomainUrl(record.url, allowedDomains)) {
           searchWarnings.push(`Blocked cross-domain detail page during browser scrape: ${record.url}`)
+          await onRecord(record)
           continue
         }
 
@@ -872,29 +1111,37 @@ export function useExtensionSession() {
           itemsExtracted: searchRecords.length,
           detailPagesCompleted: index,
           detailPagesTotal: detailRecords.length,
+          recordsPersisted: runState.recordsPersisted,
+          imagesUploaded: runState.imagesUploaded,
         }
         statusMessage.value = `Scraping detail page ${index + 1} of ${detailRecords.length}: ${record.url}`
 
-        const readyTab = await navigateTab(crawlTab.id, record.url)
-        const detailResult = await sendToTab<DetailPageExtractResponse>(readyTab, {
-          type: 'EXTENSION_EXTRACT_DETAIL_PAGE',
-          request: { draft },
-        })
+        try {
+          const readyTab = await navigateTab(crawlTab.id, record.url)
+          const detailResult = await sendToTab<DetailPageExtractResponse>(readyTab, {
+            type: 'EXTENSION_EXTRACT_DETAIL_PAGE',
+            request: { draft },
+          })
 
-        const recordIndex = searchRecords.findIndex((entry) => entry.url === record.url)
-        if (recordIndex >= 0) {
-          searchRecords.splice(
-            recordIndex,
-            1,
-            mergeBrowserRecord(searchRecords[recordIndex]!, detailResult.record),
+          const recordIndex = searchRecords.findIndex((entry) => entry.url === record.url)
+          if (recordIndex >= 0) {
+            const mergedRecord = mergeBrowserRecord(searchRecords[recordIndex]!, detailResult.record)
+            searchRecords.splice(recordIndex, 1, mergedRecord)
+            await onRecord(mergedRecord)
+          }
+
+          searchWarnings.push(...detailResult.warnings)
+        } catch (error: unknown) {
+          searchWarnings.push(
+            error instanceof Error
+              ? error.message
+              : `Could not scrape the detail page for ${record.url}.`,
           )
+          await onRecord(record)
         }
-
-        searchWarnings.push(...detailResult.warnings)
       }
 
       return {
-        records: searchRecords,
         summary: {
           pagesVisited,
           itemsSeen,
@@ -910,42 +1157,6 @@ export function useExtensionSession() {
       if (crawlTab?.id) {
         await chrome.tabs.remove(crawlTab.id).catch(() => {})
       }
-    }
-  }
-
-  async function uploadBrowserRunToBoatSearchApi(
-    draft: ScraperPipelineDraft,
-    records: BrowserScrapeRecord[],
-    summary: BrowserScrapeSummary,
-  ) {
-    const base = session.value.appBaseUrl.trim().replace(/\/+$/g, '')
-    if (!base) {
-      throw new Error('Set the Boat Search app URL before starting a scrape.')
-    }
-
-    const response = await fetch(`${base}/api/admin/scraper-pipelines/browser-run`, {
-      method: 'POST',
-      credentials: 'include',
-      headers: {
-        'Accept': 'application/json',
-        'Content-Type': 'application/json',
-        'X-Requested-With': 'XMLHttpRequest',
-      },
-      body: JSON.stringify({
-        draft,
-        records,
-        summary,
-      }),
-    })
-
-    if (!response.ok) {
-      throw new Error(await readErrorMessage(response))
-    }
-
-    return (await response.json()) as {
-      pipelineId: number
-      jobId: number | null
-      summary: RemoteRunSummary
     }
   }
 
@@ -968,37 +1179,144 @@ export function useExtensionSession() {
     }
   }
 
+  async function openBoatSearchAccountSettings() {
+    errorMessage.value = ''
+    statusMessage.value = 'Opening Boat Search account settings...'
+
+    try {
+      const base = getBoatSearchBaseUrl(session.value)
+      if (!base) {
+        throw new Error('Set the Boat Search app URL before opening account settings.')
+      }
+
+      await chrome.runtime.sendMessage({
+        type: 'EXTENSION_OPEN_URL',
+        url: `${base}/account/settings`,
+      } satisfies BackgroundMessage)
+      statusMessage.value = 'Boat Search account settings opened.'
+    } catch (error: unknown) {
+      const message =
+        error instanceof Error ? error.message : 'Could not open Boat Search account settings.'
+      errorMessage.value = message
+      statusMessage.value = 'Account settings handoff failed'
+    }
+  }
+
   async function startScrapeInBoatSearch() {
     errorMessage.value = ''
     startingRemoteRun.value = true
     remoteRun.value = null
     browserRunProgress.value = null
-    statusMessage.value = 'Scraping the site in a real browser tab...'
+    statusMessage.value = 'Verifying the Boat Search connection...'
+    let activeRun: ExtensionRunStartResponse | null = null
+    let activeDraft: ScraperPipelineDraft | null = null
+    const runState = {
+      inserted: 0,
+      updated: 0,
+      recordsPersisted: 0,
+      imagesUploaded: 0,
+    }
 
     try {
+      if (!session.value.connection.apiKey.trim()) {
+        throw new Error('Add a Boat Search API key before starting a browser scrape.')
+      }
+
+      const authStatus = await verifyBoatSearchConnection(true)
+      if (!authStatus?.imageUploadEnabled) {
+        throw new Error('Boat Search image upload is not enabled yet because no R2 bucket is bound.')
+      }
+
       const draft = structuredClone(session.value.draft)
-      const browserRun = await crawlDraftInBrowser(draft)
+      activeDraft = draft
+      const run = await fetchBoatSearchJson<ExtensionRunStartResponse>(
+        '/api/admin/scraper-extension/run/start',
+        {
+          method: 'POST',
+          body: JSON.stringify({ draft }),
+        },
+      )
+      activeRun = run
+      const uploadedImageCache = new Map<string, string>()
+      statusMessage.value = 'Scraping the site in a real browser tab...'
+      const browserRun = await crawlDraftInBrowser(draft, runState, async (record) => {
+        const imageResult = await storeRecordImagesInR2(record, uploadedImageCache)
+        runState.imagesUploaded += imageResult.uploadedCount
+        const persisted = await persistBrowserRecordToBoatSearch(run, draft, imageResult.record)
+        runState.inserted += persisted.inserted
+        runState.updated += persisted.updated
+        runState.recordsPersisted += 1
+        browserRunProgress.value = browserRunProgress.value
+          ? {
+              ...browserRunProgress.value,
+              recordsPersisted: runState.recordsPersisted,
+              imagesUploaded: runState.imagesUploaded,
+            }
+          : null
+      })
       browserRunProgress.value = {
         stage: 'upload',
         currentUrl: null,
         pagesVisited: browserRun.summary.pagesVisited,
         itemsSeen: browserRun.summary.itemsSeen,
         itemsExtracted: browserRun.summary.itemsExtracted,
-        detailPagesCompleted: draft.config.fetchDetailPages ? browserRun.records.length : 0,
-        detailPagesTotal: draft.config.fetchDetailPages ? browserRun.records.length : 0,
+        detailPagesCompleted: draft.config.fetchDetailPages ? runState.recordsPersisted : 0,
+        detailPagesTotal: draft.config.fetchDetailPages ? browserRun.summary.itemsExtracted : 0,
+        recordsPersisted: runState.recordsPersisted,
+        imagesUploaded: runState.imagesUploaded,
       }
-      statusMessage.value = 'Uploading browser-scraped records into Boat Search...'
+      statusMessage.value = 'Finalizing the browser scrape in Boat Search...'
 
-      const response = await uploadBrowserRunToBoatSearchApi(
-        draft,
-        browserRun.records,
-        browserRun.summary,
+      const response = await fetchBoatSearchJson<ExtensionRunCompleteResponse>(
+        '/api/admin/scraper-extension/run/complete',
+        {
+          method: 'POST',
+          body: JSON.stringify({
+            pipelineId: run.pipelineId,
+            jobId: run.jobId,
+            draft,
+            summary: browserRun.summary,
+            inserted: runState.inserted,
+            updated: runState.updated,
+          }),
+        },
       )
-      remoteRun.value = response
+      remoteRun.value = {
+        pipelineId: run.pipelineId,
+        jobId: response.jobId,
+        summary: response.summary,
+      }
       browserRunProgress.value = null
       statusMessage.value = `Browser scrape complete. Inserted ${response.summary.inserted} and updated ${response.summary.updated} boats.`
       return
     } catch (error: unknown) {
+      if (browserRunProgress.value && activeRun && activeDraft) {
+        try {
+          await fetchBoatSearchJson('/api/admin/scraper-extension/run/fail', {
+            method: 'POST',
+            body: JSON.stringify({
+              pipelineId: activeRun.pipelineId,
+              jobId: activeRun.jobId,
+              draft: activeDraft,
+              summary: {
+                pagesVisited: browserRunProgress.value.pagesVisited,
+                itemsSeen: browserRunProgress.value.itemsSeen,
+                itemsExtracted: browserRunProgress.value.itemsExtracted,
+                visitedUrls: [],
+                warnings: [],
+              },
+              inserted: runState.inserted,
+              updated: runState.updated,
+              error:
+                error instanceof Error
+                  ? error.message
+                  : 'The browser scrape failed before completion.',
+            }),
+          })
+        } catch {
+          // Ignore fail-finalization issues and surface the original scrape error.
+        }
+      }
       const message =
         error instanceof Error ? error.message : 'Could not finish the browser scrape.'
       errorMessage.value = message
@@ -1006,6 +1324,14 @@ export function useExtensionSession() {
     } finally {
       startingRemoteRun.value = false
     }
+  }
+
+  function updateConnectionApiKey(value: string) {
+    session.value.connection.apiKey = value.trim()
+    session.value.connection.verifiedAt = null
+    session.value.connection.verifiedEmail = null
+    session.value.connection.verifiedName = null
+    session.value.connection.imageUploadEnabled = false
   }
 
   function resetSession() {
@@ -1126,6 +1452,7 @@ export function useExtensionSession() {
     remoteRun,
     browserRunProgress,
     startingRemoteRun,
+    verifyingConnection,
     statusMessage,
     errorMessage,
     loadSession,
@@ -1141,7 +1468,10 @@ export function useExtensionSession() {
     addField,
     removeField,
     openSampleDetailPage,
+    verifyBoatSearchConnection,
+    updateConnectionApiKey,
     startScrapeInBoatSearch,
+    openBoatSearchAccountSettings,
     handoffToBoatSearch,
     resetSession,
   }

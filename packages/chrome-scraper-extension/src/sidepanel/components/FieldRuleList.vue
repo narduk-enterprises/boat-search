@@ -21,7 +21,7 @@ const props = defineProps<{
 }>()
 
 const fields = defineModel<ScraperFieldRule[]>({ required: true })
-const expandedIndex = shallowRef<number | null>(0)
+const expandedIndex = shallowRef<number | null>(null)
 
 const emit = defineEmits<{
   pickField: [field: ScraperFieldRule]
@@ -48,9 +48,7 @@ function isPreviewed(field: ScraperFieldRule) {
 }
 
 function formatFieldName(key: ScraperFieldRule['key']) {
-  return key
-    .replace(/([A-Z])/g, ' $1')
-    .replace(/^./, (value) => value.toUpperCase())
+  return key.replace(/([A-Z])/g, ' $1').replace(/^./, (value) => value.toUpperCase())
 }
 
 function summarizeField(field: ScraperFieldRule) {
@@ -118,8 +116,8 @@ watch(
         <h3>{{ props.title }}</h3>
         <p>{{ props.subtitle }}</p>
         <p class="field-list__summary">
-          {{ fields.length }} mapping{{ fields.length === 1 ? '' : 's' }} ready.
-          Hover a card or click <strong>Show on page</strong> to see live highlights.
+          {{ fields.length }} mapping{{ fields.length === 1 ? '' : 's' }}. Use
+          <strong>Show on page</strong> for fast spot checks.
         </p>
       </div>
       <button
@@ -127,7 +125,7 @@ watch(
         class="secondary"
         @click="emit('addField', props.scope)"
       >
-        Add field
+        Add mapping
       </button>
     </div>
 
@@ -136,9 +134,7 @@ watch(
       class="field-list__empty"
     >
       <strong>No fields yet</strong>
-      <p>
-        Add a field manually or run detection on the current page to generate suggestions.
-      </p>
+      <p>Add a field manually or run detection on the current page to generate suggestions.</p>
     </div>
 
     <div
@@ -149,7 +145,10 @@ watch(
         v-for="(field, index) in fields"
         :key="`${field.scope}-${field.key}-${index}`"
         class="field-card"
-        :class="{ 'field-card--previewed': isPreviewed(field) }"
+        :class="{
+          'field-card--previewed': isPreviewed(field),
+          'field-card--open': expandedIndex === index,
+        }"
         @mouseenter="emit('previewField', field)"
       >
         <div class="field-card__head">
@@ -161,39 +160,35 @@ watch(
               <span
                 v-if="field.required"
                 class="field-chip field-chip--required"
-              >
-                Required
-              </span>
+              > Required </span>
               <span
                 v-if="field.multiple"
                 class="field-chip"
-              >
-                Multiple
-              </span>
+              > Multiple </span>
             </div>
 
             <p class="field-card__selector">
               {{ summarizeField(field) }}
             </p>
 
-            <div
+            <p
               class="field-card__preview"
               :class="{ 'field-card__preview--error': isPreviewed(field) && props.preview?.error }"
             >
-              <p>{{ previewStatus(field) }}</p>
+              {{ previewStatus(field) }}
+            </p>
 
-              <div
-                v-if="isPreviewed(field) && props.preview?.sampleValues.length"
-                class="field-card__samples"
+            <div
+              v-if="isPreviewed(field) && props.preview?.sampleValues.length"
+              class="field-card__samples"
+            >
+              <span
+                v-for="sample in props.preview.sampleValues"
+                :key="sample"
+                class="sample-chip"
               >
-                <span
-                  v-for="sample in props.preview.sampleValues"
-                  :key="sample"
-                  class="sample-chip"
-                >
-                  {{ sample }}
-                </span>
-              </div>
+                {{ sample }}
+              </span>
             </div>
           </div>
 
@@ -207,17 +202,17 @@ watch(
             </button>
             <button
               type="button"
-              class="secondary"
-              @click="emit('pickField', field)"
-            >
-              {{ isPending(field) ? 'Click page…' : 'Pick again' }}
-            </button>
-            <button
-              type="button"
               class="ghost"
               @click="toggleField(index)"
             >
               {{ expandedIndex === index ? 'Hide editor' : 'Edit mapping' }}
+            </button>
+            <button
+              type="button"
+              class="secondary"
+              @click="emit('pickField', field)"
+            >
+              {{ isPending(field) ? 'Click page...' : 'Pick again' }}
             </button>
             <button
               type="button"
@@ -327,7 +322,7 @@ watch(
 <style scoped>
 .field-list {
   display: grid;
-  gap: 0.9rem;
+  gap: 0.75rem;
 }
 
 .field-list__header {
@@ -339,20 +334,20 @@ watch(
 
 .field-list__header h3 {
   margin: 0;
-  font-size: 0.95rem;
+  font-size: 0.92rem;
 }
 
 .field-list__header p {
   margin: 0.3rem 0 0;
   color: #6b7280;
-  font-size: 0.82rem;
-  line-height: 1.4;
+  font-size: 0.8rem;
+  line-height: 1.35;
 }
 
 .field-list__summary {
-  margin: 0.45rem 0 0;
+  margin: 0.35rem 0 0;
   color: #0f172a;
-  font-size: 0.84rem;
+  font-size: 0.8rem;
   font-weight: 600;
 }
 
@@ -378,15 +373,15 @@ watch(
 
 .field-list__items {
   display: grid;
-  gap: 0.8rem;
+  gap: 0.65rem;
 }
 
 .field-card {
   border: 1px solid #dbe4f0;
   border-radius: 0.95rem;
-  padding: 0.85rem;
+  padding: 0.75rem;
   display: grid;
-  gap: 0.7rem;
+  gap: 0.6rem;
   background: #f8fbff;
   transition:
     border-color 150ms ease,
@@ -394,10 +389,14 @@ watch(
     transform 150ms ease;
 }
 
+.field-card--open {
+  padding-bottom: 0.85rem;
+}
+
 .field-card:hover,
 .field-card--previewed {
   border-color: rgba(14, 165, 233, 0.36);
-  box-shadow: 0 18px 40px rgba(14, 165, 233, 0.12);
+  box-shadow: 0 16px 34px rgba(14, 165, 233, 0.1);
   transform: translateY(-1px);
 }
 
@@ -411,7 +410,7 @@ watch(
 .field-card__intro {
   min-width: 0;
   display: grid;
-  gap: 0.55rem;
+  gap: 0.45rem;
 }
 
 .field-card__chips,
@@ -425,12 +424,12 @@ watch(
 .sample-chip {
   display: inline-flex;
   align-items: center;
-  min-height: 1.65rem;
-  padding: 0.2rem 0.6rem;
+  min-height: 1.55rem;
+  padding: 0.18rem 0.55rem;
   border-radius: 999px;
   background: rgba(226, 232, 240, 0.9);
   color: #334155;
-  font-size: 0.74rem;
+  font-size: 0.72rem;
   font-weight: 600;
 }
 
@@ -456,25 +455,20 @@ watch(
 .field-card__selector {
   margin: 0;
   color: #475569;
-  font-size: 0.84rem;
-  line-height: 1.5;
+  font-size: 0.8rem;
+  line-height: 1.4;
   word-break: break-word;
 }
 
 .field-card__preview {
-  display: grid;
-  gap: 0.45rem;
-  padding: 0.7rem 0.8rem;
+  margin: 0;
+  padding: 0.45rem 0.65rem;
   border-radius: 0.85rem;
   background: rgba(239, 246, 255, 0.92);
   border: 1px solid rgba(191, 219, 254, 0.8);
-}
-
-.field-card__preview p {
-  margin: 0;
   color: #0f172a;
-  font-size: 0.8rem;
-  line-height: 1.45;
+  font-size: 0.77rem;
+  line-height: 1.35;
 }
 
 .field-card__preview--error {
@@ -482,7 +476,7 @@ watch(
   border-color: rgba(252, 165, 165, 0.8);
 }
 
-.field-card__preview--error p {
+.field-card__preview--error {
   color: #991b1b;
 }
 
@@ -490,7 +484,7 @@ watch(
   display: flex;
   flex-wrap: wrap;
   justify-content: flex-end;
-  gap: 0.5rem;
+  gap: 0.45rem;
 }
 
 .danger--ghost {
@@ -500,8 +494,8 @@ watch(
 
 .field-card__editor {
   display: grid;
-  gap: 0.7rem;
-  padding-top: 0.2rem;
+  gap: 0.65rem;
+  padding-top: 0.15rem;
   border-top: 1px solid rgba(203, 213, 225, 0.8);
 }
 

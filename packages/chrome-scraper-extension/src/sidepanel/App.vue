@@ -1,11 +1,20 @@
 <script setup lang="ts">
-import { computed, onMounted } from 'vue'
+import { computed, onMounted, shallowRef, watch } from 'vue'
 import FieldRuleList from './components/FieldRuleList.vue'
 import WorkflowStepCard from './components/WorkflowStepCard.vue'
 import { useExtensionSession } from './composables/useExtensionSession'
 import type { ScraperFieldRule } from '@/shared/types'
 
 type WorkflowStatus = 'active' | 'complete' | 'upcoming' | 'ready'
+
+type WorkflowStep = {
+  id: string
+  step: number
+  title: string
+  status: WorkflowStatus
+  note: string
+  statusLabel: string
+}
 
 const extension = useExtensionSession()
 
@@ -30,14 +39,16 @@ function inferPageTypeFromUrl(url: string | null) {
 }
 
 function formatFieldName(key: ScraperFieldRule['key']) {
-  return key
-    .replace(/([A-Z])/g, ' $1')
-    .replace(/^./, (value) => value.toUpperCase())
+  return key.replace(/([A-Z])/g, ' $1').replace(/^./, (value) => value.toUpperCase())
 }
 
 const draft = computed(() => extension.session.value.draft)
+const connection = computed(() => extension.session.value.connection)
 const analysis = computed(() => extension.session.value.lastAnalysis)
 const analysisWarnings = computed(() => analysis.value?.warnings ?? [])
+const connectionReady = computed(
+  () => Boolean(connection.value.apiKey.trim() && connection.value.verifiedAt),
+)
 
 const startUrlsText = computed({
   get: () => draft.value.config.startUrls.join('\n'),
@@ -83,12 +94,15 @@ const itemSelectorPreview = computed(() => extension.itemSelectorPreview.value)
 const remoteRun = computed(() => extension.remoteRun.value)
 const browserRunProgress = computed(() => extension.browserRunProgress.value)
 const startingRemoteRun = computed(() => extension.startingRemoteRun.value)
+const verifyingConnection = computed(() => extension.verifyingConnection.value)
 const detectedCardCount = computed(
   () => itemSelectorPreview.value?.matchCount || itemSelectorTraining.value?.matchCount || 0,
 )
 const selectedExampleCount = computed(() => itemSelectorTraining.value?.selectionCount || 0)
 const itemSelectorPreviewActive = computed(() => Boolean(itemSelectorPreview.value?.active))
-const currentTabPageType = computed(() => inferPageTypeFromUrl(extension.session.value.currentTabUrl))
+const currentTabPageType = computed(() =>
+  inferPageTypeFromUrl(extension.session.value.currentTabUrl),
+)
 const detailContextReady = computed(() => currentTabPageType.value === 'detail')
 const detailFieldLabels = computed(() =>
   extension.detailFields.value
@@ -101,6 +115,7 @@ const exportGaps = computed(() => {
 
   if (!draft.value.name.trim()) gaps.push('pipeline name')
   if (!draft.value.boatSource.trim()) gaps.push('source name')
+  if (!connectionReady.value) gaps.push('extension auth')
   if (!draft.value.config.startUrls.length) gaps.push('start URL')
   if (!hasItemSelector.value) gaps.push('listing card selector')
   if (!hasSearchFields.value) gaps.push('reviewed search fields')
@@ -124,42 +139,34 @@ function statusLabel(status: WorkflowStatus) {
   }
 }
 
-const workflowSteps = computed(() => {
+const workflowSteps = computed<WorkflowStep[]>(() => {
   const steps = [
     {
       id: 'scan-search',
       step: 1,
-      title: 'Scan the search page',
+      title: 'Scan search page',
       status: hasSearchAnalysis.value ? 'complete' : 'active',
       note: hasSearchAnalysis.value
         ? `Detected ${analysis.value?.pageType ?? 'search'} page on ${analysis.value?.siteName ?? 'this site'}.`
-        : 'Start on a YachtWorld results page and let the helper read the DOM first.',
+        : 'Start on a YachtWorld results page and read the DOM before editing selectors.',
     },
     {
       id: 'listing-card',
       step: 2,
-      title: 'Confirm the listing card',
-      status: !hasSearchAnalysis.value
-        ? 'upcoming'
-        : hasItemSelector.value
-          ? 'complete'
-          : 'active',
+      title: 'Lock listing card',
+      status: !hasSearchAnalysis.value ? 'upcoming' : hasItemSelector.value ? 'complete' : 'active',
       note: hasItemSelector.value
         ? `${draft.value.config.itemSelector}${detectedCardCount.value ? ` · ${detectedCardCount.value} cards on this page` : ''}`
-        : 'Pick two result cards so every listing-level selector stays anchored to the full result set.',
+        : 'Pick two cards so the shared listing container stays anchored to the full results set.',
     },
     {
       id: 'search-fields',
       step: 3,
       title: 'Review search fields',
-      status: !hasItemSelector.value
-        ? 'upcoming'
-        : hasSearchFields.value
-          ? 'complete'
-          : 'active',
+      status: !hasItemSelector.value ? 'upcoming' : hasSearchFields.value ? 'complete' : 'active',
       note: hasSearchFields.value
         ? `${itemFieldCount.value} search field${itemFieldCount.value === 1 ? '' : 's'} captured.`
-        : 'Confirm the title, URL, price, location, and any other fields scraped from the result card.',
+        : 'Keep only the search fields worth scraping before opening any detail pages.',
     },
     {
       id: 'pagination',
@@ -174,12 +181,12 @@ const workflowSteps = computed(() => {
         ? draft.value.config.nextPageSelector
         : draft.value.config.maxPages === 1
           ? 'Single-page mode is on.'
-          : 'Pick the next-page button or reduce max pages to 1 for single-page searches.',
+          : 'Pick the next-page button or cap the run at one page.',
     },
     {
       id: 'detail-page',
       step: 5,
-      title: 'Open and scan a detail page',
+      title: 'Scan detail page',
       status: !paginationConfigured.value
         ? 'upcoming'
         : hasDetailAnalysis.value
@@ -187,22 +194,18 @@ const workflowSteps = computed(() => {
           : 'active',
       note: hasDetailAnalysis.value
         ? analysis.value?.pageUrl || 'Detail page scanned.'
-        : extension.session.value.sampleDetailUrl || 'Open a sample listing detail page and run detection again.',
+        : extension.session.value.sampleDetailUrl || 'Open one sample listing and scan it again.',
     },
     {
       id: 'detail-fields-export',
       step: 6,
-      title: 'Review detail fields and export',
-      status: !hasDetailAnalysis.value
-        ? 'upcoming'
-        : exportReady.value
-          ? 'ready'
-          : 'active',
+      title: 'Review detail fields',
+      status: !hasDetailAnalysis.value ? 'upcoming' : exportReady.value ? 'ready' : 'active',
       note: exportReady.value
-        ? 'The draft looks ready to send into Boat Search.'
+        ? 'The draft is ready for a browser scrape or handoff.'
         : exportGaps.value.length
           ? `Still needed: ${exportGaps.value.join(', ')}.`
-          : 'Finalize the pipeline details and hand the draft to Boat Search.',
+          : 'Finalize the pipeline details and send the draft into Boat Search.',
     },
   ] as Array<{ id: string; step: number; title: string; status: WorkflowStatus; note: string }>
 
@@ -219,11 +222,42 @@ const nextAction = computed(() => {
   }
 
   if (exportReady.value) {
-    return 'Send the draft into Boat Search'
+    return 'Start the browser scrape or open the builder'
   }
 
-  return 'Review the detected selectors and refine anything that looks off'
+  return 'Review the captured selectors and tighten the mappings'
 })
+
+const completedStepCount = computed(
+  () => workflowSteps.value.filter((step) => step.status === 'complete').length,
+)
+const activeStepId = computed(
+  () =>
+    workflowSteps.value.find((step) => step.status === 'active')?.id ||
+    workflowSteps.value.find((step) => step.status === 'ready')?.id ||
+    workflowSteps.value[0]?.id ||
+    null,
+)
+const openStepId = shallowRef<string | null>(null)
+
+watch(
+  workflowSteps,
+  (steps) => {
+    if (!steps.length) {
+      openStepId.value = null
+      return
+    }
+
+    if (!openStepId.value || !steps.some((step) => step.id === openStepId.value)) {
+      openStepId.value = activeStepId.value
+    }
+  },
+  { immediate: true },
+)
+
+function openStep(stepId: string) {
+  openStepId.value = stepId
+}
 
 async function pickItemSelector() {
   await extension.startPicker({ kind: 'itemSelector' })
@@ -254,56 +288,40 @@ onMounted(async () => {
 
 <template>
   <main class="panel">
-    <header class="hero">
-      <div class="hero__copy">
-        <p class="eyebrow">
-          Boat Search
-        </p>
-        <h1>Scraper setup workflow</h1>
-        <p class="lede">
-          Walk the page the same way a human would: scan the search results, lock the listing card,
-          review fields, capture pagination, then switch to a detail page and export the draft.
-        </p>
-      </div>
-
-      <div class="hero__metrics">
-        <div class="hero-pill">
-          <span class="hero-pill__label">Active tab</span>
-          <strong>{{ extension.session.value.currentTabUrl || 'No active tab yet' }}</strong>
-        </div>
-        <div class="hero-pill">
-          <span class="hero-pill__label">Detected page</span>
-          <strong>{{ analysis?.pageType || 'Not scanned yet' }}</strong>
-        </div>
-        <div class="hero-pill">
-          <span class="hero-pill__label">Sample detail</span>
-          <strong>{{ extension.session.value.sampleDetailUrl || 'Not discovered yet' }}</strong>
-        </div>
-      </div>
-
-      <div class="hero__focus">
-        <div>
-          <p class="hero__focus-label">
-            Next action
-          </p>
-          <strong class="hero__focus-title">{{ nextAction }}</strong>
-          <p class="hero__focus-copy">
-            {{ extension.statusMessage.value }}
+    <header class="toolbar">
+      <div class="toolbar__top">
+        <div class="toolbar__identity">
+          <div class="toolbar__meta">
+            <p class="eyebrow">
+              Boat Search pipeline helper
+            </p>
+            <span class="context-pill">{{ analysis?.siteName || 'Waiting for scan' }}</span>
+            <span class="context-pill context-pill--muted">
+              {{ analysis?.pageType || 'Not scanned yet' }}
+            </span>
+          </div>
+          <h1>Scraper workflow</h1>
+          <p class="toolbar__summary">
+            <span class="toolbar__summary-label">Next</span>
+            <strong>{{ nextAction }}</strong>
+            <span>{{
+              extension.statusMessage.value || 'Scan the current page to start locking selectors.'
+            }}</span>
           </p>
           <p
             v-if="extension.errorMessage.value"
-            class="hero__error"
+            class="toolbar__error"
           >
             {{ extension.errorMessage.value }}
           </p>
         </div>
 
-        <div class="hero__actions">
+        <div class="toolbar__actions">
           <button
             type="button"
             @click="extension.analyzeCurrentPage"
           >
-            {{ isDetailStage ? 'Re-scan current detail page' : 'Scan current page' }}
+            {{ isDetailStage ? 'Re-scan detail page' : 'Scan current page' }}
           </button>
           <button
             type="button"
@@ -314,22 +332,53 @@ onMounted(async () => {
           </button>
         </div>
       </div>
+
+      <div class="status-strip">
+        <article class="status-pill status-pill--wide">
+          <span>Active tab</span>
+          <strong>{{ extension.session.value.currentTabUrl || 'No active tab yet' }}</strong>
+        </article>
+        <article class="status-pill">
+          <span>Progress</span>
+          <strong>{{ completedStepCount }}/{{ workflowSteps.length }} complete</strong>
+        </article>
+        <article class="status-pill">
+          <span>Sample detail</span>
+          <strong>{{ hasSampleDetail ? 'Ready' : 'Not set' }}</strong>
+        </article>
+        <article class="status-pill">
+          <span>Extension auth</span>
+          <strong>{{ connectionReady ? connection.verifiedEmail || 'Connected' : 'API key needed' }}</strong>
+        </article>
+        <article class="status-pill">
+          <span>Export</span>
+          <strong>{{ exportReady ? 'Ready' : `${exportGaps.length} gaps` }}</strong>
+        </article>
+      </div>
     </header>
 
-    <section class="workflow-rail">
-      <article
+    <nav
+      class="progress-nav"
+      aria-label="Workflow steps"
+    >
+      <button
         v-for="step in workflowSteps"
         :key="step.id"
-        class="workflow-rail__step"
-        :class="`workflow-rail__step--${step.status}`"
+        type="button"
+        class="progress-nav__step"
+        :class="[
+          `progress-nav__step--${step.status}`,
+          { 'progress-nav__step--open': openStepId === step.id },
+        ]"
+        @click="openStep(step.id)"
       >
-        <span class="workflow-rail__number">{{ step.step }}</span>
-        <div class="workflow-rail__body">
+        <span class="progress-nav__number">{{ step.step }}</span>
+        <span class="progress-nav__copy">
           <strong>{{ step.title }}</strong>
           <span>{{ step.statusLabel }}</span>
-        </div>
-      </article>
-    </section>
+        </span>
+      </button>
+    </nav>
 
     <section
       v-if="analysisWarnings.length"
@@ -348,22 +397,87 @@ onMounted(async () => {
     </section>
 
     <WorkflowStepCard
+      :step="0"
+      title="Connect the extension"
+      subtitle="Store a Boat Search API key in the plugin so scraping and writes stay inside the extension instead of depending on the website session."
+      :status="connectionReady ? 'complete' : 'active'"
+      :note="
+        connectionReady
+          ? `Connected as ${connection.verifiedEmail || 'an authenticated user'}.`
+          : 'Paste a Boat Search API key, test it, then the plugin can write boats and images directly.'
+      "
+      :open="true"
+    >
+      <template #actions>
+        <button
+          type="button"
+          class="ghost"
+          @click="extension.openBoatSearchAccountSettings"
+        >
+          Open account settings
+        </button>
+        <button
+          type="button"
+          class="secondary"
+          :disabled="verifyingConnection"
+          @click="extension.verifyBoatSearchConnection(true)"
+        >
+          {{ verifyingConnection ? 'Testing…' : 'Test connection' }}
+        </button>
+      </template>
+
+      <div class="task-grid task-grid--two">
+        <label class="stack">
+          <span>Boat Search app URL</span>
+          <input
+            v-model="extension.session.value.appBaseUrl"
+            type="url"
+            placeholder="https://boat-search.nard.uk"
+          >
+        </label>
+
+        <label class="stack">
+          <span>Boat Search API key</span>
+          <input
+            :value="connection.apiKey"
+            type="password"
+            placeholder="nk_..."
+            @input="extension.updateConnectionApiKey(String(($event.target as HTMLInputElement).value))"
+          >
+        </label>
+      </div>
+
+      <p class="context-note">
+        Create this key in Boat Search account settings. The extension stores it locally, uses it
+        to upload images into R2, and streams boats into the database while the scrape runs.
+      </p>
+      <p
+        v-if="connection.verifiedAt"
+        class="context-note"
+      >
+        Last verified {{ connection.verifiedAt }}.
+      </p>
+    </WorkflowStepCard>
+
+    <WorkflowStepCard
       :step="1"
       title="Scan the search page"
-      subtitle="Let the helper inspect the YachtWorld results DOM before you touch any selectors."
+      subtitle="Read the results DOM before changing any selectors."
       :status="workflowSteps[0]?.status ?? 'active'"
       :note="workflowSteps[0]?.note"
+      :open="openStepId === 'scan-search'"
+      @toggle="openStep('scan-search')"
     >
       <template #actions>
         <button
           type="button"
           @click="extension.analyzeCurrentPage"
         >
-          Auto-detect this page
+          Auto-detect page
         </button>
       </template>
 
-      <div class="metrics-grid metrics-grid--three">
+      <div class="task-grid task-grid--three">
         <div class="metric-card">
           <span>Site</span>
           <strong>{{ analysis?.siteName || 'Not detected yet' }}</strong>
@@ -382,9 +496,11 @@ onMounted(async () => {
     <WorkflowStepCard
       :step="2"
       title="Confirm the listing card"
-      subtitle="Click two example cards, ideally from different rows, so the helper learns the shared listing container instead of guessing from the first visible block."
+      subtitle="Train one stable card selector, then preview the matches."
       :status="workflowSteps[1]?.status ?? 'upcoming'"
       :note="workflowSteps[1]?.note"
+      :open="openStepId === 'listing-card'"
+      @toggle="openStep('listing-card')"
     >
       <template #actions>
         <button
@@ -392,22 +508,26 @@ onMounted(async () => {
           class="ghost"
           @click="extension.detectItemSelector"
         >
-          Run card detection
+          Detect cards
         </button>
         <button
           type="button"
           class="secondary"
           @click="pickItemSelector"
         >
-          Train listing card selector
+          Train selector
         </button>
         <button
           v-if="hasItemSelector"
           type="button"
           class="ghost"
-          @click="itemSelectorPreviewActive ? extension.clearItemSelectorPreview() : extension.previewItemSelector()"
+          @click="
+            itemSelectorPreviewActive
+              ? extension.clearItemSelectorPreview()
+              : extension.previewItemSelector()
+          "
         >
-          {{ itemSelectorPreviewActive ? 'Hide detected cards' : 'Show detected cards' }}
+          {{ itemSelectorPreviewActive ? 'Hide cards' : 'Show cards' }}
         </button>
         <button
           v-if="hasItemSelector || selectedExampleCount"
@@ -415,11 +535,11 @@ onMounted(async () => {
           class="danger danger--ghost"
           @click="extension.resetItemSelector"
         >
-          Reset card detection
+          Reset selector
         </button>
       </template>
 
-      <div class="metrics-grid metrics-grid--three">
+      <div class="task-grid task-grid--three">
         <label class="stack">
           <span>Item selector</span>
           <input
@@ -439,16 +559,23 @@ onMounted(async () => {
         </label>
 
         <div class="metric-card">
-          <span>Cards on current page</span>
+          <span>Cards on page</span>
           <strong>{{ detectedCardCount || 'Not checked yet' }}</strong>
           <small v-if="itemSelectorPreview?.error || !hasItemSelector">
             {{ itemSelectorPreview?.error || 'Train a selector, then preview it here.' }}
           </small>
-          <small v-else-if="itemSelectorPreviewActive && itemSelectorPreview && itemSelectorPreview.highlightedCount < itemSelectorPreview.matchCount">
-            Showing {{ itemSelectorPreview.highlightedCount }} visible cards now. Scroll the page and preview again to spot-check more.
+          <small
+            v-else-if="
+              itemSelectorPreviewActive &&
+                itemSelectorPreview &&
+                itemSelectorPreview.highlightedCount < itemSelectorPreview.matchCount
+            "
+          >
+            Showing {{ itemSelectorPreview.highlightedCount }} visible cards now. Scroll and preview
+            again to spot-check more.
           </small>
           <small v-else-if="selectedExampleCount">
-            {{ selectedExampleCount }} example{{ selectedExampleCount === 1 ? '' : 's' }} selected in the current training pass
+            {{ selectedExampleCount }} example{{ selectedExampleCount === 1 ? '' : 's' }} selected.
           </small>
         </div>
       </div>
@@ -471,14 +598,16 @@ onMounted(async () => {
     <WorkflowStepCard
       :step="3"
       title="Review search fields"
-      subtitle="Each mapping can preview live on the page. Hover a card or click Show on page before you edit anything."
+      subtitle="Keep the search mappings fast to scan and easy to preview."
       :status="workflowSteps[2]?.status ?? 'upcoming'"
       :note="workflowSteps[2]?.note"
+      :open="openStepId === 'search-fields'"
+      @toggle="openStep('search-fields')"
     >
       <FieldRuleList
         v-model="extension.itemFields.value"
         title="Search-page field suggestions"
-        subtitle="These are scraped from the result cards before the helper follows any detail links."
+        subtitle="These fields come from the result cards before the helper opens detail links."
         scope="item"
         :pending-picker="extension.pendingPicker.value"
         :preview="extension.fieldPreview.value"
@@ -493,9 +622,11 @@ onMounted(async () => {
     <WorkflowStepCard
       :step="4"
       title="Capture pagination"
-      subtitle="Tell the helper how to move through result pages, or lock it to a single page if there is no next button."
+      subtitle="Tell the helper how to move between result pages or keep the run single-page."
       :status="workflowSteps[3]?.status ?? 'upcoming'"
       :note="workflowSteps[3]?.note"
+      :open="openStepId === 'pagination'"
+      @toggle="openStep('pagination')"
     >
       <template #actions>
         <button
@@ -503,18 +634,18 @@ onMounted(async () => {
           class="secondary"
           @click="pickNextPageSelector"
         >
-          Pick next-page button
+          Pick next page
         </button>
         <button
           type="button"
           class="ghost"
           @click="setSinglePageMode"
         >
-          Use one page only
+          Use one page
         </button>
       </template>
 
-      <div class="metrics-grid metrics-grid--two">
+      <div class="task-grid task-grid--three">
         <label class="stack">
           <span>Next-page selector</span>
           <input
@@ -533,25 +664,27 @@ onMounted(async () => {
             max="25"
           >
         </label>
-      </div>
 
-      <label class="stack stack--inline">
-        <span>Max items per run</span>
-        <input
-          v-model.number="draft.config.maxItemsPerRun"
-          type="number"
-          min="1"
-          max="250"
-        >
-      </label>
+        <label class="stack">
+          <span>Max items per run</span>
+          <input
+            v-model.number="draft.config.maxItemsPerRun"
+            type="number"
+            min="1"
+            max="250"
+          >
+        </label>
+      </div>
     </WorkflowStepCard>
 
     <WorkflowStepCard
       :step="5"
       title="Open and scan a detail page"
-      subtitle="Open one sample listing and the helper will auto-scan it once it finishes loading. Re-scan manually if you change pages."
+      subtitle="Open one real listing so detail previews run against live DOM."
       :status="workflowSteps[4]?.status ?? 'upcoming'"
       :note="workflowSteps[4]?.note"
+      :open="openStepId === 'detail-page'"
+      @toggle="openStep('detail-page')"
     >
       <template #actions>
         <button
@@ -559,27 +692,27 @@ onMounted(async () => {
           class="secondary"
           @click="extension.openSampleDetailPage"
         >
-          Open and scan sample detail page
+          Open sample detail
         </button>
         <button
           type="button"
           @click="extension.analyzeCurrentPage"
         >
-          Re-scan current tab
+          Re-scan tab
         </button>
       </template>
 
-      <div class="metrics-grid metrics-grid--three">
+      <div class="task-grid task-grid--three">
         <div class="metric-card">
           <span>Current tab</span>
           <strong>{{ currentTabPageType }}</strong>
         </div>
         <div class="metric-card">
-          <span>Sample detail page</span>
+          <span>Sample detail</span>
           <strong>{{ hasSampleDetail ? 'Ready' : 'Not found yet' }}</strong>
         </div>
         <div class="metric-card">
-          <span>Detail fields detected</span>
+          <span>Detail fields</span>
           <strong>{{ detailFieldCount }}</strong>
         </div>
       </div>
@@ -588,8 +721,8 @@ onMounted(async () => {
         v-if="!detailContextReady"
         class="context-note context-note--warning"
       >
-        The current tab does not look like a listing detail page yet. Open the sample detail page
-        or switch to any <code>/yacht/...</code> listing before you review detail mappings.
+        The current tab does not look like a listing detail page yet. Open the sample listing or
+        switch to any <code>/yacht/...</code> page before reviewing detail mappings.
       </p>
       <p
         v-else
@@ -602,9 +735,11 @@ onMounted(async () => {
     <WorkflowStepCard
       :step="6"
       title="Review detail fields and export"
-      subtitle="Preview each detail mapping against the open listing page, then run the scrape in Chrome and upload the finished records into Boat Search."
+      subtitle="Preview the detail mappings, then launch the browser scrape or hand off the draft."
       :status="workflowSteps[5]?.status ?? 'upcoming'"
       :note="workflowSteps[5]?.note"
+      :open="openStepId === 'detail-fields-export'"
+      @toggle="openStep('detail-fields-export')"
     >
       <template #actions>
         <button
@@ -612,14 +747,14 @@ onMounted(async () => {
           class="secondary"
           @click="extension.analyzeCurrentPage"
         >
-          Re-scan current detail page
+          Re-scan detail page
         </button>
         <button
           type="button"
-          :disabled="!exportReady || startingRemoteRun"
+          :disabled="!exportReady || !connectionReady || startingRemoteRun || verifyingConnection"
           @click="extension.startScrapeInBoatSearch"
         >
-          {{ startingRemoteRun ? 'Running browser scrape…' : 'Start browser scrape' }}
+          {{ startingRemoteRun ? 'Running scrape...' : 'Start browser scrape' }}
         </button>
         <button
           type="button"
@@ -631,7 +766,7 @@ onMounted(async () => {
         </button>
       </template>
 
-      <div class="metrics-grid metrics-grid--two">
+      <div class="task-grid task-grid--two">
         <label class="stack">
           <span>Pipeline name</span>
           <input
@@ -664,13 +799,13 @@ onMounted(async () => {
         class="detail-review-banner"
         :class="{ 'detail-review-banner--warning': !detailContextReady }"
       >
-        <strong>
-          {{ detailContextReady ? 'Reviewing the open detail page' : 'Open a detail page before reviewing these mappings' }}
-        </strong>
+        <strong>{{
+          detailContextReady ? 'Reviewing the open detail page' : 'Open a detail page first'
+        }}</strong>
         <p>
           {{
             detailContextReady
-              ? 'Use Show on page to verify title, price, location, description, and images against the listing that is open right now.'
+              ? 'Use Show on page to verify title, price, location, description, and images against the listing open right now.'
               : 'The current tab still looks like a search page or something else. Open the sample listing from step 5, then come back here.'
           }}
         </p>
@@ -711,7 +846,18 @@ onMounted(async () => {
           </div>
           <div>
             <span>Detail pages</span>
-            <strong>{{ browserRunProgress.detailPagesCompleted }} / {{ browserRunProgress.detailPagesTotal }}</strong>
+            <strong>
+              {{ browserRunProgress.detailPagesCompleted }} /
+              {{ browserRunProgress.detailPagesTotal }}
+            </strong>
+          </div>
+          <div>
+            <span>Records written</span>
+            <strong>{{ browserRunProgress.recordsPersisted }}</strong>
+          </div>
+          <div>
+            <span>Images uploaded</span>
+            <strong>{{ browserRunProgress.imagesUploaded }}</strong>
           </div>
           <div>
             <span>Current URL</span>
@@ -792,248 +938,281 @@ onMounted(async () => {
 
 <style scoped>
 .panel {
-  --panel-border: rgba(148, 163, 184, 0.24);
+  --panel-border: rgba(148, 163, 184, 0.22);
   --panel-text: #0f172a;
   --panel-muted: #475569;
   --panel-soft: #64748b;
   min-height: 100vh;
-  padding: 1rem;
+  padding: 0.85rem;
   display: grid;
-  gap: 1rem;
+  gap: 0.85rem;
   color: var(--panel-text);
   background:
-    radial-gradient(circle at top right, rgba(14, 165, 233, 0.18), transparent 28rem),
-    linear-gradient(180deg, #f7fbff 0%, #eef4ff 52%, #fdfefe 100%);
-  font-family:
-    "Avenir Next",
-    "SF Pro Display",
-    "Segoe UI",
-    ui-sans-serif,
-    system-ui,
-    sans-serif;
+    radial-gradient(circle at top right, rgba(14, 165, 233, 0.18), transparent 22rem),
+    linear-gradient(180deg, #f7fbff 0%, #eef4ff 48%, #fdfefe 100%);
+  font-family: 'Avenir Next', 'SF Pro Display', 'Segoe UI', ui-sans-serif, system-ui, sans-serif;
 }
 
-.hero,
-.workflow-rail,
+.toolbar,
+.progress-nav,
 .warning-strip {
-  border-radius: 1.35rem;
+  border-radius: 1.1rem;
   border: 1px solid var(--panel-border);
-  background: rgba(255, 255, 255, 0.92);
-  box-shadow: 0 20px 48px rgba(15, 23, 42, 0.08);
+  background: rgba(255, 255, 255, 0.94);
+  box-shadow: 0 18px 42px rgba(15, 23, 42, 0.07);
 }
 
-.hero {
-  display: grid;
-  gap: 1rem;
-  padding: 1.2rem;
-}
-
-.eyebrow {
-  margin: 0;
-  font-size: 0.74rem;
-  letter-spacing: 0.22em;
-  text-transform: uppercase;
-  color: #0369a1;
-}
-
-.hero h1 {
-  margin: 0.25rem 0 0;
-  font-size: 1.8rem;
-  line-height: 1;
-}
-
-.lede,
-.hero__focus-copy {
-  margin: 0.45rem 0 0;
-  color: var(--panel-muted);
-  line-height: 1.55;
-}
-
-.hero__metrics {
+.toolbar {
   display: grid;
   gap: 0.8rem;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  padding: 0.95rem;
 }
 
-.hero-pill,
-.metric-card {
+.toolbar__top {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.85rem;
+  align-items: flex-start;
+}
+
+.toolbar__identity {
   min-width: 0;
-  border-radius: 1rem;
-  border: 1px solid rgba(191, 219, 254, 0.9);
-  background: linear-gradient(180deg, rgba(239, 246, 255, 0.96), rgba(255, 255, 255, 0.92));
-  padding: 0.9rem 1rem;
   display: grid;
   gap: 0.35rem;
 }
 
-.hero-pill__label,
-.metric-card span,
-.hero__focus-label {
+.toolbar__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  align-items: center;
+}
+
+.eyebrow {
+  margin: 0;
+  font-size: 0.72rem;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: #0369a1;
+}
+
+.context-pill {
+  display: inline-flex;
+  align-items: center;
+  min-height: 1.65rem;
+  padding: 0.2rem 0.6rem;
+  border-radius: 999px;
+  background: rgba(219, 234, 254, 0.92);
+  color: #075985;
   font-size: 0.74rem;
+  font-weight: 700;
+}
+
+.context-pill--muted {
+  background: rgba(241, 245, 249, 0.95);
+  color: #334155;
+}
+
+.toolbar h1 {
+  margin: 0;
+  font-size: 1.35rem;
+  line-height: 1.05;
+}
+
+.toolbar__summary {
+  margin: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem 0.55rem;
+  align-items: center;
+  color: var(--panel-muted);
+  line-height: 1.45;
+  font-size: 0.84rem;
+}
+
+.toolbar__summary strong {
+  color: var(--panel-text);
+  font-size: 0.94rem;
+}
+
+.toolbar__summary-label {
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #0369a1;
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.toolbar__error {
+  margin: 0;
+  color: #b91c1c;
+  font-size: 0.82rem;
+  line-height: 1.45;
+}
+
+.toolbar__actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.55rem;
+}
+
+.status-strip {
+  display: grid;
+  gap: 0.65rem;
+  grid-template-columns: 2fr repeat(3, minmax(0, 1fr));
+}
+
+.status-pill,
+.metric-card {
+  min-width: 0;
+  border-radius: 0.95rem;
+  border: 1px solid rgba(191, 219, 254, 0.88);
+  background: linear-gradient(180deg, rgba(239, 246, 255, 0.96), rgba(255, 255, 255, 0.92));
+  padding: 0.75rem 0.85rem;
+  display: grid;
+  gap: 0.25rem;
+}
+
+.status-pill span,
+.metric-card span {
+  font-size: 0.72rem;
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: #0369a1;
 }
 
-.hero-pill strong,
+.status-pill strong,
 .metric-card strong {
-  font-size: 0.94rem;
-  line-height: 1.45;
+  font-size: 0.87rem;
+  line-height: 1.4;
   word-break: break-word;
 }
 
-.hero__focus {
-  display: flex;
-  justify-content: space-between;
-  gap: 1rem;
-  align-items: flex-start;
-  padding: 1rem;
-  border-radius: 1.1rem;
-  background: linear-gradient(135deg, rgba(14, 165, 233, 0.08), rgba(191, 219, 254, 0.28));
-}
-
-.hero__focus-title {
-  display: block;
-  margin-top: 0.15rem;
-  font-size: 1.05rem;
-  line-height: 1.35;
-}
-
-.hero__error {
-  margin: 0.55rem 0 0;
-  color: #b91c1c;
-  line-height: 1.5;
-}
-
-.hero__actions {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: flex-end;
-  gap: 0.6rem;
-}
-
-.workflow-rail {
-  padding: 0.85rem;
+.progress-nav {
+  padding: 0.6rem;
   display: grid;
-  gap: 0.7rem;
+  gap: 0.55rem;
   grid-template-columns: repeat(6, minmax(0, 1fr));
 }
 
-.workflow-rail__step {
-  display: flex;
-  gap: 0.7rem;
-  align-items: center;
-  padding: 0.85rem;
-  border-radius: 1rem;
+.progress-nav__step {
   border: 1px solid rgba(226, 232, 240, 0.9);
-  background: rgba(248, 250, 252, 0.9);
+  border-radius: 0.95rem;
+  background: rgba(248, 250, 252, 0.92);
+  padding: 0.65rem;
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  text-align: left;
+  cursor: pointer;
 }
 
-.workflow-rail__number {
-  flex: 0 0 auto;
-  width: 2rem;
-  height: 2rem;
+.progress-nav__number {
+  width: 1.9rem;
+  height: 1.9rem;
   border-radius: 999px;
   display: grid;
   place-items: center;
   font-weight: 700;
   background: rgba(226, 232, 240, 0.95);
+  flex: 0 0 auto;
 }
 
-.workflow-rail__body {
-  display: grid;
-  gap: 0.2rem;
+.progress-nav__copy {
   min-width: 0;
+  display: grid;
+  gap: 0.12rem;
 }
 
-.workflow-rail__body strong {
-  font-size: 0.82rem;
+.progress-nav__copy strong {
+  font-size: 0.76rem;
   line-height: 1.3;
 }
 
-.workflow-rail__body span {
-  font-size: 0.74rem;
+.progress-nav__copy span {
+  font-size: 0.72rem;
   color: var(--panel-soft);
 }
 
-.workflow-rail__step--complete {
-  border-color: rgba(16, 185, 129, 0.2);
-  background: rgba(236, 253, 245, 0.86);
+.progress-nav__step--open {
+  box-shadow: inset 0 0 0 1px rgba(14, 165, 233, 0.16);
 }
 
-.workflow-rail__step--complete .workflow-rail__number {
+.progress-nav__step--complete {
+  border-color: rgba(16, 185, 129, 0.2);
+  background: rgba(236, 253, 245, 0.88);
+}
+
+.progress-nav__step--complete .progress-nav__number {
   background: rgba(110, 231, 183, 0.95);
 }
 
-.workflow-rail__step--active {
+.progress-nav__step--active {
   border-color: rgba(2, 132, 199, 0.18);
-  background: rgba(239, 246, 255, 0.95);
+  background: rgba(239, 246, 255, 0.96);
 }
 
-.workflow-rail__step--active .workflow-rail__number {
+.progress-nav__step--active .progress-nav__number {
   background: rgba(191, 219, 254, 0.95);
 }
 
-.workflow-rail__step--ready {
+.progress-nav__step--ready {
   border-color: rgba(245, 158, 11, 0.2);
-  background: rgba(255, 247, 237, 0.92);
+  background: rgba(255, 247, 237, 0.94);
 }
 
-.workflow-rail__step--ready .workflow-rail__number {
+.progress-nav__step--ready .progress-nav__number {
   background: rgba(253, 230, 138, 0.95);
 }
 
 .warning-strip {
-  padding: 1rem 1.1rem;
+  padding: 0.85rem 0.95rem;
   display: grid;
-  gap: 0.75rem;
+  gap: 0.6rem;
 }
 
 .warning-strip h2 {
   margin: 0;
-  font-size: 1rem;
+  font-size: 0.92rem;
 }
 
 .warning-strip__items {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.6rem;
+  gap: 0.45rem;
 }
 
 .warning-pill {
   display: inline-flex;
   align-items: center;
-  min-height: 2rem;
-  padding: 0.35rem 0.8rem;
+  min-height: 1.8rem;
+  padding: 0.25rem 0.7rem;
   border-radius: 999px;
   background: rgba(254, 243, 199, 0.95);
   color: #92400e;
-  font-size: 0.82rem;
+  font-size: 0.78rem;
   line-height: 1.35;
 }
 
-.metrics-grid {
+.task-grid {
   display: grid;
-  gap: 0.85rem;
+  gap: 0.7rem;
 }
 
-.metrics-grid--two {
+.task-grid--two {
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
-.metrics-grid--three {
+.task-grid--three {
   grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
 .stack {
   display: grid;
   gap: 0.35rem;
-  font-size: 0.82rem;
+  font-size: 0.8rem;
   color: #334155;
-}
-
-.stack--inline {
-  max-width: 14rem;
 }
 
 input,
@@ -1048,10 +1227,10 @@ textarea,
 select {
   width: 100%;
   box-sizing: border-box;
-  border-radius: 0.9rem;
+  border-radius: 0.85rem;
   border: 1px solid #cbd5e1;
   background: white;
-  padding: 0.72rem 0.85rem;
+  padding: 0.68rem 0.8rem;
   color: var(--panel-text);
 }
 
@@ -1062,7 +1241,7 @@ textarea {
 button {
   border: none;
   border-radius: 999px;
-  padding: 0.72rem 1rem;
+  padding: 0.68rem 0.95rem;
   cursor: pointer;
   background: #0284c7;
   color: white;
@@ -1080,13 +1259,28 @@ button.ghost {
   border: 1px solid #cbd5e1;
 }
 
+button.danger {
+  background: #dc2626;
+}
+
 button:disabled {
   cursor: not-allowed;
   opacity: 0.45;
 }
 
+.danger--ghost {
+  background: rgba(254, 242, 242, 0.96);
+  color: #b91c1c;
+}
+
+.metric-card small {
+  color: var(--panel-soft);
+  font-size: 0.76rem;
+  line-height: 1.35;
+}
+
 .workflow-details {
-  border-radius: 1rem;
+  border-radius: 0.95rem;
   border: 1px solid rgba(203, 213, 225, 0.92);
   background: rgba(248, 250, 252, 0.9);
   overflow: hidden;
@@ -1095,7 +1289,7 @@ button:disabled {
 .workflow-details summary {
   list-style: none;
   cursor: pointer;
-  padding: 0.95rem 1rem;
+  padding: 0.85rem 0.95rem;
   font-weight: 700;
 }
 
@@ -1104,19 +1298,19 @@ button:disabled {
 }
 
 .workflow-details__body {
-  padding: 0 1rem 1rem;
+  padding: 0 0.95rem 0.95rem;
   display: grid;
-  gap: 0.85rem;
+  gap: 0.75rem;
 }
 
 .context-note {
   margin: 0;
-  border-radius: 1rem;
+  border-radius: 0.95rem;
   background: rgba(240, 253, 250, 0.92);
   color: #065f46;
-  padding: 0.85rem 1rem;
-  font-size: 0.84rem;
-  line-height: 1.5;
+  padding: 0.75rem 0.9rem;
+  font-size: 0.8rem;
+  line-height: 1.45;
 }
 
 .context-note--warning {
@@ -1126,11 +1320,11 @@ button:disabled {
 
 .detail-review-banner {
   display: grid;
-  gap: 0.55rem;
-  border-radius: 1rem;
+  gap: 0.45rem;
+  border-radius: 0.95rem;
   border: 1px solid rgba(187, 247, 208, 0.92);
   background: rgba(240, 253, 244, 0.92);
-  padding: 0.95rem 1rem;
+  padding: 0.85rem 0.95rem;
 }
 
 .detail-review-banner--warning {
@@ -1140,92 +1334,95 @@ button:disabled {
 
 .detail-review-banner strong {
   color: #0f172a;
-  font-size: 0.92rem;
+  font-size: 0.88rem;
 }
 
 .detail-review-banner p {
   margin: 0;
   color: #334155;
-  font-size: 0.84rem;
-  line-height: 1.5;
+  font-size: 0.8rem;
+  line-height: 1.45;
 }
 
 .detail-review-banner__chips {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.55rem;
+  gap: 0.45rem;
 }
 
 .detail-review-banner__chip {
   display: inline-flex;
   align-items: center;
-  min-height: 1.9rem;
-  padding: 0.25rem 0.75rem;
+  min-height: 1.75rem;
+  padding: 0.2rem 0.65rem;
   border-radius: 999px;
   background: rgba(191, 219, 254, 0.95);
   color: #1d4ed8;
-  font-size: 0.78rem;
+  font-size: 0.74rem;
   font-weight: 700;
 }
 
 .remote-run-card {
   display: grid;
-  gap: 0.7rem;
-  border-radius: 1rem;
+  gap: 0.65rem;
+  border-radius: 0.95rem;
   border: 1px solid rgba(14, 165, 233, 0.28);
   background: rgba(239, 246, 255, 0.94);
-  padding: 1rem;
+  padding: 0.9rem;
 }
 
 .remote-run-card__grid {
   display: grid;
-  gap: 0.8rem;
+  gap: 0.7rem;
   grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
 .remote-run-card__grid div {
   display: grid;
-  gap: 0.25rem;
+  gap: 0.2rem;
 }
 
 .remote-run-card__grid span {
   color: #475569;
-  font-size: 0.78rem;
+  font-size: 0.74rem;
 }
 
 .remote-run-card__grid strong {
   color: #0f172a;
-  font-size: 0.98rem;
+  font-size: 0.9rem;
+  word-break: break-word;
 }
 
 .remote-run-card__warnings {
   margin: 0;
   color: #92400e;
-  font-size: 0.82rem;
-  line-height: 1.45;
+  font-size: 0.8rem;
+  line-height: 1.4;
 }
 
 @media (max-width: 980px) {
-  .workflow-rail {
+  .status-strip,
+  .progress-nav {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
 @media (max-width: 720px) {
-  .hero__metrics,
-  .metrics-grid--two,
-  .metrics-grid--three,
-  .remote-run-card__grid,
-  .workflow-rail {
-    grid-template-columns: 1fr;
-  }
-
-  .hero__focus {
+  .toolbar__top,
+  .toolbar__actions {
     flex-direction: column;
   }
 
-  .hero__actions {
-    justify-content: flex-start;
+  .toolbar__actions {
+    align-items: stretch;
+  }
+
+  .status-strip,
+  .progress-nav,
+  .task-grid--two,
+  .task-grid--three,
+  .remote-run-card__grid {
+    grid-template-columns: 1fr;
   }
 }
 </style>

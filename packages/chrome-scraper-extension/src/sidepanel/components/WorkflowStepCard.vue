@@ -3,12 +3,23 @@ import { computed } from 'vue'
 
 type WorkflowStatus = 'active' | 'complete' | 'upcoming' | 'ready'
 
-const props = defineProps<{
-  step: number
-  title: string
-  subtitle: string
-  status: WorkflowStatus
-  note?: string
+const props = withDefaults(
+  defineProps<{
+    step: number
+    title: string
+    subtitle: string
+    status: WorkflowStatus
+    note?: string
+    open?: boolean
+  }>(),
+  {
+    note: undefined,
+    open: false,
+  },
+)
+
+const emit = defineEmits<{
+  toggle: []
 }>()
 
 const statusLabel = computed(() => {
@@ -28,7 +39,7 @@ const statusLabel = computed(() => {
 <template>
   <section
     class="step-card"
-    :class="`step-card--${props.status}`"
+    :class="[`step-card--${props.status}`, { 'step-card--open': props.open }]"
   >
     <div class="step-card__index">
       <span>{{ props.step }}</span>
@@ -37,9 +48,12 @@ const statusLabel = computed(() => {
     <div class="step-card__content">
       <header class="step-card__header">
         <div class="step-card__copy">
-          <p class="step-card__eyebrow">
-            Step {{ props.step }}
-          </p>
+          <div class="step-card__meta">
+            <p class="step-card__eyebrow">
+              Step {{ props.step }}
+            </p>
+            <span class="step-card__status">{{ statusLabel }}</span>
+          </div>
           <h2>{{ props.title }}</h2>
           <p class="step-card__subtitle">
             {{ props.subtitle }}
@@ -53,14 +67,28 @@ const statusLabel = computed(() => {
         </div>
 
         <div class="step-card__aside">
-          <span class="step-card__status">{{ statusLabel }}</span>
-          <div class="step-card__actions">
+          <div
+            v-if="props.open"
+            class="step-card__actions"
+          >
             <slot name="actions" />
           </div>
+
+          <button
+            type="button"
+            class="step-card__toggle"
+            :aria-expanded="props.open"
+            @click="emit('toggle')"
+          >
+            {{ props.open ? 'Keep open' : 'Open step' }}
+          </button>
         </div>
       </header>
 
-      <div class="step-card__body">
+      <div
+        v-if="props.open"
+        class="step-card__body"
+      >
         <slot />
       </div>
     </div>
@@ -71,21 +99,25 @@ const statusLabel = computed(() => {
 .step-card {
   display: grid;
   grid-template-columns: auto 1fr;
-  gap: 1rem;
-  padding: 1.15rem;
-  border-radius: 1.25rem;
-  border: 1px solid rgba(148, 163, 184, 0.26);
-  background: rgba(255, 255, 255, 0.92);
-  box-shadow: 0 18px 44px rgba(15, 23, 42, 0.08);
+  gap: 0.85rem;
+  padding: 0.95rem;
+  border-radius: 1.1rem;
+  border: 1px solid rgba(148, 163, 184, 0.24);
+  background: rgba(255, 255, 255, 0.94);
+  box-shadow: 0 16px 38px rgba(15, 23, 42, 0.06);
+}
+
+.step-card--open {
+  box-shadow: 0 20px 44px rgba(15, 23, 42, 0.08);
 }
 
 .step-card__index {
-  width: 2.75rem;
-  height: 2.75rem;
+  width: 2.3rem;
+  height: 2.3rem;
   border-radius: 999px;
   display: grid;
   place-items: center;
-  font-size: 1rem;
+  font-size: 0.9rem;
   font-weight: 700;
   color: #0f172a;
   background: linear-gradient(135deg, rgba(125, 211, 252, 0.9), rgba(191, 219, 254, 0.95));
@@ -93,65 +125,74 @@ const statusLabel = computed(() => {
 
 .step-card__content {
   display: grid;
-  gap: 0.95rem;
+  gap: 0.8rem;
 }
 
 .step-card__header {
   display: flex;
   justify-content: space-between;
-  gap: 1rem;
+  gap: 0.9rem;
   align-items: flex-start;
 }
 
 .step-card__copy {
+  min-width: 0;
   display: grid;
-  gap: 0.35rem;
+  gap: 0.3rem;
+}
+
+.step-card__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  align-items: center;
 }
 
 .step-card__eyebrow {
   margin: 0;
-  font-size: 0.72rem;
-  letter-spacing: 0.16em;
+  font-size: 0.7rem;
+  letter-spacing: 0.14em;
   text-transform: uppercase;
   color: #0369a1;
 }
 
 .step-card h2 {
   margin: 0;
-  font-size: 1.1rem;
-  line-height: 1.15;
+  font-size: 1rem;
+  line-height: 1.2;
 }
 
 .step-card__subtitle,
 .step-card__note {
   margin: 0;
-  line-height: 1.5;
+  line-height: 1.45;
   color: #475569;
+  font-size: 0.84rem;
 }
 
 .step-card__note {
   color: #0f172a;
-  font-size: 0.92rem;
+  font-size: 0.8rem;
 }
 
 .step-card__aside {
   display: grid;
+  gap: 0.55rem;
   justify-items: end;
-  gap: 0.6rem;
-  min-width: 10rem;
+  min-width: min(14rem, 100%);
 }
 
 .step-card__status {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-height: 2rem;
-  padding: 0.35rem 0.8rem;
+  min-height: 1.85rem;
+  padding: 0.28rem 0.7rem;
   border-radius: 999px;
-  font-size: 0.8rem;
+  font-size: 0.76rem;
   font-weight: 700;
-  border: 1px solid rgba(148, 163, 184, 0.25);
-  background: rgba(241, 245, 249, 0.9);
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  background: rgba(241, 245, 249, 0.94);
   color: #334155;
 }
 
@@ -159,17 +200,27 @@ const statusLabel = computed(() => {
   display: flex;
   flex-wrap: wrap;
   justify-content: flex-end;
-  gap: 0.55rem;
+  gap: 0.45rem;
+}
+
+.step-card__toggle {
+  border: 1px solid rgba(148, 163, 184, 0.24);
+  border-radius: 999px;
+  background: white;
+  color: #0f172a;
+  font-weight: 600;
+  padding: 0.55rem 0.9rem;
+  cursor: pointer;
 }
 
 .step-card__body {
   display: grid;
-  gap: 0.95rem;
+  gap: 0.8rem;
 }
 
 .step-card--complete {
   border-color: rgba(16, 185, 129, 0.2);
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(236, 253, 245, 0.7));
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(236, 253, 245, 0.74));
 }
 
 .step-card--complete .step-card__index {
@@ -183,8 +234,8 @@ const statusLabel = computed(() => {
 }
 
 .step-card--active {
-  border-color: rgba(2, 132, 199, 0.26);
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(239, 246, 255, 0.9));
+  border-color: rgba(2, 132, 199, 0.24);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(239, 246, 255, 0.92));
 }
 
 .step-card--active .step-card__status {
@@ -194,8 +245,8 @@ const statusLabel = computed(() => {
 }
 
 .step-card--ready {
-  border-color: rgba(245, 158, 11, 0.26);
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(255, 247, 237, 0.9));
+  border-color: rgba(245, 158, 11, 0.22);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(255, 247, 237, 0.92));
 }
 
 .step-card--ready .step-card__status {
@@ -205,7 +256,7 @@ const statusLabel = computed(() => {
 }
 
 .step-card--upcoming {
-  opacity: 0.88;
+  opacity: 0.9;
 }
 
 @media (max-width: 720px) {
@@ -220,6 +271,7 @@ const statusLabel = computed(() => {
   .step-card__aside {
     min-width: 0;
     justify-items: start;
+    width: 100%;
   }
 
   .step-card__actions {

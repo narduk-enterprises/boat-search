@@ -566,6 +566,161 @@ async function persistCandidates(event: H3Event, candidates: ExtractedBoatCandid
   return { inserted, updated }
 }
 
+function toFinalRunSummary(
+  summary: ScraperBrowserRunSummary,
+  candidates: ExtractedBoatCandidate[],
+  inserted: number,
+  updated: number,
+): ScraperRunSummary {
+  return {
+    pagesVisited: summary.pagesVisited,
+    itemsSeen: summary.itemsSeen,
+    itemsExtracted: summary.itemsExtracted,
+    inserted,
+    updated,
+    visitedUrls: summary.visitedUrls,
+    warnings: dedupeStrings([
+      ...summary.warnings,
+      ...candidates.flatMap((candidate) => candidate.warnings),
+    ]),
+    records: candidates as ScraperRunRecord[],
+  }
+}
+
+export async function persistScraperBrowserRecord(
+  event: H3Event,
+  params: {
+    draft: ScraperPipelineDraft
+    record: ScraperBrowserRunRecord
+  },
+) {
+  const candidate = fromBrowserRunRecord(params.record, params.draft.boatSource)
+  const persisted = await persistCandidates(event, [candidate])
+
+  return {
+    candidate,
+    ...persisted,
+  }
+}
+
+export async function createRunningCrawlJob(
+  event: H3Event,
+  params: {
+    pipelineId: number
+    pipelineName: string
+    searchUrl: string
+    runMode: string
+    startedAt: string
+  },
+) {
+  const db = useAppDatabase(event)
+  await db
+    .insert(crawlJobs)
+    .values({
+      pipelineId: params.pipelineId,
+      pipelineName: params.pipelineName,
+      searchUrl: params.searchUrl,
+      runMode: params.runMode,
+      status: 'running',
+      boatsFound: 0,
+      boatsScraped: 0,
+      pagesVisited: 0,
+      startedAt: params.startedAt,
+      completedAt: null,
+      error: null,
+      resultJson: null,
+    })
+    .run()
+
+  const job = await db
+    .select({ id: crawlJobs.id })
+    .from(crawlJobs)
+    .where(eq(crawlJobs.startedAt, params.startedAt))
+    .orderBy(desc(crawlJobs.id))
+    .limit(1)
+    .get()
+
+  if (!job) {
+    throw createError({
+      statusCode: 500,
+      statusMessage: 'Could not create a crawl job for the extension scrape.',
+    })
+  }
+
+  return job.id
+}
+
+export async function completeScraperPipelineJob(
+  event: H3Event,
+  params: {
+    pipelineId: number
+    jobId: number
+    draft: ScraperPipelineDraft
+    summary: ScraperBrowserRunSummary
+    inserted: number
+    updated: number
+  },
+) {
+  const db = useAppDatabase(event)
+  const completedAt = new Date().toISOString()
+  const finalSummary = toFinalRunSummary(params.summary, [], params.inserted, params.updated)
+
+  await db
+    .update(crawlJobs)
+    .set({
+      status: 'completed',
+      boatsFound: finalSummary.itemsSeen,
+      boatsScraped: finalSummary.itemsExtracted,
+      pagesVisited: finalSummary.pagesVisited,
+      completedAt,
+      error: null,
+      resultJson: JSON.stringify(finalSummary),
+    })
+    .where(eq(crawlJobs.id, params.jobId))
+    .run()
+
+  await markScraperPipelineRun(event, params.pipelineId, completedAt)
+
+  return {
+    jobId: params.jobId,
+    summary: finalSummary,
+  }
+}
+
+export async function failScraperPipelineJob(
+  event: H3Event,
+  params: {
+    jobId: number
+    summary: ScraperBrowserRunSummary
+    inserted: number
+    updated: number
+    error: string
+  },
+) {
+  const db = useAppDatabase(event)
+  const completedAt = new Date().toISOString()
+  const finalSummary = toFinalRunSummary(params.summary, [], params.inserted, params.updated)
+
+  await db
+    .update(crawlJobs)
+    .set({
+      status: 'failed',
+      boatsFound: finalSummary.itemsSeen,
+      boatsScraped: finalSummary.itemsExtracted,
+      pagesVisited: finalSummary.pagesVisited,
+      completedAt,
+      error: params.error,
+      resultJson: JSON.stringify(finalSummary),
+    })
+    .where(eq(crawlJobs.id, params.jobId))
+    .run()
+
+  return {
+    jobId: params.jobId,
+    summary: finalSummary,
+  }
+}
+
 async function recordCrawlJob(
   event: H3Event,
   params: {
@@ -630,19 +785,12 @@ export async function ingestScraperPipelineRun(
     )
     const persisted = await persistCandidates(event, candidates)
     const completedAt = new Date().toISOString()
-    const finalSummary: ScraperRunSummary = {
-      pagesVisited: params.summary.pagesVisited,
-      itemsSeen: params.summary.itemsSeen,
-      itemsExtracted: params.summary.itemsExtracted,
-      inserted: persisted.inserted,
-      updated: persisted.updated,
-      visitedUrls: params.summary.visitedUrls,
-      warnings: dedupeStrings([
-        ...params.summary.warnings,
-        ...candidates.flatMap((candidate) => candidate.warnings),
-      ]),
-      records: candidates as ScraperRunRecord[],
-    }
+    const finalSummary = toFinalRunSummary(
+      params.summary,
+      candidates,
+      persisted.inserted,
+      persisted.updated,
+    )
 
     const jobId = await recordCrawlJob(event, {
       pipelineId: params.pipelineId,

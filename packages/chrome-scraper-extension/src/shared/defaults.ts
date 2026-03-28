@@ -59,6 +59,13 @@ export function createEmptyDraft(): ScraperPipelineDraft {
 export function createDefaultSession(): ExtensionSession {
   return {
     appBaseUrl: 'https://boat-search.nard.uk',
+    connection: {
+      apiKey: '',
+      verifiedAt: null,
+      verifiedEmail: null,
+      verifiedName: null,
+      imageUploadEnabled: false,
+    },
     currentTabUrl: null,
     stage: 'search',
     sampleDetailUrl: null,

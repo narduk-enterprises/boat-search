@@ -29,5 +29,11 @@
       "id": "cb44ad7d6fa2450cb3698179c036c735",
       "preview_id": "cd997ffc21f9483b8c528591de1ff716"
     }
+  ],
+  "r2_buckets": [
+    {
+      "binding": "BUCKET",
+      "bucket_name": "boat-search-images"
+    }
   ]
 }
