@@ -25,22 +25,21 @@ const primaryCta = computed(() =>
 <template>
   <UPage>
     <UPageSection>
-      <div class="grid gap-8 xl:grid-cols-[1.2fr_0.8fr] xl:items-center">
-        <div class="space-y-6">
-          <div class="space-y-3">
+      <div class="grid gap-6 xl:grid-cols-[1.15fr_0.85fr] xl:items-start">
+        <div class="space-y-5">
+          <div class="space-y-2.5">
             <UBadge
               label="Fishing/offshore MVP"
               color="primary"
               variant="subtle"
               icon="i-lucide-sparkles"
             />
-            <h1 class="text-4xl sm:text-5xl font-bold text-default max-w-4xl">
-              Save one fishing brief and let AI rank the right boats in the current inventory.
+            <h1 class="max-w-4xl text-4xl font-bold text-default sm:text-5xl">
+              Save one buyer brief and get a ranked fishing shortlist faster.
             </h1>
-            <p class="text-lg text-muted max-w-3xl">
-              Boat Search is no longer a broad browse site. It is a signed-in buyer workflow for
-              fishing and offshore shoppers who want faster shortlist decisions and clearer fit
-              commentary.
+            <p class="max-w-3xl text-base text-muted sm:text-lg">
+              Boat Search is a signed-in workflow for offshore buyers who want quick shortlist
+              decisions, tighter filters, and clearer fit commentary on live inventory.
             </p>
           </div>
 
@@ -62,55 +61,58 @@ const primaryCta = computed(() =>
           </div>
 
           <div class="grid gap-3 sm:grid-cols-3">
-            <UCard class="card-base border-default">
-              <div class="space-y-2">
-                <p class="text-sm font-semibold text-default">1. Save the brief</p>
-                <p class="text-sm text-muted">
-                  Capture waters, crew, budget, size, and ownership constraints in one short wizard.
-                </p>
+            <UCard class="card-base border-default" :ui="{ body: 'p-4 space-y-1.5' }">
+              <div class="space-y-1.5">
+                <p class="text-xs font-semibold uppercase tracking-wide text-dimmed">1. Brief</p>
+                <p class="text-sm font-semibold text-default">Save your fishing mission once.</p>
+                <p class="text-sm text-muted">Waters, crew, budget, size, and ownership limits.</p>
               </div>
             </UCard>
-            <UCard class="card-base border-default">
-              <div class="space-y-2">
-                <p class="text-sm font-semibold text-default">2. Rank the inventory</p>
-                <p class="text-sm text-muted">
-                  We translate the brief into structured filters, then AI reranks the candidate set.
-                </p>
+            <UCard class="card-base border-default" :ui="{ body: 'p-4 space-y-1.5' }">
+              <div class="space-y-1.5">
+                <p class="text-xs font-semibold uppercase tracking-wide text-dimmed">2. Rank</p>
+                <p class="text-sm font-semibold text-default">Filter first, then rerank with AI.</p>
+                <p class="text-sm text-muted">The shortlist stays grounded in live inventory.</p>
               </div>
             </UCard>
-            <UCard class="card-base border-default">
-              <div class="space-y-2">
-                <p class="text-sm font-semibold text-default">3. Inspect each boat</p>
-                <p class="text-sm text-muted">
-                  Boat detail pages explain why a listing fits or misses your saved profile.
-                </p>
+            <UCard class="card-base border-default" :ui="{ body: 'p-4 space-y-1.5' }">
+              <div class="space-y-1.5">
+                <p class="text-xs font-semibold uppercase tracking-wide text-dimmed">3. Inspect</p>
+                <p class="text-sm font-semibold text-default">Review fit notes boat by boat.</p>
+                <p class="text-sm text-muted">See why a listing belongs on the board or not.</p>
               </div>
             </UCard>
           </div>
         </div>
 
-        <UCard class="card-base border-default" :ui="{ body: 'p-6 space-y-5' }">
-          <div class="space-y-3">
-            <h2 class="text-2xl font-semibold text-default">Launch scope</h2>
-            <p class="text-muted">
-              This MVP is intentionally opinionated: signed-in flow first, fishing/offshore
-              inventory only, saved profiles, ranked shortlists, and boat-level fit commentary.
+        <UCard class="card-base border-default" :ui="{ body: 'p-5 space-y-4' }">
+          <div class="space-y-2">
+            <div class="flex flex-wrap items-center justify-between gap-3">
+              <h2 class="text-xl font-semibold text-default">Launch scope</h2>
+              <UBadge
+                label="Signed-in workflow"
+                color="neutral"
+                variant="subtle"
+                icon="i-lucide-lock-keyhole"
+              />
+            </div>
+            <p class="text-sm text-muted">
+              Compact by design: fishing inventory, saved buyer profiles, ranked shortlists, and
+              boat-level fit commentary.
             </p>
           </div>
 
-          <div class="space-y-3">
+          <div class="grid gap-3 sm:grid-cols-2">
             <div class="rounded-xl bg-muted px-4 py-3">
               <p class="text-sm font-semibold text-default">Included now</p>
               <p class="mt-1 text-sm text-muted">
-                AI finder, saved buyer profile, recommendation history, boat fit summaries, and
-                source click-through.
+                Finder, saved profile, run history, fit summaries, and source click-through.
               </p>
             </div>
             <div class="rounded-xl bg-muted px-4 py-3">
               <p class="text-sm font-semibold text-default">Deferred</p>
               <p class="mt-1 text-sm text-muted">
-                Alerts, email, broad editorial hubs, and classic browse-first discovery are no
-                longer on the MVP path.
+                Alerts, email, broad editorial hubs, and browse-first discovery stay out of MVP.
               </p>
             </div>
           </div>

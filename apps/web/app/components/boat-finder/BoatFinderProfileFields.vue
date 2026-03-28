@@ -70,12 +70,12 @@ function includesSection(section: SectionKey) {
 </script>
 
 <template>
-  <div class="space-y-8">
-    <section v-if="includesSection('brief')" class="space-y-4">
+  <div class="space-y-6">
+    <section v-if="includesSection('brief')" class="space-y-3">
       <div>
         <h2 class="text-lg font-semibold text-default">Fishing brief</h2>
         <p class="mt-1 text-sm text-muted">
-          Tell us how you fish so the shortlist reflects your actual use, not just raw filters.
+          Describe the mission so the shortlist matches real use.
         </p>
       </div>
 
@@ -99,12 +99,10 @@ function includesSection(section: SectionKey) {
       </div>
     </section>
 
-    <section v-if="includesSection('budget')" class="space-y-4">
+    <section v-if="includesSection('budget')" class="space-y-3">
       <div>
         <h2 class="text-lg font-semibold text-default">Budget and ownership limits</h2>
-        <p class="mt-1 text-sm text-muted">
-          These fields drive the structured inventory pass before AI reranks the shortlist.
-        </p>
+        <p class="mt-1 text-sm text-muted">Set the guardrails before AI reranks the shortlist.</p>
       </div>
 
       <div class="grid gap-4 md:grid-cols-2">
@@ -157,12 +155,11 @@ function includesSection(section: SectionKey) {
       </div>
     </section>
 
-    <section v-if="includesSection('preferences')" class="space-y-4">
+    <section v-if="includesSection('preferences')" class="space-y-3">
       <div>
         <h2 class="text-lg font-semibold text-default">Must-haves and deal-breakers</h2>
         <p class="mt-1 text-sm text-muted">
-          One item per line works best. These checklist items are used for ranking and boat-level
-          commentary.
+          One item per line. These notes drive ranking and fit commentary.
         </p>
       </div>
 
@@ -170,7 +167,7 @@ function includesSection(section: SectionKey) {
         <UFormField label="Must-haves">
           <UTextarea
             v-model="mustHavesText"
-            class="w-full min-h-32"
+            class="w-full min-h-28"
             autoresize
             placeholder="Diesel power&#10;Tower or bridge visibility&#10;Cockpit layout for tuna gear"
           />
@@ -178,7 +175,7 @@ function includesSection(section: SectionKey) {
         <UFormField label="Deal-breakers">
           <UTextarea
             v-model="dealBreakersText"
-            class="w-full min-h-32"
+            class="w-full min-h-28"
             autoresize
             placeholder="Project boat&#10;Gas engines&#10;Too far from the Gulf"
           />

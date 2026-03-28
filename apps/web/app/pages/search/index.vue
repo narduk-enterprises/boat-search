@@ -36,23 +36,29 @@ const errorMessage = computed(() => {
 <template>
   <UPage>
     <UPageSection>
-      <div class="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-        <div>
+      <div class="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+        <div class="space-y-1">
           <h1 class="text-3xl font-bold text-default">Your AI-ranked shortlist</h1>
-          <p class="mt-2 max-w-3xl text-muted">
-            These recommendations come from your saved fishing brief, structured inventory filters,
-            and AI reranking over the current candidate set.
+          <p class="max-w-3xl text-sm text-muted sm:text-base">
+            Built from your saved fishing brief, structured filters, and AI reranking over the live
+            candidate set.
           </p>
         </div>
 
         <div class="flex flex-wrap gap-2">
-          <UButton to="/ai-boat-finder" label="Run finder again" icon="i-lucide-sparkles" />
+          <UButton
+            to="/ai-boat-finder"
+            label="Run finder again"
+            icon="i-lucide-sparkles"
+            size="sm"
+          />
           <UButton
             to="/account/recommendations"
             label="View run history"
             color="neutral"
             variant="soft"
             icon="i-lucide-history"
+            size="sm"
           />
         </div>
       </div>

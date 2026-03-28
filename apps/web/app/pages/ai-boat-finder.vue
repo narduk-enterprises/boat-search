@@ -86,27 +86,27 @@ const backPath = computed(() => {
 <template>
   <UPage>
     <UPageSection>
-      <div class="grid gap-8 xl:grid-cols-[1.35fr_0.65fr]">
-        <div class="space-y-6">
-          <div class="space-y-3">
+      <div class="grid gap-6 xl:grid-cols-[1.25fr_0.75fr]">
+        <div class="space-y-5">
+          <div class="space-y-2.5">
             <UBadge
               label="Signed-in AI workflow"
               color="primary"
               variant="subtle"
               icon="i-lucide-sparkles"
             />
-            <h1 class="text-3xl sm:text-4xl font-bold text-default">
-              Tell us your fishing mission and we will rank the right boats.
+            <h1 class="text-3xl font-bold text-default sm:text-4xl">
+              Tell us the mission. We will rank the right boats.
             </h1>
-            <p class="text-lg text-muted max-w-3xl">
-              This finder saves your brief, translates it into structured filters, and then reranks
-              the live fishing inventory with AI commentary.
+            <p class="max-w-3xl text-base text-muted sm:text-lg">
+              Save one buyer brief, filter the live inventory, and get AI-ranked matches with
+              concise fit commentary.
             </p>
           </div>
 
           <div
             v-if="status === 'pending'"
-            class="flex items-center gap-3 rounded-xl bg-muted px-4 py-4"
+            class="flex items-center gap-3 rounded-xl bg-muted px-4 py-3"
           >
             <UIcon name="i-lucide-loader-2" class="animate-spin text-muted" />
             <span class="text-sm text-muted">Loading your saved buyer brief…</span>
@@ -121,35 +121,34 @@ const backPath = computed(() => {
           />
         </div>
 
-        <div class="space-y-4">
-          <UCard class="card-base border-default" :ui="{ body: 'p-5 space-y-4' }">
-            <div class="space-y-2">
-              <h2 class="text-lg font-semibold text-default">How it works</h2>
-              <ol class="space-y-2 text-sm text-muted">
-                <li>1. Save a focused offshore fishing brief.</li>
-                <li>
-                  2. We search the current inventory with budget, size, and region constraints.
-                </li>
-                <li>3. AI reranks the shortlist and explains why each boat belongs there.</li>
-              </ol>
+        <div class="space-y-4 xl:sticky xl:top-24">
+          <UCard class="card-base border-default" :ui="{ body: 'p-4 space-y-4' }">
+            <div class="flex items-start justify-between gap-3">
+              <div class="space-y-1">
+                <h2 class="text-lg font-semibold text-default">Workflow summary</h2>
+                <p class="text-sm text-muted">One brief. One shortlist. Reusable profile.</p>
+              </div>
+              <UBadge label="3 steps" color="primary" variant="soft" icon="i-lucide-list-checks" />
             </div>
-            <USeparator />
-            <div class="space-y-2 text-sm text-muted">
-              <p>
-                Launch scope is intentionally narrow: fishing/offshore inventory, saved profiles,
-                ranked matches, and personalized boat commentary.
-              </p>
-              <p>
-                Alerts, editorial hubs, and broader browse experiences stay outside the MVP path.
-              </p>
+
+            <div class="grid gap-2 text-sm text-muted">
+              <div class="rounded-xl bg-muted px-3 py-2">
+                1. Save the mission and ownership limits.
+              </div>
+              <div class="rounded-xl bg-muted px-3 py-2">
+                2. Filter the live inventory before reranking.
+              </div>
+              <div class="rounded-xl bg-muted px-3 py-2">
+                3. Review why each boat fits or misses.
+              </div>
             </div>
           </UCard>
 
-          <UCard class="card-base border-default" :ui="{ body: 'p-5 space-y-3' }">
+          <UCard class="card-base border-default" :ui="{ body: 'p-4 space-y-3' }">
             <h2 class="text-lg font-semibold text-default">Need to adjust later?</h2>
             <p class="text-sm text-muted">
-              Your answers become your saved buyer profile, so future runs and boat detail
-              commentary stay aligned with the same brief.
+              Your answers become the saved buyer profile that future runs and boat detail notes
+              reference.
             </p>
             <div class="flex flex-wrap gap-2">
               <UButton

@@ -92,30 +92,37 @@ const topPickLabel = computed(() => {
 </script>
 
 <template>
-  <div class="space-y-6">
-    <UCard
-      v-if="props.session"
-      class="card-base border-default"
-      :ui="{ body: 'p-5 sm:p-6 space-y-4' }"
-    >
-      <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+  <div class="space-y-4">
+    <UCard v-if="props.session" class="card-base border-default" :ui="{ body: 'p-4 sm:p-5' }">
+      <div class="grid gap-4 lg:grid-cols-[1.25fr_0.75fr] lg:items-start">
         <div class="space-y-2">
-          <UBadge
-            label="Latest AI shortlist"
-            color="primary"
-            variant="subtle"
-            icon="i-lucide-sparkles"
-          />
-          <h2 class="text-2xl font-semibold text-default">
+          <div class="flex flex-wrap items-center gap-2">
+            <UBadge
+              label="Latest AI shortlist"
+              color="primary"
+              variant="subtle"
+              icon="i-lucide-sparkles"
+            />
+            <UBadge
+              :label="`${orderedBoats.length} ranked boat${orderedBoats.length === 1 ? '' : 's'}`"
+              color="neutral"
+              variant="subtle"
+            />
+          </div>
+          <h2 class="text-xl font-semibold text-default">
             {{ props.session.resultSummary.querySummary }}
           </h2>
-          <p class="text-muted max-w-3xl">
+          <p class="max-w-3xl text-sm text-muted line-clamp-3">
             {{ props.session.resultSummary.overallAdvice }}
           </p>
         </div>
+
         <div class="rounded-xl bg-muted px-4 py-3 text-sm text-default">
-          <p class="text-dimmed">Top pick</p>
+          <p class="text-xs font-semibold uppercase tracking-wide text-dimmed">Top pick</p>
           <p class="mt-1 font-semibold">{{ topPickLabel || 'No top pick yet' }}</p>
+          <p class="mt-1 text-xs text-muted">
+            Review the card notes below for fit score, trade-offs, and source details.
+          </p>
         </div>
       </div>
     </UCard>
@@ -138,7 +145,7 @@ const topPickLabel = computed(() => {
       />
     </div>
 
-    <div v-else class="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+    <div v-else class="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
       <BoatListingCard
         v-for="boat in orderedBoats"
         :key="boat.id"

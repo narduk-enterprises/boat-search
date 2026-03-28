@@ -55,7 +55,7 @@ const ratingLabel = computed(() => {
 <template>
   <NuxtLink
     :to="detailTo"
-    class="card-base rounded-xl overflow-hidden transition-base hover:shadow-elevated group"
+    class="card-base group overflow-hidden rounded-xl transition-base hover:shadow-elevated"
   >
     <div class="aspect-video bg-muted overflow-hidden relative">
       <img
@@ -81,38 +81,52 @@ const ratingLabel = computed(() => {
       </div>
     </div>
 
-    <div class="p-4">
+    <div class="space-y-3 p-3.5">
       <div class="flex items-start justify-between gap-2">
         <div class="min-w-0">
-          <h3 class="font-semibold text-default truncate">
+          <h3 class="truncate font-semibold text-default">
             {{ titleText }}
           </h3>
-          <p class="text-sm text-muted truncate">
+          <p class="truncate text-sm text-muted">
             {{ locationText }}
           </p>
         </div>
-        <span class="text-lg font-bold text-primary whitespace-nowrap">
+        <span class="whitespace-nowrap text-lg font-bold text-primary">
           {{ formatPrice(props.boat.price) }}
         </span>
       </div>
-      <p v-if="props.boat.description" class="mt-2 text-xs text-dimmed line-clamp-2">
+
+      <div class="flex flex-wrap gap-2">
+        <UBadge
+          v-if="props.boat.sellerType"
+          :label="props.boat.sellerType"
+          variant="subtle"
+          size="sm"
+        />
+        <UBadge
+          v-if="props.recommendation"
+          :label="`${props.recommendation.score}/100`"
+          color="neutral"
+          variant="subtle"
+          size="sm"
+        />
+      </div>
+
+      <p v-if="props.boat.description" class="text-xs text-dimmed line-clamp-2">
         {{ props.boat.description }}
       </p>
-      <div v-if="props.boat.sellerType" class="mt-2 flex items-center gap-2">
-        <UBadge :label="props.boat.sellerType" variant="subtle" size="sm" />
-      </div>
-      <div v-if="props.recommendation" class="mt-3 rounded-lg bg-elevated px-3 py-2 space-y-1">
+
+      <div v-if="props.recommendation" class="space-y-1.5 rounded-lg bg-elevated px-3 py-2">
         <div class="flex items-center justify-between gap-3">
           <p class="text-sm font-medium text-default">{{ props.recommendation.headline }}</p>
-          <UBadge
-            :label="`${props.recommendation.score}/100`"
-            color="neutral"
-            variant="subtle"
-            size="xs"
-          />
+          <span class="text-xs font-semibold uppercase tracking-wide text-dimmed">{{
+            ratingLabel
+          }}</span>
         </div>
-        <p class="text-sm text-default">{{ props.recommendation.whyItFits }}</p>
-        <p class="text-xs text-muted">Trade-off: {{ props.recommendation.tradeoffs }}</p>
+        <p class="line-clamp-2 text-sm text-default">{{ props.recommendation.whyItFits }}</p>
+        <p class="line-clamp-1 text-xs text-muted">
+          Trade-off: {{ props.recommendation.tradeoffs }}
+        </p>
       </div>
     </div>
   </NuxtLink>

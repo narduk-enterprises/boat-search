@@ -38,6 +38,7 @@ const steps = [
 ] as const
 
 const currentSections = computed(() => [steps[step.value]!.key])
+const progressPercent = computed(() => ((step.value + 1) / steps.length) * 100)
 const canMoveNext = computed(() => {
   if (step.value === 0) {
     return Boolean(
@@ -71,25 +72,41 @@ function goBack() {
 </script>
 
 <template>
-  <UCard class="card-base border-default" :ui="{ body: 'p-5 sm:p-6 space-y-6' }">
+  <UCard class="card-base border-default" :ui="{ body: 'p-4 sm:p-5 space-y-5' }">
     <div class="space-y-3">
-      <div class="flex flex-wrap gap-2">
-        <UBadge
+      <div class="flex items-center justify-between gap-3">
+        <div>
+          <p class="text-xs font-semibold uppercase tracking-wide text-dimmed">
+            Step {{ step + 1 }} of {{ steps.length }}
+          </p>
+          <h2 class="text-lg font-semibold text-default">
+            {{ steps[step]?.label }}
+          </h2>
+        </div>
+        <UBadge :label="steps[step]?.description" color="neutral" variant="subtle" size="sm" />
+      </div>
+
+      <div class="grid grid-cols-3 gap-2">
+        <div
           v-for="(item, index) in steps"
           :key="item.key"
-          :label="`${index + 1}. ${item.label}`"
-          :color="index === step ? 'primary' : 'neutral'"
-          :variant="index === step ? 'solid' : 'subtle'"
-          size="sm"
+          class="h-2 rounded-full transition-colors"
+          :class="index <= step ? 'bg-primary' : 'bg-muted'"
         />
       </div>
-      <div>
-        <h2 class="text-xl font-semibold text-default">
-          {{ steps[step]?.label }}
-        </h2>
-        <p class="mt-1 text-sm text-muted">
-          {{ steps[step]?.description }}
-        </p>
+
+      <div class="flex items-center justify-between gap-3 text-sm text-muted">
+        <span>{{ Math.round(progressPercent) }}% complete</span>
+        <div class="flex flex-wrap gap-2">
+          <UBadge
+            v-for="(item, index) in steps"
+            :key="item.key"
+            :label="`${index + 1}. ${item.label}`"
+            :color="index === step ? 'primary' : 'neutral'"
+            :variant="index === step ? 'solid' : 'subtle'"
+            size="sm"
+          />
+        </div>
       </div>
     </div>
 
