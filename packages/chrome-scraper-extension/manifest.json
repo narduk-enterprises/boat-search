@@ -1,0 +1,25 @@
+{
+  "manifest_version": 3,
+  "name": "Boat Search Pipeline Helper",
+  "version": "0.1.0",
+  "description": "Auto-detect scraper fields, refine selectors, and hand off configs into Boat Search.",
+  "permissions": ["activeTab", "storage", "tabs", "sidePanel", "scripting"],
+  "host_permissions": ["http://*/*", "https://*/*"],
+  "background": {
+    "service_worker": "dist/background.js",
+    "type": "module"
+  },
+  "action": {
+    "default_title": "Boat Search Pipeline Helper"
+  },
+  "side_panel": {
+    "default_path": "dist/sidepanel.html"
+  },
+  "content_scripts": [
+    {
+      "matches": ["http://*/*", "https://*/*"],
+      "js": ["dist/content.js"],
+      "run_at": "document_idle"
+    }
+  ]
+}
