@@ -22,13 +22,23 @@ const { data, status } = useInventoryHealth()
 <template>
   <UPage>
     <UPageSection>
-      <div class="space-y-2">
-        <UBadge color="primary" variant="subtle" label="Admin only" />
-        <h1 class="text-3xl font-semibold text-default">Inventory health</h1>
-        <p class="max-w-3xl text-muted">
-          Keep an eye on fishing-inventory freshness, crawl status, and source depth without leaving
-          the product.
-        </p>
+      <div class="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+        <div class="space-y-2">
+          <UBadge color="primary" variant="subtle" label="Admin only" />
+          <h1 class="text-3xl font-semibold text-default">Inventory health</h1>
+          <p class="max-w-3xl text-muted">
+            Keep an eye on fishing-inventory freshness, crawl status, and source depth without
+            leaving the product.
+          </p>
+        </div>
+
+        <UButton
+          to="/admin/scraper-pipeline"
+          label="Open scraper builder"
+          icon="i-lucide-panel-top-open"
+          color="neutral"
+          variant="soft"
+        />
       </div>
     </UPageSection>
 

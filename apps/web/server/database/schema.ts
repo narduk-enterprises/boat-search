@@ -54,12 +54,17 @@ export const boats = sqliteTable(
 export const crawlJobs = sqliteTable('crawl_jobs', {
   id: integer('id').primaryKey({ autoIncrement: true }),
   searchUrl: text('search_url').notNull(),
+  pipelineId: integer('pipeline_id'),
+  pipelineName: text('pipeline_name'),
+  runMode: text('run_mode').notNull().default('manual'),
   status: text('status').notNull().default('running'),
   boatsFound: integer('boats_found').default(0),
   boatsScraped: integer('boats_scraped').default(0),
+  pagesVisited: integer('pages_visited').default(0),
   startedAt: text('started_at').notNull(),
   completedAt: text('completed_at'),
   error: text('error'),
+  resultJson: text('result_json'),
 })
 
 export const xaiAnalyses = sqliteTable('xai_analyses', {
@@ -163,5 +168,28 @@ export const boatFitSummaries = sqliteTable(
   (table) => [
     index('idx_boat_fit_summaries_lookup').on(table.userId, table.boatId, table.createdAt),
     index('idx_boat_fit_summaries_session').on(table.sessionId),
+  ],
+)
+
+export const scraperPipelines = sqliteTable(
+  'scraper_pipelines',
+  {
+    id: integer('id').primaryKey({ autoIncrement: true }),
+    name: text('name').notNull(),
+    boatSource: text('boat_source').notNull(),
+    description: text('description'),
+    configJson: text('config_json').notNull(),
+    active: integer('active', { mode: 'boolean' }).notNull().default(true),
+    createdAt: text('created_at')
+      .notNull()
+      .$defaultFn(() => new Date().toISOString()),
+    updatedAt: text('updated_at')
+      .notNull()
+      .$defaultFn(() => new Date().toISOString()),
+    lastRunAt: text('last_run_at'),
+  },
+  (table) => [
+    index('idx_scraper_pipelines_active').on(table.active),
+    index('idx_scraper_pipelines_source').on(table.boatSource),
   ],
 )

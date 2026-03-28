@@ -41,6 +41,7 @@ test-results/
 
 # ESLint plugin build artifacts (rebuilt via `pnpm run build:plugins`)
 packages/eslint-config/*/dist/
+packages/chrome-scraper-extension/dist/
 # ESLint caches
 .eslint-results.json
 
