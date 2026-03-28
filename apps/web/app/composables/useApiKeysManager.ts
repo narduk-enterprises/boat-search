@@ -4,7 +4,10 @@ export function useApiKeysManager() {
   const authApi = useAuthApi()
   const toast = useToast()
   const apiKeys = useState<ApiKeyRecord[]>('account-api-keys', () => [])
-  const latestCreatedKey = useState<ApiKeyCreateResult | null>('account-api-keys-latest', () => null)
+  const latestCreatedKey = useState<ApiKeyCreateResult | null>(
+    'account-api-keys-latest',
+    () => null,
+  )
   const loading = useState('account-api-keys-loading', () => false)
   const creating = useState('account-api-keys-creating', () => false)
   const deletingKeyId = useState<string | null>('account-api-keys-deleting-id', () => null)

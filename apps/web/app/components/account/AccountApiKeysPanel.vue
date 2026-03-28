@@ -37,9 +37,7 @@ onMounted(async () => {
   <UPageSection>
     <div class="flex flex-col gap-6">
       <div class="flex flex-col gap-2">
-        <h2 class="text-xl font-semibold text-default">
-          Extension API keys
-        </h2>
+        <h2 class="text-xl font-semibold text-default">Extension API keys</h2>
         <p class="max-w-3xl text-sm text-muted">
           Create one key for the Chrome scraper extension. The plugin stores it locally, uses it to
           write boats directly into the database, and uploads scraped images into R2.
@@ -57,11 +55,7 @@ onMounted(async () => {
               />
             </UFormField>
 
-            <UButton
-              :loading="creating"
-              icon="i-lucide-key-round"
-              @click="createKey"
-            >
+            <UButton :loading="creating" icon="i-lucide-key-round" @click="createKey">
               Create API key
             </UButton>
           </div>
@@ -73,9 +67,7 @@ onMounted(async () => {
             <div class="flex flex-col gap-3">
               <div class="flex flex-wrap items-center justify-between gap-3">
                 <div>
-                  <p class="text-sm font-medium text-default">
-                    Copy this key now
-                  </p>
+                  <p class="text-sm font-medium text-default">Copy this key now</p>
                   <p class="text-xs text-muted">
                     The raw key is only shown once. Paste it into the extension’s connection step.
                   </p>
@@ -85,12 +77,7 @@ onMounted(async () => {
                   <UBadge color="success" variant="soft">
                     {{ latestCreatedKey.keyPrefix }}
                   </UBadge>
-                  <UButton
-                    color="success"
-                    variant="soft"
-                    icon="i-lucide-copy"
-                    @click="copyRawKey"
-                  >
+                  <UButton color="success" variant="soft" icon="i-lucide-copy" @click="copyRawKey">
                     {{ copiedRawKey ? 'Copied' : 'Copy key' }}
                   </UButton>
                   <UButton
@@ -104,12 +91,7 @@ onMounted(async () => {
                 </div>
               </div>
 
-              <UInput
-                :model-value="latestCreatedKey.rawKey"
-                class="w-full"
-                readonly
-                type="text"
-              />
+              <UInput :model-value="latestCreatedKey.rawKey" class="w-full" readonly type="text" />
             </div>
           </div>
         </div>
@@ -117,9 +99,7 @@ onMounted(async () => {
 
       <div class="flex items-center justify-between gap-3">
         <div>
-          <p class="text-sm font-medium text-default">
-            Existing keys
-          </p>
+          <p class="text-sm font-medium text-default">Existing keys</p>
           <p class="text-xs text-muted">
             Revoke keys you no longer trust. The extension will stop working immediately for revoked
             keys.
@@ -137,14 +117,8 @@ onMounted(async () => {
         </UButton>
       </div>
 
-      <div
-        v-if="apiKeys.length"
-        class="grid gap-4"
-      >
-        <UCard
-          v-for="apiKey in apiKeys"
-          :key="apiKey.id"
-        >
+      <div v-if="apiKeys.length" class="grid gap-4">
+        <UCard v-for="apiKey in apiKeys" :key="apiKey.id">
           <div class="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
             <div class="flex flex-col gap-2">
               <div class="flex flex-wrap items-center gap-2">
@@ -176,9 +150,7 @@ onMounted(async () => {
 
       <UCard v-else>
         <div class="flex flex-col gap-2">
-          <p class="font-medium text-default">
-            No API keys yet
-          </p>
+          <p class="font-medium text-default">No API keys yet</p>
           <p class="text-sm text-muted">
             Create a key above, then paste it into the extension’s connection step.
           </p>
