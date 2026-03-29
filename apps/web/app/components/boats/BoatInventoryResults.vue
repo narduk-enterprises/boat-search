@@ -118,7 +118,10 @@ function handleSortChange(value: unknown) {
         <USeparator />
 
         <div class="space-y-3">
-          <div class="flex flex-wrap items-center gap-2">
+          <div
+            v-if="activeFilterChips.length"
+            class="flex items-center gap-2 overflow-x-auto pb-1 md:flex-wrap md:overflow-visible"
+          >
             <UButton
               v-for="chip in activeFilterChips"
               :key="chip.key"
@@ -126,6 +129,7 @@ function handleSortChange(value: unknown) {
               color="neutral"
               variant="soft"
               size="sm"
+              class="shrink-0"
               trailing-icon="i-lucide-x"
               @click="emit('removeFilter', chip.key)"
             />

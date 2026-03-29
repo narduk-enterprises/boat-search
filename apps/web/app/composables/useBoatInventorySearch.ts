@@ -178,6 +178,7 @@ export function useBoatInventorySearch(options: { limit?: number } = {}) {
     await router.push({
       path: BOAT_INVENTORY_SEARCH_PATH,
       query,
+      hash: route.hash || undefined,
     })
   }
 

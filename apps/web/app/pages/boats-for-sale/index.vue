@@ -4,6 +4,8 @@ import BoatInventoryFilters from '~~/app/components/boats/BoatInventoryFilters.v
 import BoatInventoryResults from '~~/app/components/boats/BoatInventoryResults.vue'
 import BoatInventorySearchHero from '~~/app/components/boats/BoatInventorySearchHero.vue'
 import {
+  BOAT_INVENTORY_RESULTS_HASH,
+  BOAT_INVENTORY_RESULTS_ID,
   inventoryBudgetLinks,
   inventoryLocationLinks,
   makeInventorySearchLink,
@@ -28,6 +30,7 @@ useWebPageSchema({
 
 const { fetchBoatStats } = useBoats()
 const { data: stats } = fetchBoatStats()
+const route = useRoute()
 
 const {
   boats,
@@ -112,6 +115,19 @@ async function handlePageChange(page: number) {
 async function handleRetry() {
   await retry()
 }
+
+watch(
+  () => route.fullPath,
+  async () => {
+    if (!import.meta.client || route.hash !== BOAT_INVENTORY_RESULTS_HASH) return
+
+    await nextTick()
+    requestAnimationFrame(() => {
+      scrollResultsIntoView()
+    })
+  },
+  { immediate: true, flush: 'post' },
+)
 </script>
 
 <template>
@@ -139,7 +155,7 @@ async function handleRetry() {
     </UPageSection>
 
     <UPageSection :ui="{ wrapper: 'py-0 sm:py-0' }">
-      <div ref="resultsSection">
+      <div :id="BOAT_INVENTORY_RESULTS_ID" ref="resultsSection" class="scroll-mt-24">
         <BoatInventoryResults
           :boats="boats"
           :status="status"

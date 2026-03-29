@@ -1,7 +1,11 @@
 <script setup lang="ts">
 import BoatFitSummaryCard from '~~/app/components/boat-finder/BoatFitSummaryCard.vue'
 import BoatMediaImage from '~~/app/components/boats/BoatMediaImage.vue'
-import { BOAT_INVENTORY_SEARCH_PATH, makeInventorySearchLink } from '~~/app/utils/boatBrowse'
+import {
+  BOAT_INVENTORY_RESULTS_HASH,
+  makeInventoryResultsRoute,
+  makeInventorySearchLink,
+} from '~~/app/utils/boatBrowse'
 
 const route = useRoute()
 const session = useUserSession()
@@ -58,6 +62,7 @@ const headlineLocation = computed(() =>
 const backToSearch = computed(() => ({
   path: sessionId.value ? '/search' : '/boats-for-sale',
   query: sessionId.value ? { sessionId: String(sessionId.value) } : undefined,
+  hash: sessionId.value ? undefined : BOAT_INVENTORY_RESULTS_HASH,
 }))
 const backLabel = computed(() => (sessionId.value ? 'Back to shortlist' : 'Back to search'))
 const loginPath = computed(() => `/login?redirect=${encodeURIComponent(route.fullPath)}`)
@@ -79,19 +84,19 @@ const overviewFacts = computed(() => {
 
   return [
     {
+      label: 'Year',
+      value: boat.value.year ? String(boat.value.year) : 'Year unlisted',
+      detail: 'Original model year reported by the source listing.',
+    },
+    {
       label: 'Length',
       value: formatLength(boat.value.length),
-      detail: 'Listed hull length pulled from the source marketplace.',
+      detail: 'Hull length pulled directly from the marketplace source.',
     },
     {
       label: 'Seller',
       value: boat.value.sellerType || 'Seller type unlisted',
       detail: 'Useful when deciding how much diligence to do before contacting them.',
-    },
-    {
-      label: 'Listing source',
-      value: getSourceLabel(boat.value.source),
-      detail: getSourceNote(boat.value.source),
     },
     {
       label: 'Location',
@@ -122,10 +127,9 @@ const marketLinks = computed(() => {
   if (boat.value.location || boat.value.state || boat.value.city) {
     links.push({
       label: 'Nearby inventory',
-      to: {
-        path: BOAT_INVENTORY_SEARCH_PATH,
-        query: { location: boat.value.state || boat.value.city || boat.value.location || '' },
-      },
+      to: makeInventoryResultsRoute({
+        location: boat.value.state || boat.value.city || boat.value.location || '',
+      }),
       icon: 'i-lucide-map-pinned',
     })
   }
@@ -166,40 +170,49 @@ function goLoginForFavorite() {
           class="brand-surface brand-grid-panel brand-orbit"
           :ui="{ body: 'relative p-6 sm:p-8 space-y-6' }"
         >
-          <div class="grid gap-8 xl:grid-cols-[1.05fr_0.95fr] xl:items-start">
-            <div class="space-y-6">
-              <UButton
-                :to="backToSearch"
-                :label="backLabel"
-                icon="i-lucide-arrow-left"
-                color="neutral"
-                variant="ghost"
-                class="self-start"
-              />
+          <div class="space-y-5">
+            <UButton
+              :to="backToSearch"
+              :label="backLabel"
+              icon="i-lucide-arrow-left"
+              color="neutral"
+              variant="ghost"
+              class="self-start"
+            />
 
-              <div class="space-y-4">
-                <div class="flex flex-wrap gap-2">
-                  <UBadge :label="getSourceLabel(boat.source)" color="primary" variant="subtle" />
-                  <UBadge
-                    :label="boat.sellerType || 'Seller type unlisted'"
-                    color="neutral"
-                    variant="soft"
-                  />
-                </div>
-                <div class="space-y-3">
-                  <h1 class="max-w-4xl text-4xl font-bold text-highlighted sm:text-5xl">
-                    {{ pageTitle }}
-                  </h1>
-                  <p class="text-base text-muted sm:text-lg">
-                    {{ headlineLocation }} · {{ formatLength(boat.length) }}
-                  </p>
-                  <p class="max-w-3xl text-sm text-muted">
-                    {{ boatSummary }}
-                  </p>
-                </div>
+            <div class="space-y-4">
+              <div class="flex flex-wrap gap-2">
+                <UBadge :label="getSourceLabel(boat.source)" color="primary" variant="subtle" />
+                <UBadge
+                  :label="boat.sellerType || 'Seller type unlisted'"
+                  color="neutral"
+                  variant="soft"
+                />
+                <UBadge :label="formatLength(boat.length)" color="neutral" variant="soft" />
+              </div>
+              <div class="space-y-2">
+                <h1 class="max-w-4xl text-3xl font-bold text-highlighted sm:text-5xl">
+                  {{ pageTitle }}
+                </h1>
+                <p class="text-sm text-muted sm:text-base">
+                  {{ headlineLocation }}
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div class="grid gap-6 xl:grid-cols-[1.05fr_0.95fr] xl:items-start">
+            <div class="order-2 space-y-5 xl:order-1">
+              <div class="brand-surface-soft rounded-[1.25rem] p-4 sm:p-5">
+                <p class="text-xs font-semibold uppercase tracking-[0.18em] text-dimmed">
+                  Listing snapshot
+                </p>
+                <p class="mt-2 line-clamp-4 text-sm text-muted sm:line-clamp-none sm:text-base">
+                  {{ boatSummary }}
+                </p>
               </div>
 
-              <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+              <div class="grid grid-cols-2 gap-3">
                 <div
                   v-for="item in overviewFacts"
                   :key="item.label"
@@ -209,12 +222,12 @@ function goLoginForFavorite() {
                     {{ item.label }}
                   </p>
                   <p class="mt-2 text-base font-semibold text-highlighted">{{ item.value }}</p>
-                  <p class="mt-1 text-sm text-muted">{{ item.detail }}</p>
+                  <p class="mt-1 hidden text-sm text-muted sm:block">{{ item.detail }}</p>
                 </div>
               </div>
             </div>
 
-            <div class="space-y-4">
+            <div class="order-1 space-y-4 xl:order-2">
               <BoatMediaImage
                 :src="galleryImages[selectedImage]"
                 :alt="pageTitle"
@@ -229,7 +242,7 @@ function goLoginForFavorite() {
                     >
                       Asking
                     </p>
-                    <p class="mt-1 text-2xl font-semibold text-white">
+                    <p class="mt-1 text-xl font-semibold text-white sm:text-2xl">
                       {{ formatPrice(boat.price) }}
                     </p>
                   </div>
@@ -266,20 +279,7 @@ function goLoginForFavorite() {
 
       <UPageSection :ui="{ wrapper: 'py-0' }">
         <div class="grid gap-8 xl:grid-cols-[0.98fr_1.02fr]">
-          <div class="space-y-6">
-            <UCard v-if="boat.description" class="brand-surface" :ui="{ body: 'p-6 space-y-4' }">
-              <div class="space-y-2">
-                <h2 class="text-2xl font-semibold text-highlighted">Listing brief</h2>
-                <p class="text-sm text-muted">
-                  Source-marketplace copy pulled into Boat Search so you can review context before
-                  jumping out to the broker page.
-                </p>
-              </div>
-              <p class="whitespace-pre-wrap text-sm text-muted">
-                {{ boat.description }}
-              </p>
-            </UCard>
-
+          <div class="order-2 grid gap-6 xl:order-1">
             <UCard class="brand-surface" :ui="{ body: 'p-6 space-y-4' }">
               <div class="space-y-2">
                 <h2 class="text-2xl font-semibold text-highlighted">Market context</h2>
@@ -305,9 +305,22 @@ function goLoginForFavorite() {
                 />
               </div>
             </UCard>
+
+            <UCard v-if="boat.description" class="brand-surface" :ui="{ body: 'p-6 space-y-4' }">
+              <div class="space-y-2">
+                <h2 class="text-2xl font-semibold text-highlighted">Listing brief</h2>
+                <p class="text-sm text-muted">
+                  Source-marketplace copy pulled into Boat Search so you can review context before
+                  jumping out to the broker page.
+                </p>
+              </div>
+              <p class="whitespace-pre-wrap text-sm text-muted">
+                {{ boat.description }}
+              </p>
+            </UCard>
           </div>
 
-          <div class="space-y-6 xl:sticky xl:top-28">
+          <div class="order-1 space-y-6 xl:order-2 xl:sticky xl:top-28">
             <UCard class="brand-surface" :ui="{ body: 'p-6 space-y-5' }">
               <div class="space-y-2">
                 <p class="text-xs font-semibold uppercase tracking-[0.18em] text-dimmed">
