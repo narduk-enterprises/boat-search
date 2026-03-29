@@ -46,8 +46,8 @@ export function createEmptyDraft(): ScraperPipelineDraft {
       allowedDomains: [],
       itemSelector: '',
       nextPageSelector: '',
-      maxPages: 5,
-      maxItemsPerRun: 60,
+      maxPages: 25,
+      maxItemsPerRun: 1000,
       fetchDetailPages: true,
       fields: [
         createFieldRule('url', 'item', 'a', { extract: 'attr', attribute: 'href', transform: 'url' }),

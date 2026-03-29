@@ -8,11 +8,14 @@ import { createDefaultSession } from '@/shared/defaults'
 import {
   applyAnalysisToSession,
   buildAnalysisStatusMessage,
+  collectBrowserDetailQueue,
   createSampleDetailRunState,
   isPaginationAutoDetected,
+  shouldContinueBrowserSearchPagination,
   isTrustedPresetReady,
 } from '@/sidepanel/state/sessionState'
 import { buildPresetDraft } from '@/shared/sitePresets'
+import type { BrowserScrapeRecord } from '@/shared/types'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 
@@ -99,5 +102,102 @@ describe('sidepanel session state helpers', () => {
     })
 
     expect(isTrustedPresetReady(session)).toBe(true)
+  })
+
+  it('keeps paging search results when detail scraping is enabled, even after the item cap is reached', () => {
+    expect(
+      shouldContinueBrowserSearchPagination({
+        fetchDetailPages: true,
+        searchRecordCount: 60,
+        maxItemsPerRun: 60,
+      }),
+    ).toBe(true)
+
+    expect(
+      shouldContinueBrowserSearchPagination({
+        fetchDetailPages: false,
+        searchRecordCount: 60,
+        maxItemsPerRun: 60,
+      }),
+    ).toBe(false)
+  })
+
+  it('builds the detail queue from every queued search record with a URL', () => {
+    const records: BrowserScrapeRecord[] = [
+      {
+        source: 'YachtWorld',
+        url: 'https://www.yachtworld.com/yacht/one-123/',
+        listingId: '123',
+        title: 'One',
+        make: null,
+        model: null,
+        year: null,
+        length: null,
+        price: null,
+        currency: null,
+        location: null,
+        city: null,
+        state: null,
+        country: null,
+        description: null,
+        sellerType: null,
+        listingType: null,
+        images: [],
+        fullText: null,
+        rawFields: {},
+        warnings: [],
+      },
+      {
+        source: 'YachtWorld',
+        url: null,
+        listingId: '124',
+        title: 'Two',
+        make: null,
+        model: null,
+        year: null,
+        length: null,
+        price: null,
+        currency: null,
+        location: null,
+        city: null,
+        state: null,
+        country: null,
+        description: null,
+        sellerType: null,
+        listingType: null,
+        images: [],
+        fullText: null,
+        rawFields: {},
+        warnings: [],
+      },
+      {
+        source: 'YachtWorld',
+        url: 'https://www.yachtworld.com/yacht/three-125/',
+        listingId: '125',
+        title: 'Three',
+        make: null,
+        model: null,
+        year: null,
+        length: null,
+        price: null,
+        currency: null,
+        location: null,
+        city: null,
+        state: null,
+        country: null,
+        description: null,
+        sellerType: null,
+        listingType: null,
+        images: [],
+        fullText: null,
+        rawFields: {},
+        warnings: [],
+      },
+    ]
+
+    expect(collectBrowserDetailQueue(records).map((record) => record.listingId)).toEqual([
+      '123',
+      '125',
+    ])
   })
 })

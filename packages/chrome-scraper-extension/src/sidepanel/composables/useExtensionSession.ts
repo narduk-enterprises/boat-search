@@ -23,9 +23,11 @@ import { buildImportUrl } from '@/shared/transfer'
 import {
   applyAnalysisToSession,
   buildAnalysisStatusMessage,
+  collectBrowserDetailQueue,
   createDebugEvent,
   createSampleDetailRunState,
   isTrustedPresetReady,
+  shouldContinueBrowserSearchPagination,
 } from '@/sidepanel/state/sessionState'
 import { cloneSerializableValue } from '@/sidepanel/utils/cloneSerializableValue'
 import {
@@ -376,7 +378,7 @@ function normalizeDraft(draft: unknown, fallback: ScraperPipelineDraft): Scraper
         rawConfig.maxItemsPerRun,
         fallback.config.maxItemsPerRun,
         1,
-        250,
+        2000,
       ),
       fetchDetailPages:
         typeof rawConfig.fetchDetailPages === 'boolean'
@@ -2112,105 +2114,6 @@ export function useExtensionSession() {
     }
   }
 
-  function inferFileExtension(contentType: string | null, imageUrl: string) {
-    const normalizedType = (contentType || '').toLowerCase()
-    if (normalizedType.includes('png')) return 'png'
-    if (normalizedType.includes('webp')) return 'webp'
-    if (normalizedType.includes('gif')) return 'gif'
-    if (normalizedType.includes('avif')) return 'avif'
-    if (normalizedType.includes('svg')) return 'svg'
-    if (normalizedType.includes('jpeg') || normalizedType.includes('jpg')) return 'jpg'
-
-    try {
-      const pathname = new URL(imageUrl).pathname
-      const match = pathname.match(/\.([a-z0-9]{2,5})$/i)
-      return match?.[1]?.toLowerCase() || 'jpg'
-    } catch {
-      return 'jpg'
-    }
-  }
-
-  function inferUploadFileName(imageUrl: string, contentType: string | null) {
-    try {
-      const pathname = new URL(imageUrl).pathname
-      const lastSegment = pathname.split('/').filter(Boolean).at(-1) || 'scraped-image'
-      const stem = lastSegment.replace(/\.[a-z0-9]{2,5}$/i, '').replace(/[^a-z0-9-_]+/gi, '-')
-      return `${stem || 'scraped-image'}.${inferFileExtension(contentType, imageUrl)}`
-    } catch {
-      return `scraped-image.${inferFileExtension(contentType, imageUrl)}`
-    }
-  }
-
-  async function uploadImageToBoatSearch(imageUrl: string, uploadCache: Map<string, string>) {
-    if (uploadCache.has(imageUrl)) {
-      return uploadCache.get(imageUrl)!
-    }
-
-    const imageResponse = await fetch(imageUrl)
-    if (!imageResponse.ok) {
-      throw new Error(`Could not download an image from ${imageUrl} (${imageResponse.status}).`)
-    }
-
-    const contentType = imageResponse.headers.get('content-type')
-    const blob = await imageResponse.blob()
-    const formData = new FormData()
-    formData.append('file', blob, inferUploadFileName(imageUrl, contentType))
-
-    const uploadResult = await fetchBoatSearchJson<
-      { key: string; url: string } | Array<{ key: string; url: string }>
-    >('/api/upload', {
-      method: 'POST',
-      body: formData,
-    })
-    const uploaded = Array.isArray(uploadResult) ? uploadResult[0] : uploadResult
-    if (!uploaded?.url) {
-      throw new Error(`Boat Search did not return an image URL for ${imageUrl}.`)
-    }
-
-    uploadCache.set(imageUrl, uploaded.url)
-    return uploaded.url
-  }
-
-  async function storeRecordImagesInR2(
-    record: BrowserScrapeRecord,
-    uploadCache: Map<string, string>,
-    imageUploadEnabled: boolean,
-  ) {
-    if (!imageUploadEnabled || !record.images.length) {
-      return {
-        record,
-        uploadedCount: 0,
-      }
-    }
-
-    const nextWarnings = [...record.warnings]
-    const nextImages: string[] = []
-    let uploadedCount = 0
-
-    for (const imageUrl of record.images) {
-      try {
-        const uploadedUrl = await uploadImageToBoatSearch(imageUrl, uploadCache)
-        nextImages.push(uploadedUrl)
-        if (uploadedUrl !== imageUrl) {
-          uploadedCount += 1
-        }
-      } catch (error: unknown) {
-        const message =
-          error instanceof Error ? error.message : `Could not upload image ${imageUrl}.`
-        nextWarnings.push(message)
-      }
-    }
-
-    return {
-      record: {
-        ...record,
-        images: uniqueStrings(nextImages),
-        warnings: uniqueStrings(nextWarnings),
-      } satisfies BrowserScrapeRecord,
-      uploadedCount,
-    }
-  }
-
   async function persistBrowserRecordToBoatSearch(
     run: ExtensionRunStartResponse,
     draft: ScraperPipelineDraft,
@@ -2315,7 +2218,11 @@ export function useExtensionSession() {
       while (
         currentUrl &&
         pageIndex < draft.config.maxPages &&
-        searchRecords.length < draft.config.maxItemsPerRun
+        shouldContinueBrowserSearchPagination({
+          fetchDetailPages: draft.config.fetchDetailPages,
+          searchRecordCount: searchRecords.length,
+          maxItemsPerRun: draft.config.maxItemsPerRun,
+        })
       ) {
         if (!isAllowedDomainUrl(currentUrl, allowedDomains)) {
           searchWarnings.push(`Blocked cross-domain page during browser scrape: ${currentUrl}`)
@@ -2383,7 +2290,13 @@ export function useExtensionSession() {
         )
 
         for (const record of pageResult.records) {
-          if (searchRecords.length >= draft.config.maxItemsPerRun) {
+          if (
+            !shouldContinueBrowserSearchPagination({
+              fetchDetailPages: draft.config.fetchDetailPages,
+              searchRecordCount: searchRecords.length,
+              maxItemsPerRun: draft.config.maxItemsPerRun,
+            })
+          ) {
             break
           }
 
@@ -2430,9 +2343,7 @@ export function useExtensionSession() {
       }
     }
 
-    const detailRecords = draft.config.fetchDetailPages
-      ? searchRecords.filter((record) => Boolean(record.url))
-      : []
+    const detailRecords = draft.config.fetchDetailPages ? collectBrowserDetailQueue(searchRecords) : []
 
     if (itemsSeen === 0) {
       throw new Error(
@@ -2691,11 +2602,10 @@ export function useExtensionSession() {
           jobId: run.jobId,
         },
       )
-      const uploadedImageCache = new Map<string, string>()
       if (!imageUploadEnabled) {
         recordDebugEvent(
           'browser-scrape-images-preserved',
-          'Boat Search image upload is unavailable here, so the scrape will keep source image URLs.',
+          'Boat Search image mirroring is unavailable here, so the scrape will keep source image URLs.',
         )
       }
       statusMessage.value = 'Scraping the site in the active browser tab...'
@@ -2705,13 +2615,8 @@ export function useExtensionSession() {
         runState,
         async (record) => {
           upsertBrowserRunRecord(scrapedRecords, cloneSerializableValue(record))
-          const imageResult = await storeRecordImagesInR2(
-            record,
-            uploadedImageCache,
-            imageUploadEnabled,
-          )
-          runState.imagesUploaded += imageResult.uploadedCount
-          const persisted = await persistBrowserRecordToBoatSearch(run, draft, imageResult.record)
+          const persisted = await persistBrowserRecordToBoatSearch(run, draft, record)
+          runState.imagesUploaded += persisted.imagesUploaded
           runState.inserted += persisted.inserted
           runState.updated += persisted.updated
           runState.recordsPersisted += 1
@@ -2733,7 +2638,7 @@ export function useExtensionSession() {
           ? browserRun.summary.warnings
           : uniqueStrings([
               ...browserRun.summary.warnings,
-              'Boat Search image upload is unavailable in this environment, so the scrape kept the source image URLs.',
+              'Boat Search image mirroring is unavailable in this environment, so the scrape kept the source image URLs.',
             ]),
       } satisfies BrowserScrapeSummary
       browserRunProgress.value = {

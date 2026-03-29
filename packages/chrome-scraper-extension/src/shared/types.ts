@@ -388,6 +388,7 @@ export interface ExtensionRunStartResponse {
 export interface ExtensionRunRecordResponse {
   inserted: number
   updated: number
+  imagesUploaded: number
   warnings: string[]
 }
 

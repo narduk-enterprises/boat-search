@@ -2,6 +2,7 @@ import { isTrustedPresetId } from '@/shared/sitePresets'
 import { hostToSourceName } from '@/shared/transfer'
 import type {
   AutoDetectedAnalysis,
+  BrowserScrapeRecord,
   ExtensionDebugEvent,
   ExtensionSession,
   SampleDetailRunState,
@@ -123,6 +124,18 @@ export function isPaginationAutoDetected(session: ExtensionSession) {
       detectedSelector &&
       session.draft.config.nextPageSelector.trim() === detectedSelector,
   )
+}
+
+export function shouldContinueBrowserSearchPagination(options: {
+  fetchDetailPages: boolean
+  searchRecordCount: number
+  maxItemsPerRun: number
+}) {
+  return options.fetchDetailPages || options.searchRecordCount < options.maxItemsPerRun
+}
+
+export function collectBrowserDetailQueue(records: BrowserScrapeRecord[]) {
+  return records.filter((record) => Boolean(record.url))
 }
 
 export function isTrustedPresetReady(session: ExtensionSession) {

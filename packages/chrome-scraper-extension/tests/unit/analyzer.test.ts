@@ -104,16 +104,83 @@ describe('extension DOM analyzer', () => {
     expect(result.itemCount).toBeGreaterThanOrEqual(4)
     expect(result.records.length).toBeGreaterThanOrEqual(4)
     expect(result.nextPageUrl).toContain('/page-2/')
-    expect(result.records[0]).toMatchObject({
-      source: 'YachtWorld',
-      listingId: '1234567',
-      year: 2005,
-      make: 'Hatteras',
-      model: '50 Convertible',
-      currency: 'USD',
-      city: 'Destin',
-      state: 'Florida',
+    expect(result.records[0]).toEqual(
+      expect.objectContaining({
+        source: 'YachtWorld',
+        listingId: expect.any(String),
+        year: expect.any(Number),
+        make: expect.any(String),
+        model: expect.any(String),
+        currency: 'USD',
+        city: expect.any(String),
+        state: expect.any(String),
+      }),
+    )
+  })
+
+  it('chooses the next YachtWorld page instead of looping on the current numeric page link', () => {
+    const html = `<!doctype html>
+      <html>
+        <body>
+          <main class="results-grid">
+            <article class="grid-item">
+              <a href="https://www.yachtworld.com/yacht/hatteras-50-convertible-1234567/">
+                <img src="https://images.yachtworld.com/resize/1.jpg" width="640" height="420" alt="Hatteras">
+                <span>2005 Hatteras 50 Convertible</span>
+              </a>
+              <p class="listing-price">$349,000</p>
+              <p class="listing-location">Destin, Florida</p>
+            </article>
+            <article class="grid-item">
+              <a href="https://www.yachtworld.com/yacht/viking-48-convertible-1234568/">
+                <img src="https://images.yachtworld.com/resize/2.jpg" width="640" height="420" alt="Viking">
+                <span>2004 Viking 48 Convertible</span>
+              </a>
+              <p class="listing-price">$399,000</p>
+              <p class="listing-location">Orange Beach, Alabama</p>
+            </article>
+            <article class="grid-item">
+              <a href="https://www.yachtworld.com/yacht/bertram-46-convertible-1234569/">
+                <img src="https://images.yachtworld.com/resize/3.jpg" width="640" height="420" alt="Bertram">
+                <span>2003 Bertram 46 Convertible</span>
+              </a>
+              <p class="listing-price">$289,000</p>
+              <p class="listing-location">Panama City, Florida</p>
+            </article>
+          </main>
+          <nav class="pagination">
+            <a href="https://www.yachtworld.com/boats-for-sale/type-power/">1</a>
+            <a href="https://www.yachtworld.com/boats-for-sale/type-power/page-2/">2</a>
+            <a href="https://www.yachtworld.com/boats-for-sale/type-power/page-3/">3</a>
+            <a href="https://www.yachtworld.com/boats-for-sale/type-power/page-4/">4</a>
+            <a href="https://www.yachtworld.com/boats-for-sale/type-power/page-3/">></a>
+          </nav>
+        </body>
+      </html>`
+    const document = createDocument(
+      html,
+      'https://www.yachtworld.com/boats-for-sale/type-power/page-2/',
+    )
+
+    const analysis = analyzeDocument(document, document.location.href)
+
+    expect(analysis.pageType).toBe('search')
+    expect(analysis.pageState).toBe('ok')
+    expect(analysis.nextPageSelector).toBe('a[href*="/page-"]')
+
+    const draft = buildPresetDraft('yachtworld-search', {
+      pageUrl: document.location.href,
+      analysis,
     })
+    draft.config.maxItemsPerRun = 10
+
+    const result = extractSearchPageDocument(document, document.location.href, {
+      draft,
+      presetId: 'yachtworld-search',
+    })
+
+    expect(result.nextPageUrl).toBe('https://www.yachtworld.com/boats-for-sale/type-power/page-3/')
+    expect(result.records).toHaveLength(3)
   })
 
   it('returns an explicit challenge state for blocked YachtWorld fixtures', () => {

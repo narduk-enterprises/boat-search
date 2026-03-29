@@ -334,6 +334,144 @@ function toAbsoluteUrl(value: string, baseUrl: string) {
   }
 }
 
+function normalizeComparableUrl(value: string) {
+  try {
+    const url = new URL(value)
+    url.hash = ''
+    url.pathname = url.pathname.replace(/\/+$/g, '') || '/'
+    return url.toString()
+  } catch {
+    return null
+  }
+}
+
+function stripTrailingPageSegment(pathname: string) {
+  const withoutPageSegment = pathname.replace(/\/page-\d+\/?$/i, '/')
+  const normalized = withoutPageSegment.replace(/\/{2,}/g, '/').replace(/\/+$/g, '')
+  return normalized || '/'
+}
+
+function extractPaginationPageNumber(pageUrl: string) {
+  try {
+    const url = new URL(pageUrl)
+    const pathMatch = url.pathname.match(/\/page-(\d+)\/?$/i)
+    if (pathMatch) {
+      return Number(pathMatch[1])
+    }
+
+    const pageParam = url.searchParams.get('page')
+    if (pageParam && /^\d+$/.test(pageParam)) {
+      return Number(pageParam)
+    }
+
+    return 1
+  } catch {
+    return null
+  }
+}
+
+function hasExplicitPaginationMarker(pageUrl: string) {
+  try {
+    const url = new URL(pageUrl)
+    return /\/page-\d+\/?$/i.test(url.pathname) || /^\d+$/.test(url.searchParams.get('page') || '')
+  } catch {
+    return false
+  }
+}
+
+function getPaginationFamilyKey(pageUrl: string) {
+  try {
+    const url = new URL(pageUrl)
+    const params = new URLSearchParams(url.search)
+    params.delete('page')
+    params.sort()
+    return `${url.origin}${stripTrailingPageSegment(url.pathname)}?${params.toString()}`
+  } catch {
+    return null
+  }
+}
+
+function isSamePaginationFamily(currentUrl: string, candidateUrl: string) {
+  const currentKey = getPaginationFamilyKey(currentUrl)
+  const candidateKey = getPaginationFamilyKey(candidateUrl)
+  return Boolean(currentKey && candidateKey && currentKey === candidateKey)
+}
+
+function collectPaginationCandidateUrls(
+  document: Document,
+  pageUrl: string,
+  selector: string,
+) {
+  const selectorCandidates = selector.trim()
+    ? queryAll<HTMLAnchorElement>(document, selector)
+        .map((element) => toAbsoluteUrl(readAttributeValue(element, 'href'), pageUrl))
+        .filter((value): value is string => Boolean(value))
+    : []
+  const explicitPaginationCandidates = queryAll<HTMLAnchorElement>(document, 'a[href]')
+    .map((element) => toAbsoluteUrl(readAttributeValue(element, 'href'), pageUrl))
+    .filter((value): value is string => Boolean(value))
+    .filter((value) => hasExplicitPaginationMarker(value) && isSamePaginationFamily(pageUrl, value))
+
+  return {
+    selectorCandidates: uniqueStrings(selectorCandidates),
+    explicitPaginationCandidates: uniqueStrings(explicitPaginationCandidates),
+  }
+}
+
+function resolveNextPageUrl(
+  document: Document,
+  pageUrl: string,
+  selector: string,
+) {
+  const currentComparableUrl = normalizeComparableUrl(pageUrl)
+  const currentPageNumber = extractPaginationPageNumber(pageUrl) ?? 1
+  const { selectorCandidates, explicitPaginationCandidates } = collectPaginationCandidateUrls(
+    document,
+    pageUrl,
+    selector,
+  )
+  const candidates = uniqueStrings([...selectorCandidates, ...explicitPaginationCandidates])
+    .map((candidateUrl) => ({
+      url: candidateUrl,
+      comparableUrl: normalizeComparableUrl(candidateUrl),
+      pageNumber: extractPaginationPageNumber(candidateUrl),
+    }))
+    .filter(
+      (candidate) =>
+        Boolean(candidate.comparableUrl) &&
+        candidate.comparableUrl !== currentComparableUrl &&
+        isSamePaginationFamily(pageUrl, candidate.url),
+    )
+
+  const numberedCandidate = candidates
+    .filter(
+      (candidate): candidate is typeof candidate & { pageNumber: number } =>
+        typeof candidate.pageNumber === 'number' && candidate.pageNumber > currentPageNumber,
+    )
+    .sort((left, right) => left.pageNumber - right.pageNumber)[0]
+
+  if (numberedCandidate) {
+    return numberedCandidate.url
+  }
+
+  if (candidates[0]) {
+    return candidates[0].url
+  }
+
+  const selectorFallback = selectorCandidates
+    .map((candidateUrl) => ({
+      url: candidateUrl,
+      comparableUrl: normalizeComparableUrl(candidateUrl),
+    }))
+    .find((candidate) => candidate.comparableUrl && candidate.comparableUrl !== currentComparableUrl)
+
+  if (selectorFallback) {
+    return selectorFallback.url
+  }
+
+  return explicitPaginationCandidates[0] || null
+}
+
 function applyFieldTransform(value: string, field: ScraperFieldRule, baseUrl: string) {
   const withRegex = applyRegex(value, field.regex)
   if (!withRegex) {
@@ -831,7 +969,21 @@ function detectNextPageSelector(document: Document) {
       /\bnext\b/i.test(normalizeText(element.textContent || element.getAttribute('aria-label'))),
     )
 
-  return nextCandidate ? buildAbsoluteSelector(document, nextCandidate) : ''
+  if (nextCandidate) {
+    return buildAbsoluteSelector(document, nextCandidate)
+  }
+
+  const explicitPaginationCandidate = resolveNextPageUrl(document, document.location.href, '')
+  if (!explicitPaginationCandidate) {
+    return ''
+  }
+
+  try {
+    const url = new URL(explicitPaginationCandidate)
+    return /\/page-\d+\/?$/i.test(url.pathname) ? 'a[href*="/page-"]' : 'a[href*="page="]'
+  } catch {
+    return ''
+  }
 }
 
 function classifyDocumentState(document: Document, pageUrl: string) {
@@ -1279,17 +1431,11 @@ export function extractSearchPageDocument(
     records.push(normalizedRecord)
   }
 
-  const nextHref = request.draft.config.nextPageSelector.trim()
-    ? queryAll<HTMLAnchorElement>(document, request.draft.config.nextPageSelector)
-        .find((element) => Boolean(element.getAttribute('href')))
-        ?.getAttribute('href') || null
-    : null
-
   return {
     analysis,
     pageUrl,
     itemCount: itemRoots.length,
-    nextPageUrl: nextHref ? toAbsoluteUrl(nextHref, pageUrl) : null,
+    nextPageUrl: resolveNextPageUrl(document, pageUrl, request.draft.config.nextPageSelector),
     records,
     warnings,
   }
