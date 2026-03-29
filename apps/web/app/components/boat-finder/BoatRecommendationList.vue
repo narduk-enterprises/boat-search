@@ -89,13 +89,44 @@ const topPickLabel = computed(() => {
   if (!boat) return null
   return `${boat.year || ''} ${boat.make || ''} ${boat.model || ''}`.trim() || 'Top pick'
 })
+
+const currencyFormatter = new Intl.NumberFormat('en-US', {
+  style: 'currency',
+  currency: 'USD',
+  maximumFractionDigits: 0,
+})
+
+function formatMoney(value: number | undefined) {
+  if (value == null) return null
+  return currencyFormatter.format(value)
+}
+
+const activeFilters = computed(() => {
+  const filters = props.session?.generatedFilters
+  if (!filters) return []
+
+  const filterTags = [
+    filters.location || null,
+    formatMoney(filters.budgetMax) ? `Budget to ${formatMoney(filters.budgetMax)}` : null,
+    filters.lengthMin != null || filters.lengthMax != null
+      ? `${filters.lengthMin ?? 0}-${filters.lengthMax ?? 120} ft`
+      : null,
+    ...filters.keywords,
+  ]
+
+  return filterTags.filter((value): value is string => Boolean(value)).slice(0, 6)
+})
 </script>
 
 <template>
   <div class="space-y-4">
-    <UCard v-if="props.session" class="card-base border-default" :ui="{ body: 'p-4 sm:p-5' }">
+    <UCard
+      v-if="props.session"
+      class="brand-surface border-default/80 shadow-card"
+      :ui="{ body: 'p-4 sm:p-5' }"
+    >
       <div class="grid gap-4 lg:grid-cols-[1.25fr_0.75fr] lg:items-start">
-        <div class="space-y-2">
+        <div class="space-y-3">
           <div class="flex flex-wrap items-center gap-2">
             <UBadge
               label="Latest AI shortlist"
@@ -115,12 +146,24 @@ const topPickLabel = computed(() => {
           <p class="max-w-3xl text-sm text-muted line-clamp-3">
             {{ props.session.resultSummary.overallAdvice }}
           </p>
+
+          <div v-if="activeFilters.length" class="flex flex-wrap gap-2">
+            <UBadge
+              v-for="filterTag in activeFilters"
+              :key="filterTag"
+              :label="filterTag"
+              color="neutral"
+              variant="soft"
+            />
+          </div>
         </div>
 
-        <div class="rounded-xl bg-muted px-4 py-3 text-sm text-default">
-          <p class="text-xs font-semibold uppercase tracking-wide text-dimmed">Top pick</p>
-          <p class="mt-1 font-semibold">{{ topPickLabel || 'No top pick yet' }}</p>
-          <p class="mt-1 text-xs text-muted">
+        <div class="brand-surface-soft rounded-[1.4rem] px-4 py-4 text-sm text-default">
+          <p class="brand-caption">Top pick</p>
+          <p class="mt-2 text-lg font-semibold text-highlighted">
+            {{ topPickLabel || 'No top pick yet' }}
+          </p>
+          <p class="mt-2 text-xs text-muted">
             Review the card notes below for fit score, trade-offs, and source details.
           </p>
         </div>
@@ -129,7 +172,7 @@ const topPickLabel = computed(() => {
 
     <div
       v-if="props.session && orderedBoats.length === 0"
-      class="card-base rounded-2xl border-default px-6 py-12 text-center"
+      class="brand-surface rounded-[1.8rem] px-6 py-12 text-center"
     >
       <UIcon name="i-lucide-ship-wheel" class="mx-auto text-4xl text-dimmed" />
       <h3 class="mt-4 text-xl font-semibold text-default">No strong matches yet</h3>
@@ -145,7 +188,7 @@ const topPickLabel = computed(() => {
       />
     </div>
 
-    <div v-else class="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+    <div v-else class="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
       <BoatListingCard
         v-for="boat in orderedBoats"
         :key="boat.id"

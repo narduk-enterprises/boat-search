@@ -18,35 +18,36 @@ const emptyMessage = computed(() =>
 </script>
 
 <template>
-  <div class="space-y-4">
-    <div
-      class="flex flex-col gap-3 rounded-2xl bg-muted px-5 py-4 lg:flex-row lg:items-start lg:justify-between"
-    >
-      <div class="space-y-2">
-        <div class="flex flex-wrap items-center gap-2">
-          <h2 class="text-xl font-semibold text-default">Inventory results</h2>
+  <div class="space-y-5">
+    <UCard class="brand-surface brand-grid-panel" :ui="{ body: 'relative p-5 sm:p-6' }">
+      <div class="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
+        <div class="space-y-3">
+          <div class="flex flex-wrap items-center gap-2">
+            <UBadge label="Live results" color="primary" variant="subtle" icon="i-lucide-waves" />
+            <h2 class="text-2xl font-semibold text-highlighted">Inventory worth a closer look</h2>
+            <UBadge
+              :label="resultsLabel"
+              :color="boats.length ? 'primary' : 'neutral'"
+              variant="subtle"
+            />
+          </div>
+          <p class="max-w-3xl text-sm text-muted">
+            Every card links back to the original marketplace page, so your shortlist stays grounded
+            in source material instead of screenshots and copied notes.
+          </p>
+        </div>
+
+        <div v-if="activeFilterTags.length" class="flex flex-wrap gap-2">
           <UBadge
-            :label="resultsLabel"
-            :color="boats.length ? 'primary' : 'neutral'"
-            variant="subtle"
+            v-for="tag in activeFilterTags"
+            :key="tag"
+            :label="tag"
+            color="neutral"
+            variant="soft"
           />
         </div>
-        <p class="text-sm text-muted">
-          Listings stay attributed to their original sources, so you can compare quickly and click
-          through when a boat looks real.
-        </p>
       </div>
-
-      <div v-if="activeFilterTags.length" class="flex flex-wrap gap-2">
-        <UBadge
-          v-for="tag in activeFilterTags"
-          :key="tag"
-          :label="tag"
-          color="neutral"
-          variant="soft"
-        />
-      </div>
-    </div>
+    </UCard>
 
     <div v-if="status === 'pending'" class="flex items-center justify-center py-24">
       <UIcon name="i-lucide-loader-2" class="animate-spin text-3xl text-muted" />
@@ -54,7 +55,7 @@ const emptyMessage = computed(() =>
 
     <UCard
       v-else-if="errorMessage"
-      class="card-base border-default"
+      class="brand-surface"
       :ui="{ body: 'p-8 space-y-3 text-center' }"
     >
       <UIcon name="i-lucide-alert-circle" class="mx-auto text-4xl text-warning" />
@@ -64,7 +65,7 @@ const emptyMessage = computed(() =>
 
     <UCard
       v-else-if="!boats.length"
-      class="card-base border-default"
+      class="brand-surface"
       :ui="{ body: 'p-8 space-y-3 text-center' }"
     >
       <UIcon name="i-lucide-ship" class="mx-auto text-4xl text-dimmed" />
@@ -82,7 +83,7 @@ const emptyMessage = computed(() =>
       </div>
     </UCard>
 
-    <div v-else class="grid gap-4 md:grid-cols-2 2xl:grid-cols-3">
+    <div v-else class="grid gap-5 md:grid-cols-2 2xl:grid-cols-3">
       <BoatListingCard v-for="boat in boats" :key="boat.id" :boat="boat" />
     </div>
   </div>

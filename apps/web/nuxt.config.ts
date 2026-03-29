@@ -28,6 +28,12 @@ export default defineNuxtConfig({
 
   // nitro-cloudflare-dev proxies D1 bindings to the local dev server
   modules: ['nitro-cloudflare-dev'],
+  css: [resolve(__dirname, 'app/assets/css/main.css')],
+
+  colorMode: {
+    preference: 'light',
+    fallback: 'light',
+  },
 
   nitro: {
     cloudflareDev: {

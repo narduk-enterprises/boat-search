@@ -11,7 +11,7 @@ export default defineAdminMutation(
   {
     rateLimit: {
       namespace: 'admin-scraper-pipeline-import-run',
-      maxRequests: 6,
+      maxRequests: 30,
       windowMs: 60_000,
     },
     parseBody: withValidatedBody(scraperPipelineMutationSchema.parse),

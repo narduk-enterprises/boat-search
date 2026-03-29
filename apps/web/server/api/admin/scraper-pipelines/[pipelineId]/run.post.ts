@@ -4,7 +4,7 @@ import { runScraperPipeline } from '#server/utils/scraperPipelineEngine'
 
 export default defineAdminMutation(
   {
-    rateLimit: { namespace: 'admin-scraper-pipeline-run', maxRequests: 6, windowMs: 60_000 },
+    rateLimit: { namespace: 'admin-scraper-pipeline-run', maxRequests: 30, windowMs: 60_000 },
   },
   async ({ event }) => {
     const pipelineId = Number.parseInt(getRouterParam(event, 'pipelineId') || '', 10)

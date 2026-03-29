@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import BoatMediaImage from '~~/app/components/boats/BoatMediaImage.vue'
 import type { RecommendationEntry } from '~~/lib/boatFinder'
 
 interface Boat {
@@ -23,19 +24,26 @@ const props = defineProps<{
   sessionId?: number | null
 }>()
 
-const { formatPrice, getSourceColor, getSourceLabel } = useBoatListingDisplay()
+const {
+  formatPrice,
+  formatLength,
+  formatLocation,
+  formatListingTitle,
+  getSourceColor,
+  getSourceLabel,
+} = useBoatListingDisplay()
+
 const detailTo = computed(() => ({
   path: `/boats/${props.boat.id}`,
   query: props.sessionId ? { sessionId: String(props.sessionId) } : undefined,
 }))
-const titleText = computed(
+const titleText = computed(() => formatListingTitle(props.boat))
+const locationText = computed(() => formatLocation(props.boat))
+const lengthText = computed(() => formatLength(props.boat.length))
+const boatDescription = computed(
   () =>
-    `${props.boat.year || ''} ${props.boat.make || ''} ${props.boat.model || ''}`.trim() ||
-    'Fishing boat listing',
-)
-const locationText = computed(
-  () =>
-    `${props.boat.length || '?'}ft · ${props.boat.city || props.boat.state || props.boat.location || 'US'}`,
+    props.boat.description?.trim() ||
+    'Source-attributed marketplace listing ready for a closer inspection and broker follow-up.',
 )
 
 const ratingLabel = computed(() => {
@@ -55,52 +63,68 @@ const ratingLabel = computed(() => {
 <template>
   <NuxtLink
     :to="detailTo"
-    class="card-base group overflow-hidden rounded-xl transition-base hover:shadow-elevated"
+    class="brand-surface group cursor-pointer overflow-hidden transition-base hover:-translate-y-1 hover:shadow-elevated"
   >
-    <div class="aspect-video bg-muted overflow-hidden relative">
-      <img
-        v-if="props.boat.images && props.boat.images.length > 0"
-        :src="props.boat.images[0]"
-        :alt="titleText"
-        class="w-full h-full object-cover group-hover:scale-105 transition-slow"
-        loading="lazy"
-      />
-      <div v-else class="w-full h-full flex items-center justify-center text-dimmed">
-        <UIcon name="i-lucide-ship" class="text-4xl" />
-      </div>
-      <div class="absolute top-2 left-2">
+    <BoatMediaImage
+      :src="props.boat.images?.[0]"
+      :alt="titleText"
+      class="aspect-[4/3] border-b border-default bg-muted"
+      img-class="h-full w-full object-cover transition-slow group-hover:scale-[1.03]"
+    >
+      <div class="absolute inset-x-0 top-0 flex items-start justify-between gap-3 p-3">
         <UBadge
           :label="getSourceLabel(props.boat.source)"
           :color="getSourceColor(props.boat.source)"
           variant="solid"
           size="xs"
         />
+        <UBadge
+          v-if="props.recommendation"
+          :label="ratingLabel"
+          color="primary"
+          variant="solid"
+          size="xs"
+        />
       </div>
-      <div v-if="props.recommendation" class="absolute top-2 right-2">
-        <UBadge :label="ratingLabel" color="primary" variant="solid" size="xs" />
-      </div>
-    </div>
 
-    <div class="space-y-3 p-3.5">
-      <div class="flex items-start justify-between gap-2">
-        <div class="min-w-0">
-          <h3 class="truncate font-semibold text-default">
-            {{ titleText }}
-          </h3>
-          <p class="truncate text-sm text-muted">
+      <div class="absolute inset-x-0 bottom-0 p-3">
+        <div class="rounded-2xl bg-black/35 px-3 py-2 text-white backdrop-blur-md">
+          <p class="text-[0.65rem] font-semibold uppercase tracking-[0.24em] text-white/70">
+            Market snapshot
+          </p>
+          <div class="mt-1 flex items-end justify-between gap-3">
+            <p class="text-base font-semibold text-white">{{ formatPrice(props.boat.price) }}</p>
+            <p class="text-xs font-medium text-white/80">{{ lengthText }}</p>
+          </div>
+        </div>
+      </div>
+    </BoatMediaImage>
+
+    <div class="relative space-y-4 p-4 sm:p-5">
+      <div class="flex items-start justify-between gap-3">
+        <div class="min-w-0 space-y-2">
+          <p class="text-xs font-semibold uppercase tracking-[0.18em] text-dimmed">
             {{ locationText }}
           </p>
+          <h3 class="line-clamp-2 text-xl font-semibold text-highlighted">
+            {{ titleText }}
+          </h3>
         </div>
-        <span class="whitespace-nowrap text-lg font-bold text-primary">
-          {{ formatPrice(props.boat.price) }}
-        </span>
+
+        <div class="hidden text-right sm:block">
+          <p class="text-[0.65rem] font-semibold uppercase tracking-[0.2em] text-dimmed">Asking</p>
+          <p class="mt-1 text-xl font-semibold text-primary">
+            {{ formatPrice(props.boat.price) }}
+          </p>
+        </div>
       </div>
 
       <div class="flex flex-wrap gap-2">
+        <UBadge :label="lengthText" color="neutral" variant="soft" size="sm" />
         <UBadge
           v-if="props.boat.sellerType"
           :label="props.boat.sellerType"
-          variant="subtle"
+          variant="soft"
           size="sm"
         />
         <UBadge
@@ -112,13 +136,13 @@ const ratingLabel = computed(() => {
         />
       </div>
 
-      <p v-if="props.boat.description" class="text-xs text-dimmed line-clamp-2">
-        {{ props.boat.description }}
+      <p class="line-clamp-3 text-sm text-muted">
+        {{ boatDescription }}
       </p>
 
-      <div v-if="props.recommendation" class="space-y-1.5 rounded-lg bg-elevated px-3 py-2">
+      <div v-if="props.recommendation" class="brand-surface-soft space-y-2 rounded-3xl p-3">
         <div class="flex items-center justify-between gap-3">
-          <p class="text-sm font-medium text-default">{{ props.recommendation.headline }}</p>
+          <p class="text-sm font-semibold text-default">{{ props.recommendation.headline }}</p>
           <span class="text-xs font-semibold uppercase tracking-wide text-dimmed">{{
             ratingLabel
           }}</span>
@@ -127,6 +151,14 @@ const ratingLabel = computed(() => {
         <p class="line-clamp-1 text-xs text-muted">
           Trade-off: {{ props.recommendation.tradeoffs }}
         </p>
+      </div>
+
+      <div class="flex items-center justify-between gap-3 pt-1 text-sm font-semibold text-default">
+        <span>{{ props.recommendation ? 'Inspect fit summary' : 'Open listing brief' }}</span>
+        <UIcon
+          name="i-lucide-arrow-up-right"
+          class="transition-fast group-hover:-translate-y-0.5 group-hover:translate-x-0.5"
+        />
       </div>
     </div>
   </NuxtLink>

@@ -27,39 +27,195 @@ const sessionId = computed(() => {
 const { currentSession, currentBoats, detailStatus, detailError, latestSessionId } =
   useRecommendationSessions(sessionId)
 
+const currencyFormatter = new Intl.NumberFormat('en-US', {
+  style: 'currency',
+  currency: 'USD',
+  maximumFractionDigits: 0,
+})
+
 const errorMessage = computed(() => {
   const error = detailError.value as { data?: { statusMessage?: string }; message?: string } | null
   return error?.data?.statusMessage || error?.message || null
+})
+
+function formatMoney(value: number | null | undefined) {
+  if (value == null) return null
+  return currencyFormatter.format(value)
+}
+
+function formatLengthRange(min: number | undefined, max: number | undefined) {
+  if (min != null && max != null) return `${min}-${max} ft`
+  if (min != null) return `${min}+ ft`
+  if (max != null) return `Up to ${max} ft`
+  return null
+}
+
+const profileSignals = computed(() => {
+  const session = currentSession.value
+  if (!session) return []
+
+  const { profileSnapshot } = session
+  const signals = [
+    profileSnapshot.primaryUse || null,
+    profileSnapshot.targetWatersOrRegion || null,
+    formatMoney(profileSnapshot.budgetMax)
+      ? `Budget to ${formatMoney(profileSnapshot.budgetMax)}`
+      : null,
+    formatLengthRange(profileSnapshot.lengthMin, profileSnapshot.lengthMax),
+    profileSnapshot.crewSize || null,
+    profileSnapshot.maintenanceAppetite || null,
+  ]
+
+  return signals.filter((value): value is string => Boolean(value)).slice(0, 6)
+})
+
+const topPickBoat = computed(() => {
+  const boatId = currentSession.value?.resultSummary.topPickBoatId
+  if (!boatId) return null
+  return currentBoats.value.find((boat) => boat.id === boatId) ?? null
+})
+
+const shortlistMetrics = computed(() => {
+  const session = currentSession.value
+  if (!session) return []
+
+  return [
+    {
+      label: 'Ranked boats',
+      value: String(session.rankedBoatIds.length),
+      tone: 'text-highlighted',
+    },
+    {
+      label: 'Top pick',
+      value:
+        topPickBoat.value?.make || topPickBoat.value?.model
+          ? [topPickBoat.value?.make, topPickBoat.value?.model].filter(Boolean).join(' ')
+          : 'Awaiting review',
+      tone: 'text-default',
+    },
+    {
+      label: 'Finder mode',
+      value: session.resultSummary.generatedBy === 'ai' ? 'AI-ranked' : 'Fallback ranked',
+      tone: 'text-primary',
+    },
+  ]
 })
 </script>
 
 <template>
   <UPage>
     <UPageSection>
-      <div class="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
-        <div class="space-y-1">
-          <h1 class="text-3xl font-bold text-default">Your AI-ranked shortlist</h1>
-          <p class="max-w-3xl text-sm text-muted sm:text-base">
-            Built from your saved fishing brief, structured filters, and AI reranking over the live
-            candidate set.
-          </p>
+      <div class="grid gap-6 xl:grid-cols-[1.15fr_0.85fr]">
+        <div class="brand-grid-panel space-y-5 p-6 sm:p-8">
+          <div class="space-y-3">
+            <div class="flex flex-wrap items-center gap-2">
+              <UBadge
+                label="Saved buyer intelligence"
+                color="primary"
+                variant="subtle"
+                icon="i-lucide-sparkles"
+              />
+              <UBadge
+                v-if="currentSession"
+                :label="
+                  currentSession.resultSummary.generatedBy === 'ai'
+                    ? 'AI reranked'
+                    : 'Fallback ranking'
+                "
+                color="neutral"
+                variant="soft"
+              />
+            </div>
+            <h1 class="max-w-4xl text-4xl font-semibold text-highlighted sm:text-5xl">
+              Your working shortlist, not another pile of tabs.
+            </h1>
+            <p class="max-w-3xl text-base text-muted sm:text-lg">
+              Boat Search keeps your saved fishing brief, ranking logic, and live-market candidates
+              in one board so you can inspect the right listings faster.
+            </p>
+          </div>
+
+          <div class="flex flex-wrap gap-3">
+            <UButton
+              to="/ai-boat-finder"
+              label="Run finder again"
+              icon="i-lucide-sparkles"
+              size="lg"
+              class="brand-button-shadow"
+            />
+            <UButton
+              to="/account/recommendations"
+              label="View run history"
+              color="neutral"
+              variant="soft"
+              icon="i-lucide-history"
+              size="lg"
+            />
+          </div>
+
+          <div v-if="profileSignals.length" class="flex flex-wrap gap-2">
+            <UBadge
+              v-for="signal in profileSignals"
+              :key="signal"
+              :label="signal"
+              color="neutral"
+              variant="soft"
+              size="lg"
+            />
+          </div>
         </div>
 
-        <div class="flex flex-wrap gap-2">
-          <UButton
-            to="/ai-boat-finder"
-            label="Run finder again"
-            icon="i-lucide-sparkles"
-            size="sm"
-          />
-          <UButton
-            to="/account/recommendations"
-            label="View run history"
-            color="neutral"
-            variant="soft"
-            icon="i-lucide-history"
-            size="sm"
-          />
+        <div class="brand-surface space-y-5 p-5 sm:p-6">
+          <div class="flex items-center justify-between gap-3">
+            <div>
+              <p class="brand-caption">Session state</p>
+              <h2 class="mt-2 text-xl font-semibold text-default">
+                {{ currentSession?.resultSummary.querySummary || 'No shortlist loaded yet' }}
+              </h2>
+            </div>
+            <UBadge
+              :label="currentSession ? 'Ready to review' : 'Waiting on first run'"
+              :color="currentSession ? 'primary' : 'neutral'"
+              variant="soft"
+            />
+          </div>
+
+          <div v-if="currentSession" class="grid gap-3 sm:grid-cols-3 xl:grid-cols-1">
+            <div
+              v-for="metric in shortlistMetrics"
+              :key="metric.label"
+              class="brand-surface-soft rounded-[1.4rem] p-4"
+            >
+              <p class="brand-caption">{{ metric.label }}</p>
+              <p :class="['mt-2 text-lg font-semibold sm:text-xl', metric.tone]">
+                {{ metric.value }}
+              </p>
+            </div>
+          </div>
+
+          <div
+            v-if="currentSession"
+            class="rounded-[1.4rem] border border-default/80 bg-default/80 p-4"
+          >
+            <p class="brand-caption">Last run</p>
+            <p class="mt-2 text-sm text-default">
+              <NuxtTime
+                :datetime="currentSession.createdAt"
+                date-style="medium"
+                time-style="short"
+              />
+            </p>
+            <p class="mt-2 text-sm text-muted">
+              {{ currentSession.resultSummary.overallAdvice }}
+            </p>
+          </div>
+
+          <div v-else class="brand-surface-soft rounded-[1.4rem] p-4">
+            <p class="text-sm text-muted">
+              Complete the finder once and this area will show the active run, current top pick, and
+              review-ready market summary.
+            </p>
+          </div>
         </div>
       </div>
     </UPageSection>
@@ -69,10 +225,7 @@ const errorMessage = computed(() => {
         <UIcon name="i-lucide-loader-2" class="animate-spin text-3xl text-muted" />
       </div>
 
-      <div
-        v-else-if="errorMessage"
-        class="card-base rounded-2xl border-default px-6 py-12 text-center"
-      >
+      <div v-else-if="errorMessage" class="brand-surface rounded-[1.8rem] px-6 py-12 text-center">
         <UIcon name="i-lucide-alert-circle" class="mx-auto text-4xl text-warning" />
         <h2 class="mt-4 text-xl font-semibold text-default">Could not load this shortlist</h2>
         <p class="mt-2 text-muted max-w-2xl mx-auto">
@@ -92,7 +245,7 @@ const errorMessage = computed(() => {
 
       <div
         v-else-if="!currentSession"
-        class="card-base rounded-2xl border-default px-6 py-12 text-center"
+        class="brand-surface rounded-[1.8rem] px-6 py-12 text-center"
       >
         <UIcon name="i-lucide-ship-wheel" class="mx-auto text-4xl text-dimmed" />
         <h2 class="mt-4 text-xl font-semibold text-default">No saved shortlist yet</h2>

@@ -6,7 +6,7 @@ export default defineAdminMutation(
   {
     rateLimit: {
       namespace: 'admin-scraper-extension-run-progress',
-      maxRequests: 400,
+      maxRequests: 1200,
       windowMs: 60_000,
     },
     parseBody: withValidatedBody(scraperPipelineStreamProgressSchema.parse),

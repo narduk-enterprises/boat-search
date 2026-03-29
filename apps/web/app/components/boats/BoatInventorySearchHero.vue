@@ -42,101 +42,137 @@ const statCards = computed(() => [
 
 <template>
   <div class="space-y-5">
-    <UCard class="card-base border-default" :ui="{ body: 'p-6 space-y-5' }">
-      <div class="space-y-3">
-        <UBadge
-          label="Public inventory search"
-          color="primary"
-          variant="subtle"
-          icon="i-lucide-search"
-        />
-        <div class="space-y-2">
-          <h1 class="max-w-4xl text-4xl font-bold text-default sm:text-5xl">
-            Search live boat listings without dropping into the AI workflow first.
-          </h1>
-          <p class="max-w-3xl text-base text-muted sm:text-lg">
-            Filter by make, location, price, and length, then open the original source listing when
-            you find something worth a closer look.
-          </p>
-        </div>
-        <div class="flex flex-wrap gap-3">
-          <UButton to="/browse" label="Browse collections" icon="i-lucide-compass" />
-          <UButton
-            to="/ai-boat-finder"
-            label="Try the AI finder"
-            color="neutral"
-            variant="soft"
-            icon="i-lucide-sparkles"
-          />
-        </div>
-      </div>
-
-      <div class="grid gap-3 lg:grid-cols-2">
-        <div v-for="card in statCards" :key="card.label" class="rounded-2xl bg-muted px-4 py-4">
-          <p class="text-xs font-semibold uppercase tracking-wide text-dimmed">{{ card.label }}</p>
-          <p class="mt-2 text-2xl font-semibold text-default">{{ card.value }}</p>
-          <p class="mt-1 text-sm text-muted">{{ card.detail }}</p>
-        </div>
-      </div>
-    </UCard>
-
-    <UCard class="card-base border-default" :ui="{ body: 'p-6 space-y-5' }">
-      <div class="space-y-4">
-        <div class="space-y-2">
-          <h2 class="text-lg font-semibold text-default">Quick starts</h2>
-          <p class="text-sm text-muted">
-            Jump into common budgets, brands, and regions if you do not want to build filters from
-            scratch.
-          </p>
-        </div>
-
-        <div class="space-y-3">
-          <div class="space-y-2">
-            <p class="text-xs font-semibold uppercase tracking-wide text-dimmed">Budgets</p>
+    <UCard class="brand-surface brand-grid-panel brand-orbit" :ui="{ body: 'relative p-6 sm:p-8' }">
+      <div class="grid gap-8 xl:grid-cols-[1.14fr_0.86fr] xl:items-start">
+        <div class="space-y-6">
+          <div class="space-y-4">
             <div class="flex flex-wrap gap-2">
-              <UButton
-                v-for="link in budgetLinks"
-                :key="link.label"
-                :to="link.to"
-                :label="link.label"
-                :icon="link.icon"
+              <UBadge
+                label="Live marketplace intelligence"
+                color="primary"
+                variant="subtle"
+                icon="i-lucide-search"
+              />
+              <UBadge
+                :label="
+                  props.stats?.total
+                    ? `${props.stats.total.toLocaleString()} tracked listings`
+                    : 'Daily imports'
+                "
                 color="neutral"
                 variant="soft"
-                size="sm"
               />
+            </div>
+
+            <div class="space-y-3">
+              <h1 class="max-w-4xl text-4xl font-bold text-highlighted sm:text-5xl">
+                Search the used-boat market like a buyer, not a tab collector.
+              </h1>
+              <p class="max-w-3xl text-base text-muted sm:text-lg">
+                Aggregate public listings, narrow the field by budget, hull size, and geography,
+                then open the original marketplace page only when a boat is worth deeper review.
+              </p>
             </div>
           </div>
 
+          <div class="flex flex-wrap gap-3">
+            <UButton
+              to="/browse"
+              label="Browse market paths"
+              icon="i-lucide-compass"
+              class="brand-button-shadow"
+            />
+            <UButton
+              to="/ai-boat-finder"
+              label="Use the buyer brief"
+              color="neutral"
+              variant="soft"
+              icon="i-lucide-sparkles"
+            />
+          </div>
+
+          <div class="grid gap-3 sm:grid-cols-2">
+            <div
+              v-for="card in statCards"
+              :key="card.label"
+              class="brand-surface-soft rounded-[1.25rem] p-4"
+            >
+              <p class="text-xs font-semibold uppercase tracking-[0.18em] text-dimmed">
+                {{ card.label }}
+              </p>
+              <p class="mt-2 text-2xl font-semibold text-highlighted">{{ card.value }}</p>
+              <p class="mt-1 text-sm text-muted">{{ card.detail }}</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="brand-surface-soft space-y-5 rounded-[1.35rem] p-5 sm:p-6">
           <div class="space-y-2">
-            <p class="text-xs font-semibold uppercase tracking-wide text-dimmed">Popular makes</p>
-            <div class="flex flex-wrap gap-2">
-              <UButton
-                v-for="link in topMakeLinks"
-                :key="link.label"
-                :to="link.to"
-                :label="link.label"
-                :icon="link.icon"
-                color="neutral"
-                variant="soft"
-                size="sm"
-              />
+            <h2 class="text-lg font-semibold text-highlighted">Fast entry points</h2>
+            <p class="text-sm text-muted">
+              Open a proven lane first, then keep refining in the filter panel beside the results.
+            </p>
+          </div>
+
+          <div class="space-y-4">
+            <div class="space-y-2">
+              <p class="text-xs font-semibold uppercase tracking-[0.18em] text-dimmed">Budgets</p>
+              <div class="flex flex-wrap gap-2">
+                <UButton
+                  v-for="link in budgetLinks"
+                  :key="link.label"
+                  :to="link.to"
+                  :label="link.label"
+                  :icon="link.icon"
+                  color="neutral"
+                  variant="soft"
+                  size="sm"
+                />
+              </div>
+            </div>
+
+            <div class="space-y-2">
+              <p class="text-xs font-semibold uppercase tracking-[0.18em] text-dimmed">
+                Popular makes
+              </p>
+              <div class="flex flex-wrap gap-2">
+                <UButton
+                  v-for="link in topMakeLinks"
+                  :key="link.label"
+                  :to="link.to"
+                  :label="link.label"
+                  :icon="link.icon"
+                  color="neutral"
+                  variant="soft"
+                  size="sm"
+                />
+              </div>
+            </div>
+
+            <div class="space-y-2">
+              <p class="text-xs font-semibold uppercase tracking-[0.18em] text-dimmed">
+                Coastal regions
+              </p>
+              <div class="flex flex-wrap gap-2">
+                <UButton
+                  v-for="link in locationLinks"
+                  :key="link.label"
+                  :to="link.to"
+                  :label="link.label"
+                  :icon="link.icon"
+                  color="neutral"
+                  variant="soft"
+                  size="sm"
+                />
+              </div>
             </div>
           </div>
 
-          <div class="space-y-2">
-            <p class="text-xs font-semibold uppercase tracking-wide text-dimmed">Locations</p>
-            <div class="flex flex-wrap gap-2">
-              <UButton
-                v-for="link in locationLinks"
-                :key="link.label"
-                :to="link.to"
-                :label="link.label"
-                :icon="link.icon"
-                color="neutral"
-                variant="soft"
-                size="sm"
-              />
-            </div>
+          <div
+            class="rounded-3xl border border-default/70 bg-default/80 px-4 py-3 text-sm text-muted"
+          >
+            Every filter updates the URL, so this market slice is easy to save, share, or come back
+            to after a broker call.
           </div>
         </div>
       </div>

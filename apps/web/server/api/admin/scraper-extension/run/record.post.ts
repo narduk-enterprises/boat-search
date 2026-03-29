@@ -6,7 +6,7 @@ export default defineAdminMutation(
   {
     rateLimit: {
       namespace: 'admin-scraper-extension-run-record',
-      maxRequests: 120,
+      maxRequests: 5000,
       windowMs: 60_000,
     },
     parseBody: withValidatedBody(scraperPipelineStreamRecordSchema.parse),

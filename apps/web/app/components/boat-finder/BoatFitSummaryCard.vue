@@ -16,10 +16,23 @@ const props = withDefaults(
     loginTo: '/login',
   },
 )
+
+const verdictTone = computed(() => {
+  switch (props.summary?.verdict) {
+    case 'strong-fit':
+      return 'success'
+    case 'mixed-fit':
+      return 'warning'
+    case 'weak-fit':
+      return 'neutral'
+    default:
+      return 'neutral'
+  }
+})
 </script>
 
 <template>
-  <UCard class="card-base border-default" :ui="{ body: 'p-5 space-y-4' }">
+  <UCard class="brand-surface border-default/80 shadow-card" :ui="{ body: 'p-5 space-y-4' }">
     <div class="flex items-center gap-2">
       <UIcon name="i-lucide-sparkles" class="text-primary" />
       <div>
@@ -49,7 +62,11 @@ const props = withDefaults(
     </div>
 
     <div v-else-if="props.summary" class="space-y-4">
-      <UBadge :label="props.summary.verdict.replace('-', ' ')" color="primary" variant="subtle" />
+      <UBadge
+        :label="props.summary.verdict.replace('-', ' ')"
+        :color="verdictTone"
+        variant="subtle"
+      />
 
       <div>
         <h3 class="text-lg font-semibold text-default">{{ props.summary.headline }}</h3>
