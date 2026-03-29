@@ -6,16 +6,47 @@ const props = withDefaults(
     imgClass?: string
     loading?: 'eager' | 'lazy'
     draggable?: boolean
+    width?: number
+    height?: number
+    sizes?: string
+    quality?: number
   }>(),
   {
     src: null,
     imgClass: 'h-full w-full object-cover',
     loading: 'lazy',
     draggable: false,
+    width: undefined,
+    height: undefined,
+    sizes: undefined,
+    quality: 72,
   },
 )
 
+const runtimeConfig = useRuntimeConfig()
 const failed = shallowRef(false)
+const normalizedSrc = computed(() => props.src?.trim() || '')
+const optimizedSrc = computed(() => {
+  const source = normalizedSrc.value
+  if (!source) return null
+
+  if (source.startsWith('/images/')) {
+    return source
+  }
+
+  try {
+    const appOrigin = new URL(runtimeConfig.public.appUrl).origin
+    const resolvedUrl = new URL(source, appOrigin)
+
+    if (resolvedUrl.origin !== appOrigin || !resolvedUrl.pathname.startsWith('/images/')) {
+      return null
+    }
+
+    return `${resolvedUrl.pathname}${resolvedUrl.search}`
+  } catch {
+    return null
+  }
+})
 
 watch(
   () => props.src,
@@ -27,13 +58,29 @@ watch(
 
 <template>
   <div class="relative isolate overflow-hidden">
-    <img
-      v-if="props.src && !failed"
-      :src="props.src"
+    <NuxtImg
+      v-if="optimizedSrc && !failed"
+      :src="optimizedSrc"
       :alt="props.alt"
       :class="props.imgClass"
       :draggable="props.draggable"
       :loading="props.loading"
+      :width="props.width"
+      :height="props.height"
+      :sizes="props.sizes"
+      :quality="props.quality"
+      format="webp"
+      @error="failed = true"
+    />
+
+    <img
+      v-else-if="normalizedSrc && !failed"
+      :src="normalizedSrc"
+      :alt="props.alt"
+      :class="props.imgClass"
+      :draggable="props.draggable"
+      :loading="props.loading"
+      decoding="async"
       @error="failed = true"
     />
 

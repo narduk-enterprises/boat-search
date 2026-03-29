@@ -231,6 +231,10 @@ function goLoginForFavorite() {
               <BoatMediaImage
                 :src="galleryImages[selectedImage]"
                 :alt="pageTitle"
+                :width="1440"
+                :height="1080"
+                sizes="100vw xl:48vw"
+                :quality="74"
                 class="aspect-[4/3] rounded-[1.4rem] border border-default bg-muted"
                 img-class="h-full w-full object-cover"
                 loading="eager"
@@ -267,6 +271,10 @@ function goLoginForFavorite() {
                   <BoatMediaImage
                     :src="image"
                     :alt="`${pageTitle} image ${index + 1}`"
+                    :width="224"
+                    :height="160"
+                    sizes="112px sm:160px"
+                    :quality="56"
                     class="h-full w-full"
                     img-class="h-full w-full object-cover"
                   />

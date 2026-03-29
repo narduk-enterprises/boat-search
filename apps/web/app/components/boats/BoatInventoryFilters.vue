@@ -6,11 +6,15 @@ const props = withDefaults(
     loading?: boolean
     hasActiveFilters: boolean
     hasUnsavedChanges?: boolean
+    resultsLabel?: string | null
+    suggestedMakes?: string[]
     mode?: 'desktop' | 'overlay'
   }>(),
   {
     loading: false,
     hasUnsavedChanges: false,
+    resultsLabel: null,
+    suggestedMakes: () => [],
     mode: 'desktop',
   },
 )
@@ -40,9 +44,20 @@ const isOverlayMode = computed(() => props.mode === 'overlay')
 const activeDraftCount = computed(
   () => Object.values(filters.value).filter((value) => value.trim().length > 0).length,
 )
+const normalizedSuggestedMakes = computed(() =>
+  props.suggestedMakes
+    .map((make) => make.trim())
+    .filter((make, index, makes) => make.length > 0 && makes.indexOf(make) === index),
+)
 const canClear = computed(() => props.hasActiveFilters || activeDraftCount.value > 0)
 const applyLabel = computed(() =>
   props.hasUnsavedChanges ? 'Apply updated view' : 'View current results',
+)
+const appliedViewLabel = computed(() => props.resultsLabel || 'Ready to open a market view')
+const appliedViewNote = computed(() =>
+  props.hasUnsavedChanges
+    ? 'Draft edits are waiting in the form below. Apply them to refresh the live market slice.'
+    : 'The draft filters already match the live results shown beside this panel.',
 )
 
 function applyBudgetPreset(minPrice: string, maxPrice: string) {
@@ -53,6 +68,10 @@ function applyBudgetPreset(minPrice: string, maxPrice: string) {
 function applyLengthPreset(minLength: string, maxLength: string) {
   filters.value.minLength = minLength
   filters.value.maxLength = maxLength
+}
+
+function applySuggestedMake(make: string) {
+  filters.value.make = make
 }
 
 function matchesBudgetPreset(minPrice: string, maxPrice: string) {
@@ -159,6 +178,28 @@ function matchesLengthPreset(minLength: string, maxLength: string) {
       </div>
     </div>
 
+    <div v-if="normalizedSuggestedMakes.length" class="brand-surface-soft rounded-[1.25rem] p-4">
+      <div class="space-y-3">
+        <div>
+          <p class="text-xs font-semibold uppercase tracking-[0.18em] text-dimmed">Popular makes</p>
+          <p class="mt-1 text-sm text-muted">
+            Tap a common builder to seed the make field without leaving the current draft view.
+          </p>
+        </div>
+        <div class="flex flex-wrap gap-2">
+          <UButton
+            v-for="make in normalizedSuggestedMakes"
+            :key="make"
+            :label="make"
+            :color="filters.make === make ? 'primary' : 'neutral'"
+            :variant="filters.make === make ? 'soft' : 'ghost'"
+            size="sm"
+            @click="applySuggestedMake(make)"
+          />
+        </div>
+      </div>
+    </div>
+
     <USeparator />
 
     <UForm :state="filters" class="space-y-5" @submit.prevent="emit('submit')">
@@ -222,6 +263,27 @@ function matchesLengthPreset(minLength: string, maxLength: string) {
             placeholder="42"
           />
         </UFormField>
+      </div>
+
+      <div class="brand-surface-soft rounded-[1.25rem] p-4">
+        <div class="flex flex-wrap items-start justify-between gap-3">
+          <div class="space-y-1">
+            <p class="text-xs font-semibold uppercase tracking-[0.18em] text-dimmed">
+              Current applied view
+            </p>
+            <p class="text-base font-semibold text-highlighted">
+              {{ appliedViewLabel }}
+            </p>
+          </div>
+          <UBadge
+            :label="props.hasUnsavedChanges ? 'Draft differs from live' : 'Live view in sync'"
+            :color="props.hasUnsavedChanges ? 'warning' : 'neutral'"
+            variant="soft"
+          />
+        </div>
+        <p class="mt-2 text-sm text-muted">
+          {{ appliedViewNote }}
+        </p>
       </div>
 
       <div

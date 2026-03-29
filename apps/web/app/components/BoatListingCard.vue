@@ -70,6 +70,10 @@ const ratingLabel = computed(() => {
     <BoatMediaImage
       :src="props.boat.images?.[0]"
       :alt="titleText"
+      :width="720"
+      :height="540"
+      sizes="100vw md:50vw 2xl:33vw"
+      :quality="68"
       class="aspect-[4/3] border-b border-default bg-muted"
       img-class="h-full w-full object-cover transition-slow group-hover:scale-[1.03]"
     >

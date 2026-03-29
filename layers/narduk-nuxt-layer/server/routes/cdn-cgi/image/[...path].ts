@@ -5,7 +5,7 @@
  * natively. During local development there is no Cloudflare proxy, so
  * this route strips the modifiers and redirects to the underlying path.
  *
- * Only allows redirects to `/_og/` paths to prevent open-redirect abuse.
+ * Only allows redirects to app-owned image paths to prevent open-redirect abuse.
  */
 export default defineEventHandler(async (event) => {
   const log = useLogger(event).child('Images')
@@ -19,7 +19,7 @@ export default defineEventHandler(async (event) => {
   const [, ...rest] = segments
   const targetPath = `/${rest.join('/')}`
 
-  if (!targetPath.startsWith('/_og/')) {
+  if (!targetPath.startsWith('/_og/') && !targetPath.startsWith('/images/')) {
     throw createError({ statusCode: 404, statusMessage: 'Unsupported image source path' })
   }
 

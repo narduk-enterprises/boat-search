@@ -65,6 +65,7 @@ const topMakeLinks = computed(() =>
     .slice(0, 6)
     .map((entry) => makeInventorySearchLink(entry.make)),
 )
+const topMakeSuggestions = computed(() => topMakeLinks.value.map((link) => link.label))
 
 const errorMessage = computed(() => {
   const fetchError = error.value as { data?: { statusMessage?: string }; message?: string } | null
@@ -147,6 +148,8 @@ watch(
             :loading="status === 'pending'"
             :has-active-filters="hasActiveFilters"
             :has-unsaved-changes="hasUnsavedChanges"
+            :results-label="resultsLabel"
+            :suggested-makes="topMakeSuggestions"
             @submit="handleApplyFilters"
             @clear="handleClearFilters"
           />
@@ -195,6 +198,8 @@ watch(
           :loading="status === 'pending'"
           :has-active-filters="hasActiveFilters"
           :has-unsaved-changes="hasUnsavedChanges"
+          :results-label="resultsLabel"
+          :suggested-makes="topMakeSuggestions"
           @submit="handleApplyFilters"
           @clear="handleClearFilters"
         />
