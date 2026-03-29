@@ -166,8 +166,18 @@ const discoverySteps = [
                   <h3 class="text-lg font-semibold text-default">{{ link.label }}</h3>
                 </div>
                 <p class="text-sm text-muted">{{ link.description }}</p>
+                <div v-if="link.chips?.length" class="flex flex-wrap gap-2">
+                  <UBadge
+                    v-for="chip in link.chips"
+                    :key="chip"
+                    :label="chip"
+                    color="neutral"
+                    variant="soft"
+                    size="sm"
+                  />
+                </div>
               </div>
-              <UButton :to="link.to" label="Open search" icon="i-lucide-arrow-right" />
+              <UButton :to="link.to" label="See matches" icon="i-lucide-arrow-right" />
             </UCard>
           </div>
         </UCard>
@@ -193,7 +203,8 @@ const discoverySteps = [
           </div>
           <div class="brand-surface-soft rounded-[1.25rem] p-4 text-sm text-muted">
             Use a popular-make lane when you want to compare condition, price spread, and brokerage
-            density before contacting sellers.
+            density before contacting sellers. Each make button opens live inventory with that brand
+            prefilled.
           </div>
         </UCard>
       </div>
@@ -223,8 +234,18 @@ const discoverySteps = [
                   <h3 class="font-semibold text-default">{{ link.label }}</h3>
                 </div>
                 <p class="text-sm text-muted">{{ link.description }}</p>
+                <div v-if="link.chips?.length" class="flex flex-wrap gap-2">
+                  <UBadge
+                    v-for="chip in link.chips"
+                    :key="chip"
+                    :label="chip"
+                    color="neutral"
+                    variant="soft"
+                    size="sm"
+                  />
+                </div>
               </div>
-              <UButton :to="link.to" label="View region" color="neutral" variant="soft" />
+              <UButton :to="link.to" label="See matches" color="neutral" variant="soft" />
             </UCard>
           </div>
         </UCard>

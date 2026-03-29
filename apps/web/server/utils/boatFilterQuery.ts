@@ -1,7 +1,8 @@
 import { z } from 'zod'
 import { boats } from '~~/server/database/schema'
-import { and, desc, gt, gte, isNull, like, lte, or, sql, type SQL } from 'drizzle-orm'
+import { and, asc, desc, gt, gte, isNull, like, lte, or, sql, type SQL } from 'drizzle-orm'
 import type { DrizzleD1Database } from 'drizzle-orm/d1'
+import type { BoatInventorySort } from '~~/app/types/boat-inventory'
 import type * as schema from '~~/server/database/schema'
 import { INVENTORY_BOAT_SELECT } from '#server/utils/boatInventory'
 
@@ -16,6 +17,9 @@ export const boatSearchFilterSchema = z.object({
 })
 
 export type BoatSearchFilter = z.infer<typeof boatSearchFilterSchema>
+
+const priceAsInteger = sql<number>`CAST(NULLIF(${boats.price}, '') AS INTEGER)`
+const lengthAsReal = sql<number>`CAST(NULLIF(${boats.length}, '') AS REAL)`
 
 export function boatFilterConditions(filter: BoatSearchFilter): SQL[] {
   const conditions: SQL[] = []
@@ -34,40 +38,96 @@ export function boatFilterConditions(filter: BoatSearchFilter): SQL[] {
     )
   }
   if (filter.minLength != null) {
-    conditions.push(gte(sql`CAST(${boats.length} AS REAL)`, filter.minLength))
+    conditions.push(gte(lengthAsReal, filter.minLength))
   }
   if (filter.maxLength != null) {
-    conditions.push(lte(sql`CAST(${boats.length} AS REAL)`, filter.maxLength))
+    conditions.push(lte(lengthAsReal, filter.maxLength))
   }
   if (filter.minPrice != null) {
-    conditions.push(gte(sql`CAST(${boats.price} AS INTEGER)`, filter.minPrice))
+    conditions.push(gte(priceAsInteger, filter.minPrice))
   }
   if (filter.maxPrice != null) {
-    conditions.push(lte(sql`CAST(${boats.price} AS INTEGER)`, filter.maxPrice))
+    conditions.push(lte(priceAsInteger, filter.maxPrice))
   }
   return conditions
 }
 
 type AppDb = DrizzleD1Database<typeof schema>
 
+function buildBoatWhereClause(filter: BoatSearchFilter, updatedAfter?: string) {
+  const conditions = boatFilterConditions(filter)
+
+  if (updatedAfter) {
+    conditions.push(gt(boats.updatedAt, updatedAfter))
+  }
+
+  return and(isNull(boats.supersededByBoatId), ...(conditions.length > 0 ? conditions : []))
+}
+
+function buildInventorySortOrder(sort: BoatInventorySort): SQL[] {
+  switch (sort) {
+    case 'price-asc':
+      return [
+        asc(sql`CASE WHEN NULLIF(${boats.price}, '') IS NULL THEN 1 ELSE 0 END`),
+        asc(sql`CAST(NULLIF(${boats.price}, '') AS INTEGER)`),
+        desc(boats.updatedAt),
+        desc(boats.id),
+      ]
+    case 'price-desc':
+      return [
+        asc(sql`CASE WHEN NULLIF(${boats.price}, '') IS NULL THEN 1 ELSE 0 END`),
+        desc(sql`CAST(NULLIF(${boats.price}, '') AS INTEGER)`),
+        desc(boats.updatedAt),
+        desc(boats.id),
+      ]
+    case 'year-desc':
+      return [
+        asc(sql`CASE WHEN ${boats.year} IS NULL THEN 1 ELSE 0 END`),
+        desc(sql`${boats.year}`),
+        desc(boats.updatedAt),
+        desc(boats.id),
+      ]
+    default:
+      return [desc(boats.updatedAt), desc(boats.id)]
+  }
+}
+
 export async function selectBoatsWithFilters(
   db: AppDb,
   filter: BoatSearchFilter,
-  options: { limit?: number; offset?: number; updatedAfter?: string } = {},
+  options: {
+    limit?: number
+    offset?: number
+    updatedAfter?: string
+    sort?: BoatInventorySort
+  } = {},
 ) {
   const limit = options.limit ?? 200
   const offset = options.offset ?? 0
-  const conditions = boatFilterConditions(filter)
-  if (options.updatedAfter) {
-    conditions.push(gt(boats.updatedAt, options.updatedAfter))
-  }
-  const where = and(isNull(boats.supersededByBoatId), ...(conditions.length > 0 ? conditions : []))
+  const where = buildBoatWhereClause(filter, options.updatedAfter)
 
   return db
     .select(INVENTORY_BOAT_SELECT)
     .from(boats)
     .where(where)
-    .orderBy(desc(sql`CAST(${boats.price} AS INTEGER)`))
+    .orderBy(...buildInventorySortOrder(options.sort ?? 'updated-desc'))
     .limit(limit)
     .offset(offset)
+}
+
+export async function countBoatsWithFilters(
+  db: AppDb,
+  filter: BoatSearchFilter,
+  options: { updatedAfter?: string } = {},
+) {
+  const where = buildBoatWhereClause(filter, options.updatedAfter)
+  const result = await db
+    .select({
+      total: sql<number>`COUNT(*)`,
+    })
+    .from(boats)
+    .where(where)
+    .limit(1)
+
+  return result[0]?.total ?? 0
 }

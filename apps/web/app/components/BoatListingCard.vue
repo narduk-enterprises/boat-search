@@ -40,6 +40,8 @@ const detailTo = computed(() => ({
 const titleText = computed(() => formatListingTitle(props.boat))
 const locationText = computed(() => formatLocation(props.boat))
 const lengthText = computed(() => formatLength(props.boat.length))
+const yearText = computed(() => (props.boat.year ? String(props.boat.year) : 'Year unlisted'))
+const priceText = computed(() => formatPrice(props.boat.price))
 const boatDescription = computed(
   () =>
     props.boat.description?.trim() ||
@@ -93,7 +95,7 @@ const ratingLabel = computed(() => {
             Market snapshot
           </p>
           <div class="mt-1 flex items-end justify-between gap-3">
-            <p class="text-base font-semibold text-white">{{ formatPrice(props.boat.price) }}</p>
+            <p class="text-base font-semibold text-white">{{ priceText }}</p>
             <p class="text-xs font-medium text-white/80">{{ lengthText }}</p>
           </div>
         </div>
@@ -101,39 +103,36 @@ const ratingLabel = computed(() => {
     </BoatMediaImage>
 
     <div class="relative space-y-4 p-4 sm:p-5">
-      <div class="flex items-start justify-between gap-3">
-        <div class="min-w-0 space-y-2">
+      <div class="space-y-3">
+        <div class="flex flex-wrap items-center gap-2">
+          <UBadge :label="yearText" color="neutral" variant="soft" size="sm" />
+          <UBadge :label="lengthText" color="neutral" variant="soft" size="sm" />
+          <UBadge
+            v-if="props.boat.sellerType"
+            :label="props.boat.sellerType"
+            variant="soft"
+            size="sm"
+          />
+          <UBadge
+            v-if="props.recommendation"
+            :label="`${props.recommendation.score}/100 fit`"
+            color="neutral"
+            variant="subtle"
+            size="sm"
+          />
+        </div>
+
+        <div class="space-y-2">
           <p class="text-xs font-semibold uppercase tracking-[0.18em] text-dimmed">
             {{ locationText }}
           </p>
           <h3 class="line-clamp-2 text-xl font-semibold text-highlighted">
             {{ titleText }}
           </h3>
-        </div>
-
-        <div class="hidden text-right sm:block">
-          <p class="text-[0.65rem] font-semibold uppercase tracking-[0.2em] text-dimmed">Asking</p>
-          <p class="mt-1 text-xl font-semibold text-primary">
-            {{ formatPrice(props.boat.price) }}
+          <p class="text-lg font-semibold text-primary">
+            {{ priceText }}
           </p>
         </div>
-      </div>
-
-      <div class="flex flex-wrap gap-2">
-        <UBadge :label="lengthText" color="neutral" variant="soft" size="sm" />
-        <UBadge
-          v-if="props.boat.sellerType"
-          :label="props.boat.sellerType"
-          variant="soft"
-          size="sm"
-        />
-        <UBadge
-          v-if="props.recommendation"
-          :label="`${props.recommendation.score}/100`"
-          color="neutral"
-          variant="subtle"
-          size="sm"
-        />
       </div>
 
       <p class="line-clamp-3 text-sm text-muted">
@@ -154,7 +153,7 @@ const ratingLabel = computed(() => {
       </div>
 
       <div class="flex items-center justify-between gap-3 pt-1 text-sm font-semibold text-default">
-        <span>{{ props.recommendation ? 'Inspect fit summary' : 'Open listing brief' }}</span>
+        <span>{{ props.recommendation ? 'Inspect fit summary' : 'Inspect listing details' }}</span>
         <UIcon
           name="i-lucide-arrow-up-right"
           class="transition-fast group-hover:-translate-y-0.5 group-hover:translate-x-0.5"

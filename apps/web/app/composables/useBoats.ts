@@ -4,6 +4,8 @@
  * Follows Thin Component / Thick Composable pattern.
  */
 
+import type { BoatInventorySearchResponse, BoatInventorySort } from '~~/app/types/boat-inventory'
+
 interface Boat {
   id: number
   listingId: string | null
@@ -39,12 +41,14 @@ interface BoatStats {
 
 interface BoatFilters {
   make?: string
+  location?: string
   minLength?: number
   maxLength?: number
   minPrice?: number
   maxPrice?: number
   limit?: number
   offset?: number
+  sort?: BoatInventorySort
 }
 
 interface AnalysisResult {
@@ -71,15 +75,17 @@ export function useBoats() {
   const fetchBoats = (filters: BoatFilters = {}) => {
     const params = new URLSearchParams()
     if (filters.make) params.set('make', filters.make)
+    if (filters.location) params.set('location', filters.location)
     if (filters.minLength) params.set('minLength', String(filters.minLength))
     if (filters.maxLength) params.set('maxLength', String(filters.maxLength))
     if (filters.minPrice) params.set('minPrice', String(filters.minPrice))
     if (filters.maxPrice) params.set('maxPrice', String(filters.maxPrice))
     if (filters.limit) params.set('limit', String(filters.limit))
     if (filters.offset) params.set('offset', String(filters.offset))
+    if (filters.sort) params.set('sort', filters.sort)
 
     const qs = params.toString()
-    return useFetch<Boat[]>(`/api/boats${qs ? `?${qs}` : ''}`)
+    return useFetch<BoatInventorySearchResponse>(`/api/boats${qs ? `?${qs}` : ''}`)
   }
 
   const fetchBoatStats = () => {

@@ -1,0 +1,25 @@
+{
+  "captureMethod": "devtools-console-clipboard",
+  "fixtureLabel": "search-ok",
+  "capturedAt": "2026-03-29T08:04:43.911Z",
+  "finalUrl": "https://www.yachtworld.com/boats-for-sale/condition-used/type-power/class-power-saltwater-fishing/price-100000,500000/?",
+  "title": "Used Saltwater Fishing boats for sale | YachtWorld",
+  "host": "www.yachtworld.com",
+  "readyState": "complete",
+  "viewport": {
+    "width": 2552,
+    "height": 1164,
+    "scrollX": 0,
+    "scrollY": 0,
+    "scrollWidth": 2552,
+    "scrollHeight": 5994,
+    "clientWidth": 2552,
+    "clientHeight": 1164
+  },
+  "stats": {
+    "anchorCount": 217,
+    "imageCount": 165,
+    "textLength": 8959
+  },
+  "outputHtmlPath": "/Users/narduk/new-code/template-apps/boat-search/packages/chrome-scraper-extension/tests/fixtures/yachtworld/search-ok.html"
+}

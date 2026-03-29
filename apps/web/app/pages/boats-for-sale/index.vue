@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import type { BoatInventoryFilterKey, BoatInventorySort } from '~~/app/types/boat-inventory'
 import BoatInventoryFilters from '~~/app/components/boats/BoatInventoryFilters.vue'
 import BoatInventoryResults from '~~/app/components/boats/BoatInventoryResults.vue'
 import BoatInventorySearchHero from '~~/app/components/boats/BoatInventorySearchHero.vue'
@@ -32,13 +33,28 @@ const {
   boats,
   status,
   error,
-  filters,
+  draftFilters,
+  currentSort,
+  currentPage,
+  total,
+  pageCount,
+  hasNextPage,
+  hasPreviousPage,
+  hasActiveFilters,
+  hasUnsavedChanges,
+  activeFilterChips,
+  resultsLabel,
+  resultsContext,
   applyFilters,
   clearFilters,
-  hasActiveFilters,
-  activeFilterTags,
-  resultsLabel,
+  removeFilter,
+  setSort,
+  goToPage,
+  retry,
 } = useBoatInventorySearch({ limit: 48 })
+
+const mobileFiltersOpen = shallowRef(false)
+const resultsSection = useTemplateRef<HTMLDivElement>('resultsSection')
 
 const topMakeLinks = computed(() =>
   (stats.value?.topMakes ?? [])
@@ -51,6 +67,51 @@ const errorMessage = computed(() => {
   const fetchError = error.value as { data?: { statusMessage?: string }; message?: string } | null
   return fetchError?.data?.statusMessage || fetchError?.message || null
 })
+
+function scrollResultsIntoView() {
+  if (!import.meta.client) return
+
+  const behavior = window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth'
+  resultsSection.value?.scrollIntoView({ behavior, block: 'start' })
+}
+
+async function handleApplyFilters() {
+  await applyFilters()
+  mobileFiltersOpen.value = false
+  await nextTick()
+  scrollResultsIntoView()
+}
+
+async function handleClearFilters() {
+  await clearFilters()
+  mobileFiltersOpen.value = false
+  await nextTick()
+  scrollResultsIntoView()
+}
+
+async function handleRemoveFilter(key: BoatInventoryFilterKey) {
+  await removeFilter(key)
+  await nextTick()
+  scrollResultsIntoView()
+}
+
+async function handleSortChange(value: BoatInventorySort) {
+  await setSort(value)
+  await nextTick()
+  scrollResultsIntoView()
+}
+
+async function handlePageChange(page: number) {
+  if (page < 1 || page > pageCount.value || page === currentPage.value) return
+
+  await goToPage(page)
+  await nextTick()
+  scrollResultsIntoView()
+}
+
+async function handleRetry() {
+  await retry()
+}
 </script>
 
 <template>
@@ -64,27 +125,64 @@ const errorMessage = computed(() => {
           :location-links="inventoryLocationLinks"
         />
 
-        <div class="xl:sticky xl:top-24">
+        <div class="hidden xl:block xl:sticky xl:top-24">
           <BoatInventoryFilters
-            v-model="filters"
+            v-model="draftFilters"
             :loading="status === 'pending'"
             :has-active-filters="hasActiveFilters"
-            @submit="applyFilters"
-            @clear="clearFilters"
+            :has-unsaved-changes="hasUnsavedChanges"
+            @submit="handleApplyFilters"
+            @clear="handleClearFilters"
           />
         </div>
       </div>
     </UPageSection>
 
     <UPageSection :ui="{ wrapper: 'py-0 sm:py-0' }">
-      <BoatInventoryResults
-        :boats="boats"
-        :status="status"
-        :error-message="errorMessage"
-        :has-active-filters="hasActiveFilters"
-        :active-filter-tags="activeFilterTags"
-        :results-label="resultsLabel"
-      />
+      <div ref="resultsSection">
+        <BoatInventoryResults
+          :boats="boats"
+          :status="status"
+          :error-message="errorMessage"
+          :has-active-filters="hasActiveFilters"
+          :has-unsaved-changes="hasUnsavedChanges"
+          :active-filter-chips="activeFilterChips"
+          :results-label="resultsLabel"
+          :results-context="resultsContext"
+          :total="total"
+          :current-page="currentPage"
+          :page-count="pageCount"
+          :current-sort="currentSort"
+          :has-next-page="hasNextPage"
+          :has-previous-page="hasPreviousPage"
+          @open-filters="mobileFiltersOpen = true"
+          @clear-filters="handleClearFilters"
+          @remove-filter="handleRemoveFilter"
+          @change-sort="handleSortChange"
+          @change-page="handlePageChange"
+          @retry="handleRetry"
+        />
+      </div>
     </UPageSection>
+
+    <USlideover
+      v-model:open="mobileFiltersOpen"
+      title="Refine inventory"
+      description="Adjust the draft view, then apply it when the market slice looks right."
+      side="right"
+      class="xl:hidden"
+    >
+      <template #body>
+        <BoatInventoryFilters
+          v-model="draftFilters"
+          mode="overlay"
+          :loading="status === 'pending'"
+          :has-active-filters="hasActiveFilters"
+          :has-unsaved-changes="hasUnsavedChanges"
+          @submit="handleApplyFilters"
+          @clear="handleClearFilters"
+        />
+      </template>
+    </USlideover>
   </UPage>
 </template>

@@ -5,9 +5,13 @@ const props = withDefaults(
   defineProps<{
     loading?: boolean
     hasActiveFilters: boolean
+    hasUnsavedChanges?: boolean
+    mode?: 'desktop' | 'overlay'
   }>(),
   {
     loading: false,
+    hasUnsavedChanges: false,
+    mode: 'desktop',
   },
 )
 
@@ -32,6 +36,15 @@ const emit = defineEmits<{
   clear: []
 }>()
 
+const isOverlayMode = computed(() => props.mode === 'overlay')
+const activeDraftCount = computed(
+  () => Object.values(filters.value).filter((value) => value.trim().length > 0).length,
+)
+const canClear = computed(() => props.hasActiveFilters || activeDraftCount.value > 0)
+const applyLabel = computed(() =>
+  props.hasUnsavedChanges ? 'Apply updated view' : 'View current results',
+)
+
 function applyBudgetPreset(minPrice: string, maxPrice: string) {
   filters.value.minPrice = minPrice
   filters.value.maxPrice = maxPrice
@@ -52,22 +65,46 @@ function matchesLengthPreset(minLength: string, maxLength: string) {
 </script>
 
 <template>
-  <UCard class="brand-surface brand-grid-panel" :ui="{ body: 'relative p-6 space-y-6' }">
+  <UCard
+    class="brand-surface brand-grid-panel"
+    :ui="{ body: isOverlayMode ? 'relative space-y-6 p-5 sm:p-6' : 'relative space-y-6 p-6' }"
+  >
     <div class="space-y-3">
-      <div class="flex items-center justify-between gap-3">
+      <div class="flex flex-wrap items-start justify-between gap-3">
         <div>
           <p class="text-xs font-semibold uppercase tracking-[0.2em] text-dimmed">Buyer lens</p>
           <h2 class="mt-2 text-2xl font-semibold text-highlighted">Shape this market view.</h2>
         </div>
-        <UBadge
-          :label="props.hasActiveFilters ? 'Custom view active' : 'Wide-open market'"
-          :color="props.hasActiveFilters ? 'primary' : 'neutral'"
-          variant="subtle"
-        />
+        <div class="flex flex-wrap gap-2">
+          <UBadge
+            :label="props.hasActiveFilters ? 'Custom view active' : 'Wide-open market'"
+            :color="props.hasActiveFilters ? 'primary' : 'neutral'"
+            variant="subtle"
+          />
+          <UBadge
+            v-if="props.hasUnsavedChanges"
+            label="Draft changes"
+            color="warning"
+            variant="soft"
+          />
+        </div>
       </div>
       <p class="text-sm text-muted">
-        Filters sync to the URL, so you can save or share a precise slice of the used-boat market.
+        Keep draft edits here, then apply them when the view feels right. The live URL only changes
+        when you apply the view.
       </p>
+      <div class="flex flex-wrap gap-2 text-sm">
+        <UBadge
+          :label="`${activeDraftCount} draft filter${activeDraftCount === 1 ? '' : 's'}`"
+          color="neutral"
+          variant="soft"
+        />
+        <UBadge
+          :label="props.hasUnsavedChanges ? 'Results are not updated yet' : 'Draft matches results'"
+          :color="props.hasUnsavedChanges ? 'warning' : 'neutral'"
+          variant="soft"
+        />
+      </div>
     </div>
 
     <div class="grid gap-3 sm:grid-cols-2">
@@ -78,7 +115,7 @@ function matchesLengthPreset(minLength: string, maxLength: string) {
               Budget presets
             </p>
             <p class="mt-1 text-sm text-muted">
-              Use an asking-price window to tighten the field fast.
+              Start with an asking-price lane before you refine the shortlist.
             </p>
           </div>
           <div class="flex flex-wrap gap-2">
@@ -122,9 +159,11 @@ function matchesLengthPreset(minLength: string, maxLength: string) {
       </div>
     </div>
 
+    <USeparator />
+
     <UForm :state="filters" class="space-y-5" @submit.prevent="emit('submit')">
       <div class="grid gap-4 md:grid-cols-2">
-        <UFormField name="make" label="Make">
+        <UFormField name="make" label="Make" description="Builder or brand name">
           <UInput
             v-model="filters.make"
             class="w-full"
@@ -132,11 +171,11 @@ function matchesLengthPreset(minLength: string, maxLength: string) {
           />
         </UFormField>
 
-        <UFormField name="location" label="Location">
+        <UFormField name="location" label="Location" description="State, city, or region">
           <UInput v-model="filters.location" class="w-full" placeholder="FL, Miami, Gulf Coast" />
         </UFormField>
 
-        <UFormField name="minPrice" label="Minimum price">
+        <UFormField name="minPrice" label="Minimum price" description="Lowest asking price">
           <UInput
             v-model="filters.minPrice"
             class="w-full"
@@ -146,7 +185,7 @@ function matchesLengthPreset(minLength: string, maxLength: string) {
           />
         </UFormField>
 
-        <UFormField name="maxPrice" label="Maximum price">
+        <UFormField name="maxPrice" label="Maximum price" description="Highest asking price">
           <UInput
             v-model="filters.maxPrice"
             class="w-full"
@@ -156,7 +195,11 @@ function matchesLengthPreset(minLength: string, maxLength: string) {
           />
         </UFormField>
 
-        <UFormField name="minLength" label="Minimum length (ft)">
+        <UFormField
+          name="minLength"
+          label="Minimum length (ft)"
+          description="Smallest hull to include"
+        >
           <UInput
             v-model="filters.minLength"
             class="w-full"
@@ -166,7 +209,11 @@ function matchesLengthPreset(minLength: string, maxLength: string) {
           />
         </UFormField>
 
-        <UFormField name="maxLength" label="Maximum length (ft)">
+        <UFormField
+          name="maxLength"
+          label="Maximum length (ft)"
+          description="Largest hull to include"
+        >
           <UInput
             v-model="filters.maxLength"
             class="w-full"
@@ -177,22 +224,30 @@ function matchesLengthPreset(minLength: string, maxLength: string) {
         </UFormField>
       </div>
 
-      <div class="flex flex-wrap gap-3">
-        <UButton
-          type="submit"
-          label="Apply filters"
-          icon="i-lucide-search"
-          :loading="props.loading"
-          class="brand-button-shadow"
-        />
-        <UButton
-          label="Clear filters"
-          icon="i-lucide-rotate-ccw"
-          color="neutral"
-          variant="soft"
-          :disabled="!props.hasActiveFilters"
-          @click="emit('clear')"
-        />
+      <div
+        :class="
+          isOverlayMode
+            ? 'sticky bottom-0 z-10 -mx-5 border-t border-default bg-default/95 px-5 pb-1 pt-4 backdrop-blur-sm sm:-mx-6 sm:px-6'
+            : 'flex flex-wrap gap-3'
+        "
+      >
+        <div :class="isOverlayMode ? 'flex flex-wrap gap-3' : 'contents'">
+          <UButton
+            type="submit"
+            :label="applyLabel"
+            icon="i-lucide-search"
+            :loading="props.loading"
+            class="brand-button-shadow"
+          />
+          <UButton
+            label="Reset all"
+            icon="i-lucide-rotate-ccw"
+            color="neutral"
+            variant="soft"
+            :disabled="!canClear"
+            @click="emit('clear')"
+          />
+        </div>
       </div>
     </UForm>
   </UCard>

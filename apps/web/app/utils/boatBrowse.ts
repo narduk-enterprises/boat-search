@@ -8,24 +8,28 @@ export const inventoryBudgetLinks: BoatBrowseLink[] = [
     description: 'Starter skiffs, utility rigs, and project-friendly weekend boats.',
     to: { path: BOAT_INVENTORY_SEARCH_PATH, query: { maxPrice: '25000' } },
     icon: 'i-lucide-wallet',
+    chips: ['Max $25k'],
   },
   {
     label: 'Under $50k',
     description: 'Roomier used center consoles, pontoons, and freshwater cruisers.',
     to: { path: BOAT_INVENTORY_SEARCH_PATH, query: { maxPrice: '50000' } },
     icon: 'i-lucide-banknote',
+    chips: ['Max $50k'],
   },
   {
     label: 'Under $100k',
     description: 'Higher-spec offshore, bay, and express options without premium-new pricing.',
     to: { path: BOAT_INVENTORY_SEARCH_PATH, query: { maxPrice: '100000' } },
     icon: 'i-lucide-badge-dollar-sign',
+    chips: ['Max $100k'],
   },
   {
     label: 'Under $250k',
     description: 'Larger convertible, sportfish, and cruising inventory for serious buyers.',
     to: { path: BOAT_INVENTORY_SEARCH_PATH, query: { maxPrice: '250000' } },
     icon: 'i-lucide-briefcase-business',
+    chips: ['Max $250k'],
   },
 ]
 
@@ -35,24 +39,28 @@ export const inventoryLocationLinks: BoatBrowseLink[] = [
     description: 'Dense saltwater inventory and year-round listing volume.',
     to: { path: BOAT_INVENTORY_SEARCH_PATH, query: { location: 'FL' } },
     icon: 'i-lucide-map-pinned',
+    chips: ['Location: FL'],
   },
   {
     label: 'Texas',
     description: 'Gulf coast center consoles, bay boats, and offshore-ready hulls.',
     to: { path: BOAT_INVENTORY_SEARCH_PATH, query: { location: 'TX' } },
     icon: 'i-lucide-map-pinned',
+    chips: ['Location: TX'],
   },
   {
     label: 'California',
     description: 'West coast fishing and cruising supply with long-haul options.',
     to: { path: BOAT_INVENTORY_SEARCH_PATH, query: { location: 'CA' } },
     icon: 'i-lucide-map-pinned',
+    chips: ['Location: CA'],
   },
   {
     label: 'Great Lakes',
     description: 'Freshwater listings centered around MI, WI, IL, and surrounding states.',
     to: { path: BOAT_INVENTORY_SEARCH_PATH, query: { location: 'MI' } },
     icon: 'i-lucide-map-pinned',
+    chips: ['Location: MI'],
   },
 ]
 
@@ -116,5 +124,6 @@ export function makeInventorySearchLink(make: string): BoatBrowseLink {
     description: `Open the live inventory with ${make} prefilled as a make filter.`,
     to: { path: BOAT_INVENTORY_SEARCH_PATH, query: { make } },
     icon: 'i-lucide-anchor',
+    chips: [`Make: ${make}`],
   }
 }
