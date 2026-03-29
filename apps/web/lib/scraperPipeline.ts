@@ -85,12 +85,7 @@ export const scraperPipelineConfigSchema = z
     itemSelector: z.string().trim().min(1, 'Item selector is required'),
     nextPageSelector: z.string().trim().optional().default(''),
     maxPages: z.number().int().min(1).max(SCRAPER_PIPELINE_MAX_PAGES).default(1),
-    maxItemsPerRun: z
-      .number()
-      .int()
-      .min(1)
-      .max(SCRAPER_PIPELINE_MAX_ITEMS_PER_RUN)
-      .default(50),
+    maxItemsPerRun: z.number().int().min(1).max(SCRAPER_PIPELINE_MAX_ITEMS_PER_RUN).default(50),
     fetchDetailPages: z.boolean().default(false),
     fields: z.array(scraperFieldSchema).min(1, 'Add at least one field rule'),
   })
