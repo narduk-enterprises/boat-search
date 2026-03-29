@@ -32,13 +32,22 @@ const { data, status } = useInventoryHealth()
           </p>
         </div>
 
-        <UButton
-          to="/admin/scraper-pipeline"
-          label="Open scraper builder"
-          icon="i-lucide-panel-top-open"
-          color="neutral"
-          variant="soft"
-        />
+        <div class="flex flex-wrap gap-3">
+          <UButton
+            to="/admin"
+            label="Admin dashboard"
+            icon="i-lucide-layout-dashboard"
+            color="neutral"
+            variant="ghost"
+          />
+          <UButton
+            to="/admin/scraper-pipeline"
+            label="Open scraper builder"
+            icon="i-lucide-panel-top-open"
+            color="neutral"
+            variant="soft"
+          />
+        </div>
       </div>
     </UPageSection>
 

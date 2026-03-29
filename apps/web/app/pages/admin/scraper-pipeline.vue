@@ -33,13 +33,22 @@ const scraperPipelines = useAdminScraperPipelines()
           </p>
         </div>
 
-        <UButton
-          to="/admin/inventory"
-          label="Back to inventory"
-          icon="i-lucide-arrow-left"
-          color="neutral"
-          variant="soft"
-        />
+        <div class="flex flex-wrap gap-3">
+          <UButton
+            to="/admin"
+            label="Admin dashboard"
+            icon="i-lucide-layout-dashboard"
+            color="neutral"
+            variant="ghost"
+          />
+          <UButton
+            to="/admin/inventory"
+            label="Inventory health"
+            icon="i-lucide-activity"
+            color="neutral"
+            variant="soft"
+          />
+        </div>
       </div>
     </UPageSection>
 
