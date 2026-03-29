@@ -68,6 +68,14 @@ function getSiteName(pageUrl: string) {
   }
 }
 
+function isYachtWorldPage(pageUrl: string) {
+  try {
+    return new URL(pageUrl).hostname === 'www.yachtworld.com'
+  } catch {
+    return false
+  }
+}
+
 function isTransientClassName(className: string) {
   return /(?:^|[-_])(active|current|selected|visible|hidden|loading|loaded|enter|leave|appear|animat(?:e|ion)|fade|inview|lazy|focus|hover)(?:$|[-_])/i.test(
     className,
@@ -324,7 +332,11 @@ function applyFieldTransform(value: string, field: ScraperFieldRule, baseUrl: st
 
   switch (field.transform) {
     case 'price': {
-      const digits = withRegex.replaceAll(/\D/g, '')
+      const priceToken =
+        withRegex.match(/(?:US|C|CA)?\$\s*[\d,.]+|€\s*[\d,.]+|£\s*[\d,.]+/i)?.[0] ||
+        withRegex.match(/\b\d{1,3}(?:,\d{3})+(?:\.\d+)?\b/)?.[0] ||
+        ''
+      const digits = priceToken.replaceAll(/\D/g, '')
       return digits || null
     }
     case 'year': {
@@ -855,6 +867,7 @@ function createBaseAnalysis(document: Document, pageUrl: string): AutoDetectedAn
 function buildSearchAnalysis(document: Document, pageUrl: string): AutoDetectedAnalysis {
   const analysis = createBaseAnalysis(document, pageUrl)
   const state = classifyDocumentState(document, pageUrl)
+  const yachtWorldPage = isYachtWorldPage(pageUrl)
   const detailAnchors = getDetailAnchors(document)
 
   analysis.pageType = 'search'
@@ -869,17 +882,56 @@ function buildSearchAnalysis(document: Document, pageUrl: string): AutoDetectedA
     return analysis
   }
 
-  const itemSelector = detectRepeatedItemSelector(document, detailAnchors)
+  const itemSelector =
+    yachtWorldPage && queryAll(document, 'div.grid-item').length >= 3
+      ? 'div.grid-item'
+      : detectRepeatedItemSelector(document, detailAnchors)
   const itemRoots = itemSelector ? queryAll<HTMLElement>(document, itemSelector) : []
   const firstItem = itemRoots[0] || null
-  const titleAnchor = firstItem ? findBestTitleAnchor(firstItem) : findBestTitleAnchor(document)
+  const titleAnchor =
+    (yachtWorldPage && firstItem
+      ? queryAll<HTMLAnchorElement>(firstItem, 'a.grid-listing-link[href*="/yacht/"]').find(
+          (anchor) => Boolean(anchor.href),
+        ) || null
+      : null) ||
+    (firstItem ? findBestTitleAnchor(firstItem) : findBestTitleAnchor(document))
   const sampleDetailUrl = titleAnchor?.href || detailAnchors[0]?.href || null
-  const priceElement = firstItem ? (findLikelyPriceElement(firstItem) ?? null) : null
-  const locationElement = firstItem ? (findLikelyLocationElement(firstItem) ?? null) : null
-  const imageElement = firstItem ? (findLikelyImageElement(firstItem) ?? null) : null
+  const priceElement = firstItem
+    ? (yachtWorldPage
+        ? queryAll<HTMLElement>(
+            firstItem,
+            'span.style-module_listingPrice__lsbyO > p.style-module_content__tmQCh',
+          ).find((element) => isVisible(element)) ||
+          findLikelyPriceElement(firstItem) ||
+          null
+        : findLikelyPriceElement(firstItem) || null)
+    : null
+  const locationElement = firstItem
+    ? (yachtWorldPage
+        ? queryAll<HTMLElement>(
+            firstItem,
+            'span.style-module_listingBody__VNPuA > p.style-module_content__tmQCh.style-module_content-3__kZFb1, span.style-module_listingBody__VNPuA > p.style-module_content__tmQCh',
+          ).find((element) => isVisible(element)) ||
+          findLikelyLocationElement(firstItem) ||
+          null
+        : findLikelyLocationElement(firstItem) || null)
+    : null
+  const imageElement = firstItem
+    ? (yachtWorldPage
+        ? queryAll<HTMLImageElement>(
+            firstItem,
+            'div.style-module_wrapper__3JAO6 > span.style-module_image__tb1LM > img',
+          ).find((image) => isMeaningfulGalleryImage(image, false)) ||
+          findLikelyImageElement(firstItem) ||
+          null
+        : findLikelyImageElement(firstItem) || null)
+    : null
 
   analysis.itemSelector = itemSelector
-  analysis.nextPageSelector = detectNextPageSelector(document)
+  analysis.nextPageSelector =
+    (yachtWorldPage && queryAll(document, 'a.next').length ? 'a.next' : '') ||
+    (yachtWorldPage && queryAll(document, 'a[rel="next"]').length ? 'a[rel="next"]' : '') ||
+    detectNextPageSelector(document)
   analysis.sampleDetailUrl = sampleDetailUrl
   analysis.stats.listingCardCount = itemRoots.length
   analysis.stats.distinctImageCount = imageElement ? 1 : 0
@@ -929,13 +981,52 @@ function buildSearchAnalysis(document: Document, pageUrl: string): AutoDetectedA
 function buildDetailAnalysis(document: Document, pageUrl: string): AutoDetectedAnalysis {
   const analysis = createBaseAnalysis(document, pageUrl)
   const state = classifyDocumentState(document, pageUrl)
-  const titleElement = findVisibleTitleElement(document)
+  const yachtWorldPage = isYachtWorldPage(pageUrl)
+  const titleElement =
+    (yachtWorldPage
+      ? queryAll<HTMLElement>(document, 'div#bdp-boat-summary h1').find((element) => isVisible(element)) ||
+        null
+      : null) || findVisibleTitleElement(document)
   const summaryRoot = findDetailSummaryRoot(document, titleElement)
-  const priceElement = findLikelyPriceElement(summaryRoot) ?? findLikelyPriceElement(document) ?? null
+  const priceElement =
+    (yachtWorldPage
+      ? queryAll<HTMLElement>(
+          document,
+          'div.next-previous-listing-price, div#bdp-boat-summary [class*="listingPrice" i] > p, div#bdp-boat-summary [class*="price" i] > p',
+        ).find((element) => isVisible(element)) || null
+      : null) ||
+    findLikelyPriceElement(summaryRoot) ||
+    findLikelyPriceElement(document) ||
+    null
   const locationElement =
-    findLikelyLocationElement(summaryRoot) ?? findLikelyLocationElement(document) ?? null
-  const descriptionElement = findLikelyDescriptionElement(document) ?? null
-  const imageElement = findLikelyImageElement(document) ?? null
+    (yachtWorldPage
+      ? queryAll<HTMLElement>(
+          document,
+          'div.next-previous-listing-location, div#bdp-boat-summary [class*="location" i]',
+        ).find((element) => isVisible(element)) || null
+      : null) ||
+    findLikelyLocationElement(summaryRoot) ||
+    findLikelyLocationElement(document) ||
+    null
+  const descriptionElement =
+    (yachtWorldPage
+      ? queryAll<HTMLElement>(
+          document,
+          'div.accordion-details-items details > div.data-html > div.data-html-inner-wrapper > div.render-html, div.data-html-inner-wrapper > div.render-html',
+        ).find((element) => isVisible(element) && normalizeText(element.textContent).length > 140) ||
+        null
+      : null) ||
+    findLikelyDescriptionElement(document) ||
+    null
+  const imageElement =
+    (yachtWorldPage
+      ? queryAll<HTMLImageElement>(
+          document,
+          'div.style-module_mediaCarousel__gADiR div.embla__slide img',
+        ).find((image) => isMeaningfulGalleryImage(image, false)) || null
+      : null) ||
+    findLikelyImageElement(document) ||
+    null
   const detailImage = buildDetailImageSelector(document, imageElement)
   const descriptionIsMeta = descriptionElement?.tagName.toLowerCase() === 'meta'
 

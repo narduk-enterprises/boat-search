@@ -338,7 +338,11 @@ function applyFieldTransform(value: string, field: ScraperFieldRule, baseUrl: st
 
   switch (field.transform) {
     case 'price': {
-      const digits = withRegex.replaceAll(/\D/g, '')
+      const priceToken =
+        withRegex.match(/(?:US|C|CA)?\$\s*[\d,.]+|€\s*[\d,.]+|£\s*[\d,.]+/i)?.[0] ||
+        withRegex.match(/\b\d{1,3}(?:,\d{3})+(?:\.\d+)?\b/)?.[0] ||
+        ''
+      const digits = priceToken.replaceAll(/\D/g, '')
       return digits || null
     }
     case 'year': {

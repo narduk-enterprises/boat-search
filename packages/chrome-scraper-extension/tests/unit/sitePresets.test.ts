@@ -7,10 +7,13 @@ import { analyzeDocument } from '@/content/analyzer'
 import { createEmptyDraft } from '@/shared/defaults'
 import {
   buildPresetDraft,
+  buildRuntimePresetDraft,
   canAutoApplySitePreset,
   findMatchingSitePreset,
   isDefaultDraft,
+  normalizePresetRecord,
 } from '@/shared/sitePresets'
+import type { BrowserScrapeRecord } from '@/shared/types'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 
@@ -145,5 +148,104 @@ describe('site presets', () => {
     ).toBe(true)
 
     expect(isDefaultDraft(createEmptyDraft())).toBe(true)
+  })
+
+  it('normalizes YachtWorld titles, locations, and images to the active listing only', () => {
+    const record: BrowserScrapeRecord = {
+      source: 'YachtWorld',
+      url: 'https://www.yachtworld.com/yacht/2015-ocean-yachts-37-express-10122711/',
+      listingId: null,
+      title: 'Featured2015 Ocean Yachts 37 Express | 37ftUS$499,999US $2,952/mo',
+      make: null,
+      model: null,
+      year: null,
+      length: null,
+      price: '499999',
+      currency: null,
+      location: 'Valhalla Yacht Sales | Longport, New Jersey',
+      city: null,
+      state: null,
+      country: null,
+      description:
+        'Find more information and images about the boat and contact the seller or search more boats for sale on YachtWorld.',
+      sellerType: null,
+      listingType: null,
+      images: [
+        'https://images.boatsgroup.com/resize/1/27/11/2015-ocean-yachts-37-express-power-10122711-20260325035117616-1.jpg?w=1028&format=webp',
+        'https://images.boatsgroup.com/resize/1/27/11/2015-ocean-yachts-37-express-power-10122711-20260325035117616-1.jpg?w=200&format=webp',
+        'https://img.youtube.com/vi/hDD407S6dDc/0.jpg',
+        'https://images.boatsgroup.com/resize/1/upload/Valhalla+Yacht+Sales+Logo.png?w=122&h=115&format=webp',
+        'https://images.boatsgroup.com/resize/profiles/jpapperman/jpapperman-1772226817829.jpeg',
+        'https://images.boatsgroup.com/resize/1/90/78/2026-sportsman-open-302-center-console-power-10089078-20260220064759110-1.jpg?w=308&ratio=default&t=1771599781000&exact&format=webp',
+      ],
+      fullText: null,
+      rawFields: {},
+      warnings: [],
+    }
+
+    const normalized = normalizePresetRecord('yachtworld-search', record, {
+      context: 'detail',
+      pageUrl: record.url!,
+    })
+
+    expect(normalized.title).toBe('2015 Ocean Yachts 37 Express | 37ft')
+    expect(normalized.location).toBe('Longport, New Jersey')
+    expect(normalized.city).toBe('Longport')
+    expect(normalized.state).toBe('New Jersey')
+    expect(normalized.description).toBeNull()
+    expect(normalized.length).toBe('37ft')
+    expect(normalized.images).toEqual([
+      'https://images.boatsgroup.com/resize/1/27/11/2015-ocean-yachts-37-express-power-10122711-20260325035117616-1.jpg?w=1028&format=webp',
+    ])
+  })
+
+  it('builds a runtime preset draft that preserves crawl settings but replaces stale selectors', () => {
+    const draft = createEmptyDraft()
+    draft.name = 'Manual YachtWorld draft'
+    draft.boatSource = 'YachtWorld'
+    draft.config.startUrls = [
+      'https://www.yachtworld.com/boats-for-sale/type-power/class-power-saltwater-fishing/',
+    ]
+    draft.config.allowedDomains = ['www.yachtworld.com']
+    draft.config.maxPages = 7
+    draft.config.maxItemsPerRun = 42
+    draft.config.fetchDetailPages = true
+    draft.config.itemSelector = '.stale-card'
+    draft.config.nextPageSelector = '.stale-next'
+    draft.config.fields = [
+      {
+        key: 'images',
+        scope: 'detail',
+        selector: '.stale-images img',
+        extract: 'attr',
+        attribute: 'src',
+        multiple: true,
+        joinWith: '\n',
+        transform: 'url',
+        regex: '',
+        required: false,
+      },
+    ]
+
+    const runtimeDraft = buildRuntimePresetDraft(
+      draft,
+      'yachtworld-search',
+      draft.config.startUrls[0]!,
+    )
+
+    expect(runtimeDraft.config.startUrls).toEqual(draft.config.startUrls)
+    expect(runtimeDraft.config.maxPages).toBe(7)
+    expect(runtimeDraft.config.maxItemsPerRun).toBe(42)
+    expect(runtimeDraft.config.fetchDetailPages).toBe(true)
+    expect(runtimeDraft.config.itemSelector).toBe('div.grid-item')
+    expect(runtimeDraft.config.nextPageSelector).toContain('a.next')
+    expect(runtimeDraft.config.allowedDomains).toEqual(
+      expect.arrayContaining(['www.yachtworld.com', 'images.yachtworld.com']),
+    )
+    expect(
+      runtimeDraft.config.fields.find(
+        (field) => field.scope === 'detail' && field.key === 'images',
+      )?.selector,
+    ).toContain('div.style-module_mediaCarousel__gADiR')
   })
 })

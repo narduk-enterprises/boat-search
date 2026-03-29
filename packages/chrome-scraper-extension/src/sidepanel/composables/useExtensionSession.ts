@@ -3,10 +3,13 @@ import { createDefaultSession, createFieldRule } from '@/shared/defaults'
 import {
   buildPresetDraft,
   buildPresetDraftFingerprint,
+  buildRuntimePresetDraft,
   canAutoApplySitePreset,
   describePresetApplication,
   findMatchingSitePreset,
   getSitePresetLabel,
+  isTrustedPresetId,
+  normalizePresetRecord,
 } from '@/shared/sitePresets'
 import { buildImportUrl } from '@/shared/transfer'
 import {
@@ -94,8 +97,36 @@ type ExtensionWindow = Window & {
   __BOAT_SEARCH_EXTENSION_DEBUG__?: ExtensionDebugSnapshot
 }
 
+class BoatSearchRequestError extends Error {
+  method: string
+  path: string
+  status: number | null
+  phase: 'network' | 'response'
+
+  constructor(
+    message: string,
+    options: {
+      method: string
+      path: string
+      status?: number | null
+      phase: 'network' | 'response'
+    },
+  ) {
+    super(message)
+    this.name = 'BoatSearchRequestError'
+    this.method = options.method
+    this.path = options.path
+    this.status = options.status ?? null
+    this.phase = options.phase
+  }
+}
+
 function uniqueStrings(values: string[]) {
   return [...new Set(values.filter(Boolean))]
+}
+
+function isBoatSearchRequestError(error: unknown): error is BoatSearchRequestError {
+  return error instanceof BoatSearchRequestError
 }
 
 function normalizeSessionValueSource(value: unknown): SessionValueSource {
@@ -160,6 +191,89 @@ async function readErrorMessage(response: Response) {
 
 function getBoatSearchBaseUrl(sessionValue: ExtensionSession) {
   return sessionValue.appBaseUrl.trim().replace(/\/+$/g, '')
+}
+
+function sanitizeFileStem(value: string) {
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+}
+
+function formatCsvTimestamp() {
+  const now = new Date()
+  const parts = [
+    now.getUTCFullYear(),
+    String(now.getUTCMonth() + 1).padStart(2, '0'),
+    String(now.getUTCDate()).padStart(2, '0'),
+    String(now.getUTCHours()).padStart(2, '0'),
+    String(now.getUTCMinutes()).padStart(2, '0'),
+    String(now.getUTCSeconds()).padStart(2, '0'),
+  ]
+
+  return `${parts[0]}${parts[1]}${parts[2]}-${parts[3]}${parts[4]}${parts[5]}`
+}
+
+function resolveBrowserScrapeRuntimeConfig(
+  sessionValue: ExtensionSession,
+  draft: ScraperPipelineDraft,
+) {
+  const appliedPresetId = isTrustedPresetId(sessionValue.preset.appliedPresetId)
+    ? sessionValue.preset.appliedPresetId
+    : null
+  if (appliedPresetId) {
+    return {
+      draft,
+      presetId: appliedPresetId,
+      usedRuntimePresetOverride: false,
+    }
+  }
+
+  const matchedPresetId = isTrustedPresetId(sessionValue.preset.matchedPresetId)
+    ? sessionValue.preset.matchedPresetId
+    : null
+  if (!matchedPresetId) {
+    return {
+      draft,
+      presetId: null,
+      usedRuntimePresetOverride: false,
+    }
+  }
+
+  const pageUrl =
+    draft.config.startUrls.find((entry) => entry.trim())?.trim() ||
+    sessionValue.currentTabUrl?.trim() ||
+    ''
+  if (!pageUrl) {
+    return {
+      draft,
+      presetId: matchedPresetId,
+      usedRuntimePresetOverride: false,
+    }
+  }
+
+  return {
+    draft: buildRuntimePresetDraft(draft, matchedPresetId, pageUrl),
+    presetId: matchedPresetId,
+    usedRuntimePresetOverride: true,
+  }
+}
+
+function escapeCsvCell(value: unknown) {
+  const normalized = Array.isArray(value)
+    ? value.join(' | ')
+    : value == null
+      ? ''
+      : typeof value === 'object'
+        ? JSON.stringify(value)
+        : String(value)
+
+  if (/[",\n\r]/.test(normalized)) {
+    return `"${normalized.replace(/"/g, '""')}"`
+  }
+
+  return normalized
 }
 
 function createBoatSearchHeaders(sessionValue: ExtensionSession, extraHeaders: HeadersInit = {}) {
@@ -1363,6 +1477,164 @@ export function useExtensionSession() {
     return nextRecord
   }
 
+  function buildBrowserRecordIdentity(record: BrowserScrapeRecord) {
+    return record.url || record.listingId || `${record.source}:${record.title || ''}:${record.location || ''}`
+  }
+
+  function upsertBrowserRunRecord(records: BrowserScrapeRecord[], record: BrowserScrapeRecord) {
+    const identity = buildBrowserRecordIdentity(record)
+    const existingIndex = records.findIndex(
+      (entry) => buildBrowserRecordIdentity(entry) === identity,
+    )
+
+    if (existingIndex >= 0) {
+      records.splice(existingIndex, 1, mergeBrowserRecord(records[existingIndex]!, record))
+      return
+    }
+
+    records.push(record)
+  }
+
+  function buildBrowserRunCsv(records: BrowserScrapeRecord[]) {
+    const headers = [
+      'source',
+      'url',
+      'listingId',
+      'title',
+      'make',
+      'model',
+      'year',
+      'length',
+      'price',
+      'currency',
+      'location',
+      'city',
+      'state',
+      'country',
+      'description',
+      'sellerType',
+      'listingType',
+      'images',
+      'fullText',
+      'warnings',
+    ]
+
+    const rows = records.map((record) =>
+      [
+        record.source,
+        record.url,
+        record.listingId,
+        record.title,
+        record.make,
+        record.model,
+        record.year,
+        record.length,
+        record.price,
+        record.currency,
+        record.location,
+        record.city,
+        record.state,
+        record.country,
+        record.description,
+        record.sellerType,
+        record.listingType,
+        record.images,
+        record.fullText,
+        record.warnings,
+      ]
+        .map((value) => escapeCsvCell(value))
+        .join(','),
+    )
+
+    return [headers.join(','), ...rows].join('\r\n')
+  }
+
+  async function downloadBrowserRunCsv(draft: ScraperPipelineDraft, records: BrowserScrapeRecord[]) {
+    if (typeof document === 'undefined' || typeof URL === 'undefined') {
+      throw new Error('CSV download is unavailable in this browser context.')
+    }
+
+    const stem = sanitizeFileStem(draft.name || draft.boatSource || 'browser-scrape') || 'browser-scrape'
+    const fileName = `${stem}-${formatCsvTimestamp()}.csv`
+    const blob = new Blob([buildBrowserRunCsv(records)], {
+      type: 'text/csv;charset=utf-8',
+    })
+    const blobUrl = URL.createObjectURL(blob)
+
+    try {
+      const link = document.createElement('a')
+      link.href = blobUrl
+      link.download = fileName
+      link.rel = 'noopener'
+      document.body.append(link)
+      link.click()
+      link.remove()
+    } finally {
+      window.setTimeout(() => {
+        URL.revokeObjectURL(blobUrl)
+      }, 1_000)
+    }
+
+    return fileName
+  }
+
+  async function runCsvFallbackScrape(
+    draft: ScraperPipelineDraft,
+    presetId: SitePresetId | null,
+    reason: string,
+    seededRecords: BrowserScrapeRecord[] = [],
+  ) {
+    const localRecords = [...seededRecords]
+    const localRunState = {
+      recordsPersisted: localRecords.length,
+      imagesUploaded: 0,
+    }
+
+    statusMessage.value = 'Boat Search is unavailable, so the helper is scraping locally and preparing a CSV...'
+    recordDebugEvent(
+      'browser-scrape-csv-fallback-started',
+      'Boat Search failed, so the helper is retrying as a local CSV export.',
+      {
+        reason,
+        seededRecordCount: seededRecords.length,
+      },
+    )
+
+    const browserRun = await crawlDraftInBrowser(
+      draft,
+      presetId,
+      localRunState,
+      async (record) => {
+        upsertBrowserRunRecord(localRecords, cloneSerializableValue(record))
+        localRunState.recordsPersisted = localRecords.length
+      },
+      async (_summary, progress) => {
+        browserRunProgress.value = {
+          ...progress,
+          recordsPersisted: localRecords.length,
+          imagesUploaded: 0,
+        }
+      },
+    )
+
+    const fileName = await downloadBrowserRunCsv(draft, localRecords)
+    browserRunProgress.value = null
+    errorMessage.value = ''
+    remoteRun.value = null
+    statusMessage.value = `Boat Search failed (${reason}). Downloaded ${fileName} with ${localRecords.length} rows instead.`
+    recordDebugEvent(
+      'browser-scrape-csv-fallback-complete',
+      'Completed a local browser scrape and downloaded a CSV fallback.',
+      {
+        fileName,
+        recordCount: localRecords.length,
+        pagesVisited: browserRun.summary.pagesVisited,
+        itemsSeen: browserRun.summary.itemsSeen,
+        itemsExtracted: browserRun.summary.itemsExtracted,
+      },
+    )
+  }
+
   async function fetchBoatSearchJson<T>(path: string, init: RequestInit = {}) {
     const base = getBoatSearchBaseUrl(session.value)
     if (!base) {
@@ -1396,7 +1668,11 @@ export function useExtensionSession() {
         url: requestUrl,
         phase: 'network',
       })
-      throw error instanceof Error ? error : new Error(message)
+      throw new BoatSearchRequestError(message, {
+        method,
+        path,
+        phase: 'network',
+      })
     }
 
     if (!response.ok) {
@@ -1408,7 +1684,12 @@ export function useExtensionSession() {
         phase: 'response',
         status: response.status,
       })
-      throw new Error(message)
+      throw new BoatSearchRequestError(message, {
+        method,
+        path,
+        status: response.status,
+        phase: 'response',
+      })
     }
 
     return (await response.json()) as T
@@ -1868,7 +2149,14 @@ export function useExtensionSession() {
 
         const recordIndex = searchRecords.findIndex((entry) => entry.url === record.url)
         if (recordIndex >= 0) {
-          const mergedRecord = mergeBrowserRecord(searchRecords[recordIndex]!, detailResult.record)
+          const mergedRecord = normalizePresetRecord(
+            presetId,
+            mergeBrowserRecord(searchRecords[recordIndex]!, detailResult.record),
+            {
+              context: 'detail',
+              pageUrl: detailResult.pageUrl,
+            },
+          )
           searchRecords.splice(recordIndex, 1, mergedRecord)
           await onRecord(mergedRecord)
           searchWarnings.push(...detailResult.warnings)
@@ -1970,6 +2258,8 @@ export function useExtensionSession() {
     statusMessage.value = 'Verifying the Boat Search connection...'
     let activeRun: ExtensionRunStartResponse | null = null
     let activeDraft: ScraperPipelineDraft | null = null
+    let activePresetId: SitePresetId | null = null
+    const scrapedRecords: BrowserScrapeRecord[] = []
     const runState = {
       inserted: 0,
       updated: 0,
@@ -1982,11 +2272,25 @@ export function useExtensionSession() {
         throw new Error('Add a Boat Search API key before starting a browser scrape.')
       }
 
+      const runtimeConfig = resolveBrowserScrapeRuntimeConfig(
+        session.value,
+        cloneSerializableValue(session.value.draft),
+      )
+      const draft = runtimeConfig.draft
+      activeDraft = draft
+      activePresetId = runtimeConfig.presetId
+      if (runtimeConfig.usedRuntimePresetOverride && activePresetId) {
+        recordDebugEvent(
+          'browser-scrape-runtime-preset-applied',
+          `Using the matched ${getSitePresetLabel(activePresetId) || 'trusted'} preset selectors for the browser scrape.`,
+          {
+            presetId: activePresetId,
+          },
+        )
+      }
       const authStatus = await verifyBoatSearchConnection(true)
       const imageUploadEnabled = Boolean(authStatus?.imageUploadEnabled)
 
-      const draft = cloneSerializableValue(session.value.draft)
-      activeDraft = draft
       const run = await fetchBoatSearchJson<ExtensionRunStartResponse>(
         '/api/admin/scraper-extension/run/start',
         {
@@ -2003,7 +2307,6 @@ export function useExtensionSession() {
           jobId: run.jobId,
         },
       )
-      const activePresetId = session.value.preset.appliedPresetId
       const uploadedImageCache = new Map<string, string>()
       if (!imageUploadEnabled) {
         recordDebugEvent(
@@ -2017,6 +2320,7 @@ export function useExtensionSession() {
         activePresetId,
         runState,
         async (record) => {
+          upsertBrowserRunRecord(scrapedRecords, cloneSerializableValue(record))
           const imageResult = await storeRecordImagesInR2(
             record,
             uploadedImageCache,
@@ -2105,6 +2409,39 @@ export function useExtensionSession() {
       )
       return
     } catch (error: unknown) {
+      const fallbackDraft = activeDraft ? cloneSerializableValue(activeDraft) : cloneSerializableValue(session.value.draft)
+      if (isBoatSearchRequestError(error)) {
+        try {
+          await runCsvFallbackScrape(
+            fallbackDraft,
+            activePresetId,
+            error.message,
+            scrapedRecords,
+          )
+          return
+        } catch (fallbackError: unknown) {
+          recordDebugEvent(
+            'browser-scrape-csv-fallback-failed',
+            fallbackError instanceof Error
+              ? fallbackError.message
+              : 'The CSV fallback scrape failed.',
+          )
+          const fallbackMessage =
+            fallbackError instanceof Error
+              ? fallbackError.message
+              : 'The CSV fallback scrape failed.'
+          errorMessage.value = `${error.message} The CSV fallback also failed: ${fallbackMessage}`
+          statusMessage.value = 'Browser scrape failed'
+          recordDebugEvent('browser-scrape-failed', errorMessage.value, {
+            pagesVisited: browserRunProgress.value?.pagesVisited ?? 0,
+            itemsSeen: browserRunProgress.value?.itemsSeen ?? 0,
+            itemsExtracted: browserRunProgress.value?.itemsExtracted ?? 0,
+            recordsPersisted: runState.recordsPersisted,
+            imagesUploaded: runState.imagesUploaded,
+          })
+          return
+        }
+      }
       if (browserRunProgress.value && activeRun && activeDraft) {
         try {
           await fetchBoatSearchJson('/api/admin/scraper-extension/run/fail', {
