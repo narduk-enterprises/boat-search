@@ -33,6 +33,22 @@ describe('scraper pipeline draft schema', () => {
     expect(parsed.success).toBe(false)
   })
 
+  it('accepts crawl limits above the legacy 25-page ceiling', () => {
+    const draft = createEmptyScraperPipelineDraft()
+    draft.name = 'Large crawl pipeline'
+    draft.boatSource = 'boats.com'
+    draft.config.startUrls = ['https://example.com/listings']
+    draft.config.itemSelector = '.listing'
+    draft.config.maxPages = 120
+    draft.config.maxItemsPerRun = 1000
+
+    const parsed = scraperPipelineDraftSchema.safeParse(draft)
+
+    expect(parsed.success).toBe(true)
+    expect(parsed.data?.config.maxPages).toBe(120)
+    expect(parsed.data?.config.maxItemsPerRun).toBe(1000)
+  })
+
   it('normalizes line-separated values for textarea inputs', () => {
     expect(multilineToList(' example.com \n\n boats.com \n')).toEqual(['example.com', 'boats.com'])
   })

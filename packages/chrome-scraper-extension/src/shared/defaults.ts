@@ -8,6 +8,11 @@ import type {
 } from './types'
 import { createDefaultFixtureCaptureSessionState } from './fixtureCapture'
 
+export const DEFAULT_BROWSER_SCRAPE_MAX_PAGES = 100
+export const MAX_BROWSER_SCRAPE_MAX_PAGES = 500
+export const DEFAULT_BROWSER_SCRAPE_MAX_ITEMS_PER_RUN = 1000
+export const MAX_BROWSER_SCRAPE_MAX_ITEMS_PER_RUN = 2000
+
 export type SessionDefaults = Partial<Omit<ExtensionSession, 'connection' | 'preset' | 'draft'>> & {
   connection?: Partial<ExtensionConnection>
   preset?: Partial<ExtensionPresetState>
@@ -46,8 +51,8 @@ export function createEmptyDraft(): ScraperPipelineDraft {
       allowedDomains: [],
       itemSelector: '',
       nextPageSelector: '',
-      maxPages: 25,
-      maxItemsPerRun: 1000,
+      maxPages: DEFAULT_BROWSER_SCRAPE_MAX_PAGES,
+      maxItemsPerRun: DEFAULT_BROWSER_SCRAPE_MAX_ITEMS_PER_RUN,
       fetchDetailPages: true,
       fields: [
         createFieldRule('url', 'item', 'a', { extract: 'attr', attribute: 'href', transform: 'url' }),

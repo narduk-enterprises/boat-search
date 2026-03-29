@@ -1,5 +1,10 @@
 import { computed, onScopeDispose, ref, shallowRef, watch } from 'vue'
-import { createDefaultSession, createFieldRule } from '@/shared/defaults'
+import {
+  createDefaultSession,
+  createFieldRule,
+  MAX_BROWSER_SCRAPE_MAX_ITEMS_PER_RUN,
+  MAX_BROWSER_SCRAPE_MAX_PAGES,
+} from '@/shared/defaults'
 import {
   buildFixtureCaptureFileNames,
   buildFixtureCaptureFileStem,
@@ -373,12 +378,17 @@ function normalizeDraft(draft: unknown, fallback: ScraperPipelineDraft): Scraper
       ...rawConfig,
       startUrls: toStringArray(rawConfig.startUrls),
       allowedDomains: toStringArray(rawConfig.allowedDomains),
-      maxPages: toBoundedInteger(rawConfig.maxPages, fallback.config.maxPages, 1, 25),
+      maxPages: toBoundedInteger(
+        rawConfig.maxPages,
+        fallback.config.maxPages,
+        1,
+        MAX_BROWSER_SCRAPE_MAX_PAGES,
+      ),
       maxItemsPerRun: toBoundedInteger(
         rawConfig.maxItemsPerRun,
         fallback.config.maxItemsPerRun,
         1,
-        2000,
+        MAX_BROWSER_SCRAPE_MAX_ITEMS_PER_RUN,
       ),
       fetchDetailPages:
         typeof rawConfig.fetchDetailPages === 'boolean'

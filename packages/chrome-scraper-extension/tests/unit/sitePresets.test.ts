@@ -497,8 +497,8 @@ describe('site presets', () => {
       'https://www.yachtworld.com/boats-for-sale/type-power/class-power-saltwater-fishing/',
     ]
     draft.config.allowedDomains = ['www.yachtworld.com']
-    draft.config.maxPages = 7
-    draft.config.maxItemsPerRun = 42
+    draft.config.maxPages = 120
+    draft.config.maxItemsPerRun = 1500
     draft.config.fetchDetailPages = true
     draft.config.itemSelector = '.stale-card'
     draft.config.nextPageSelector = '.stale-next'
@@ -524,8 +524,8 @@ describe('site presets', () => {
     )
 
     expect(runtimeDraft.config.startUrls).toEqual(draft.config.startUrls)
-    expect(runtimeDraft.config.maxPages).toBe(7)
-    expect(runtimeDraft.config.maxItemsPerRun).toBe(42)
+    expect(runtimeDraft.config.maxPages).toBe(120)
+    expect(runtimeDraft.config.maxItemsPerRun).toBe(1500)
     expect(runtimeDraft.config.fetchDetailPages).toBe(true)
     expect(runtimeDraft.config.itemSelector).toBe('div.grid-item')
     expect(runtimeDraft.config.nextPageSelector).toContain('a.next')

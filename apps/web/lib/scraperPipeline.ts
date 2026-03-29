@@ -24,6 +24,8 @@ export const SCRAPER_FIELD_KEYS = [
 export const SCRAPER_FIELD_SCOPES = ['item', 'detail'] as const
 export const SCRAPER_FIELD_EXTRACT_TYPES = ['text', 'attr', 'html'] as const
 export const SCRAPER_FIELD_TRANSFORMS = ['text', 'price', 'year', 'integer', 'url'] as const
+export const SCRAPER_PIPELINE_MAX_PAGES = 500
+export const SCRAPER_PIPELINE_MAX_ITEMS_PER_RUN = 2000
 
 export type ScraperFieldKey = (typeof SCRAPER_FIELD_KEYS)[number]
 export type ScraperFieldScope = (typeof SCRAPER_FIELD_SCOPES)[number]
@@ -82,8 +84,13 @@ export const scraperPipelineConfigSchema = z
     allowedDomains: z.array(z.string().trim().min(1)).default([]),
     itemSelector: z.string().trim().min(1, 'Item selector is required'),
     nextPageSelector: z.string().trim().optional().default(''),
-    maxPages: z.number().int().min(1).max(25).default(1),
-    maxItemsPerRun: z.number().int().min(1).max(250).default(50),
+    maxPages: z.number().int().min(1).max(SCRAPER_PIPELINE_MAX_PAGES).default(1),
+    maxItemsPerRun: z
+      .number()
+      .int()
+      .min(1)
+      .max(SCRAPER_PIPELINE_MAX_ITEMS_PER_RUN)
+      .default(50),
     fetchDetailPages: z.boolean().default(false),
     fields: z.array(scraperFieldSchema).min(1, 'Add at least one field rule'),
   })
