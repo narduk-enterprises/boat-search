@@ -17,14 +17,14 @@ useWebPageSchema({
 
 <template>
   <UPage>
-    <UPageSection :ui="{ wrapper: 'py-8 sm:py-12' }">
-      <div class="mx-auto flex min-h-[calc(100dvh-16rem)] max-w-5xl items-center justify-center">
+    <UPageSection :ui="{ wrapper: 'py-4 sm:py-6' }">
+      <div class="mx-auto flex min-h-[calc(100dvh-20rem)] max-w-5xl items-center justify-center">
         <div
-          class="brand-surface flex w-full flex-col items-center gap-8 rounded-[2rem] px-6 py-10 text-center shadow-card sm:px-10 sm:py-14"
+          class="brand-surface flex w-full max-w-4xl flex-col items-center gap-8 rounded-[2rem] px-6 py-10 text-center shadow-card sm:px-10 sm:py-12"
         >
-          <div class="space-y-4">
+          <div class="max-w-3xl space-y-4">
             <UBadge label="Boat Search" color="primary" variant="subtle" icon="i-lucide-waves" />
-            <h1 class="mx-auto max-w-4xl text-balance text-4xl font-bold text-default sm:text-6xl">
+            <h1 class="mx-auto max-w-3xl text-balance text-4xl font-bold text-default sm:text-6xl">
               Start with the market, or jump straight to tailored suggestions.
             </h1>
             <p class="mx-auto max-w-2xl text-base leading-7 text-muted sm:text-xl">
@@ -32,12 +32,12 @@ useWebPageSchema({
             </p>
           </div>
 
-          <div class="flex w-full max-w-3xl flex-col gap-4 sm:flex-row">
+          <div class="grid w-full max-w-3xl grid-cols-1 gap-4 sm:grid-cols-2">
             <UButton
               to="/boats-for-sale"
               label="View Live Inventory"
               icon="i-lucide-search"
-              class="min-h-18 w-full justify-center rounded-[1.4rem] px-6 py-5 text-lg font-semibold sm:flex-1 sm:text-xl"
+              class="min-h-18 w-full justify-center rounded-[1.4rem] px-6 py-5 text-lg font-semibold sm:text-xl"
             />
             <UButton
               to="/login"
@@ -45,7 +45,7 @@ useWebPageSchema({
               color="neutral"
               variant="soft"
               icon="i-lucide-sparkles"
-              class="min-h-18 w-full justify-center rounded-[1.4rem] px-6 py-5 text-lg font-semibold sm:flex-1 sm:text-xl"
+              class="min-h-18 w-full justify-center rounded-[1.4rem] px-6 py-5 text-lg font-semibold sm:text-xl"
             />
           </div>
         </div>
