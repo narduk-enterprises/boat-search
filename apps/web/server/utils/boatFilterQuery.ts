@@ -3,6 +3,7 @@ import { boats } from '~~/server/database/schema'
 import { and, desc, gt, gte, like, lte, or, sql, type SQL } from 'drizzle-orm'
 import type { DrizzleD1Database } from 'drizzle-orm/d1'
 import type * as schema from '~~/server/database/schema'
+import { INVENTORY_BOAT_SELECT } from '#server/utils/boatInventory'
 
 /** Filters shared by /api/boats, saved searches, and cron matching. */
 export const boatSearchFilterSchema = z.object({
@@ -63,28 +64,7 @@ export async function selectBoatsWithFilters(
   const where = conditions.length > 0 ? and(...conditions) : undefined
 
   return db
-    .select({
-      id: boats.id,
-      listingId: boats.listingId,
-      source: boats.source,
-      url: boats.url,
-      make: boats.make,
-      model: boats.model,
-      year: boats.year,
-      length: boats.length,
-      price: boats.price,
-      currency: boats.currency,
-      location: boats.location,
-      city: boats.city,
-      state: boats.state,
-      country: boats.country,
-      description: boats.description,
-      sellerType: boats.sellerType,
-      listingType: boats.listingType,
-      images: boats.images,
-      scrapedAt: boats.scrapedAt,
-      updatedAt: boats.updatedAt,
-    })
+    .select(INVENTORY_BOAT_SELECT)
     .from(boats)
     .where(where)
     .orderBy(desc(sql`CAST(${boats.price} AS INTEGER)`))

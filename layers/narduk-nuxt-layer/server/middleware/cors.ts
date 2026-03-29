@@ -24,22 +24,24 @@ export default defineEventHandler((event) => {
   const origin = getHeader(event, 'origin')
   if (!origin) return // Same-origin request — no CORS needed
 
+  const isExtensionOrigin =
+    origin.startsWith('chrome-extension://') || origin.startsWith('moz-extension://')
+  const isScraperExtensionApi = path.startsWith('/api/admin/scraper-extension/')
+
   // Read allowed origins from runtime config
   const config = useRuntimeConfig(event)
   const allowedOriginsRaw = (config as Record<string, unknown>).corsAllowedOrigins as
     | string
     | undefined
 
-  // Default: no CORS allowed (same-origin only)
-  if (!allowedOriginsRaw) return
-
-  const allowedOrigins = allowedOriginsRaw
+  const allowedOrigins = (allowedOriginsRaw || '')
     .split(',')
     .map((o) => o.trim())
     .filter(Boolean)
 
-  // Exact origin matching — no wildcard
-  if (!allowedOrigins.includes(origin)) return
+  const allowOrigin =
+    allowedOrigins.includes(origin) || (isExtensionOrigin && isScraperExtensionApi)
+  if (!allowOrigin) return
 
   // Set CORS headers
   setResponseHeaders(event, {

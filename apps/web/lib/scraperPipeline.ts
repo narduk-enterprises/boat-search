@@ -120,27 +120,92 @@ export const scraperPipelineMutationSchema = scraperPipelineDraftSchema
 export const scraperPipelinePreviewSchema = scraperPipelineDraftSchema
 
 const scraperBrowserFieldValueSchema = z.union([z.string(), z.array(z.string())])
+const scraperNullableStringField = z.string().trim().nullable().optional().default(null)
+const scraperImageReferenceField = z
+  .string()
+  .trim()
+  .min(1)
+  .refine((value) => value.startsWith('/') || /^https?:\/\//i.test(value), {
+    message: 'Image references must be absolute URLs or app-relative asset paths.',
+  })
+
+export const SCRAPER_EXTRA_RECORD_TEXT_KEYS = [
+  'contactInfo',
+  'contactName',
+  'contactPhone',
+  'otherDetails',
+  'disclaimer',
+  'features',
+  'electricalEquipment',
+  'electronics',
+  'insideEquipment',
+  'outsideEquipment',
+  'additionalEquipment',
+  'propulsion',
+  'engineMake',
+  'engineModel',
+  'engineYearDetail',
+  'totalPower',
+  'engineHours',
+  'engineTypeDetail',
+  'driveType',
+  'fuelTypeDetail',
+  'propellerType',
+  'propellerMaterial',
+  'specifications',
+  'cruisingSpeed',
+  'maxSpeed',
+  'range',
+  'lengthOverall',
+  'maxBridgeClearance',
+  'maxDraft',
+  'minDraftDetail',
+  'beamDetail',
+  'dryWeight',
+  'windlass',
+  'electricalCircuit',
+  'deadriseAtTransom',
+  'hullMaterial',
+  'hullShape',
+  'keelType',
+  'freshWaterTank',
+  'fuelTank',
+  'holdingTank',
+  'guestHeads',
+] as const
+
+export type ScraperExtraRecordTextKey = (typeof SCRAPER_EXTRA_RECORD_TEXT_KEYS)[number]
+
+function buildNullableStringShape<const TKeys extends readonly string[]>(keys: TKeys) {
+  return Object.fromEntries(keys.map((key) => [key, scraperNullableStringField])) as {
+    [K in TKeys[number]]: typeof scraperNullableStringField
+  }
+}
+
+const scraperExtraRecordTextShape = buildNullableStringShape(SCRAPER_EXTRA_RECORD_TEXT_KEYS)
 
 export const scraperBrowserRunRecordSchema = z.object({
   source: z.string().trim().min(1).max(80),
   url: z.string().url().nullable(),
-  listingId: z.string().trim().nullable(),
-  title: z.string().trim().nullable(),
-  make: z.string().trim().nullable(),
-  model: z.string().trim().nullable(),
+  listingId: scraperNullableStringField,
+  title: scraperNullableStringField,
+  make: scraperNullableStringField,
+  model: scraperNullableStringField,
   year: z.number().int().nullable(),
-  length: z.string().trim().nullable(),
-  price: z.string().trim().nullable(),
-  currency: z.string().trim().nullable(),
-  location: z.string().trim().nullable(),
-  city: z.string().trim().nullable(),
-  state: z.string().trim().nullable(),
-  country: z.string().trim().nullable(),
-  description: z.string().trim().nullable(),
-  sellerType: z.string().trim().nullable(),
-  listingType: z.string().trim().nullable(),
-  images: z.array(z.string().url()).default([]),
-  fullText: z.string().trim().nullable(),
+  length: scraperNullableStringField,
+  price: scraperNullableStringField,
+  currency: scraperNullableStringField,
+  location: scraperNullableStringField,
+  city: scraperNullableStringField,
+  state: scraperNullableStringField,
+  country: scraperNullableStringField,
+  description: scraperNullableStringField,
+  ...scraperExtraRecordTextShape,
+  sellerType: scraperNullableStringField,
+  listingType: scraperNullableStringField,
+  images: z.array(scraperImageReferenceField).default([]),
+  sourceImages: z.array(scraperImageReferenceField).optional().default([]),
+  fullText: scraperNullableStringField,
   rawFields: z.record(z.string(), scraperBrowserFieldValueSchema).default({}),
   warnings: z.array(z.string()).default([]),
 })
@@ -223,16 +288,68 @@ export type ScraperPipelineStreamComplete = z.infer<typeof scraperPipelineStream
 export type ScraperPipelineStreamFail = z.infer<typeof scraperPipelineStreamFailSchema>
 
 export interface ScraperRunRecord {
+  source: string
   url: string | null
   title: string | null
   listingId: string | null
   make: string | null
   model: string | null
   year: number | null
+  length: string | null
   price: string | null
+  currency: string | null
   location: string | null
+  city: string | null
+  state: string | null
+  country: string | null
   images: string[]
+  sourceImages: string[]
   description: string | null
+  contactInfo: string | null
+  contactName: string | null
+  contactPhone: string | null
+  otherDetails: string | null
+  disclaimer: string | null
+  features: string | null
+  electricalEquipment: string | null
+  electronics: string | null
+  insideEquipment: string | null
+  outsideEquipment: string | null
+  additionalEquipment: string | null
+  propulsion: string | null
+  engineMake: string | null
+  engineModel: string | null
+  engineYearDetail: string | null
+  totalPower: string | null
+  engineHours: string | null
+  engineTypeDetail: string | null
+  driveType: string | null
+  fuelTypeDetail: string | null
+  propellerType: string | null
+  propellerMaterial: string | null
+  specifications: string | null
+  cruisingSpeed: string | null
+  maxSpeed: string | null
+  range: string | null
+  lengthOverall: string | null
+  maxBridgeClearance: string | null
+  maxDraft: string | null
+  minDraftDetail: string | null
+  beamDetail: string | null
+  dryWeight: string | null
+  windlass: string | null
+  electricalCircuit: string | null
+  deadriseAtTransom: string | null
+  hullMaterial: string | null
+  hullShape: string | null
+  keelType: string | null
+  freshWaterTank: string | null
+  fuelTank: string | null
+  holdingTank: string | null
+  guestHeads: string | null
+  sellerType: string | null
+  listingType: string | null
+  fullText: string | null
   rawFields: Record<string, string | string[]>
   warnings: string[]
 }

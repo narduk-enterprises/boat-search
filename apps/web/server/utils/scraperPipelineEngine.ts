@@ -1,16 +1,20 @@
 import { desc, eq, inArray } from 'drizzle-orm'
 import type { H3Event } from 'h3'
 import { load, type CheerioAPI } from 'cheerio'
-import type {
-  ScraperBrowserRunProgress,
-  ScraperBrowserRunRecord,
-  ScraperBrowserRunSummary,
-  ScraperFieldRule,
-  ScraperPipelineDraft,
-  ScraperRunRecord,
-  ScraperRunSummary,
+import {
+  SCRAPER_EXTRA_RECORD_TEXT_KEYS,
+  scraperPipelineDraftSchema,
+  type ScraperExtraRecordTextKey,
+  type ScraperBrowserRunProgress,
+  type ScraperBrowserRunRecord,
+  type ScraperBrowserRunSummary,
+  type ScraperFieldRule,
+  type ScraperPipelineDraft,
+  type ScraperRunRecord,
+  type ScraperRunSummary,
 } from '~~/lib/scraperPipeline'
-import { scraperPipelineDraftSchema } from '~~/lib/scraperPipeline'
+import { ALLOWED_TYPES, MAX_FILE_SIZE, normalizeExtension } from '#layer/server/utils/upload'
+import { uploadToR2 } from '#layer/server/utils/r2'
 import { cleanBoatDescription } from '#server/utils/boatInventory'
 import { useAppDatabase } from '#server/utils/database'
 import { boats, crawlJobs } from '#server/database/schema'
@@ -18,18 +22,7 @@ import { markScraperPipelineRun } from '#server/utils/scraperPipelineStore'
 
 type SelectorContext = ReturnType<CheerioAPI>
 
-type ExtractedBoatCandidate = Omit<ScraperRunRecord, 'year'> & {
-  source: string
-  length: string | null
-  currency: string | null
-  city: string | null
-  state: string | null
-  country: string | null
-  sellerType: string | null
-  listingType: string | null
-  fullText: string | null
-  year: number | null
-}
+type ExtractedBoatCandidate = ScraperRunRecord
 
 const FETCH_HEADERS = {
   Accept: 'text/html,application/xhtml+xml',
@@ -44,6 +37,146 @@ function dedupeStrings(values: string[]) {
 
 function normalizeWhitespace(value: string) {
   return value.replaceAll(/\s+/g, ' ').trim()
+}
+
+function createEmptyExtraRecordTextFields() {
+  return Object.fromEntries(SCRAPER_EXTRA_RECORD_TEXT_KEYS.map((key) => [key, null])) as Record<
+    ScraperExtraRecordTextKey,
+    string | null
+  >
+}
+
+function pickExtraRecordTextFields(record: Pick<ExtractedBoatCandidate, ScraperExtraRecordTextKey>) {
+  return Object.fromEntries(
+    SCRAPER_EXTRA_RECORD_TEXT_KEYS.map((key) => [key, record[key] ?? null]),
+  ) as Record<ScraperExtraRecordTextKey, string | null>
+}
+
+function toStringArray(value: string | string[] | null | undefined) {
+  if (Array.isArray(value)) {
+    return dedupeStrings(value.map((entry) => normalizeWhitespace(entry)).filter(Boolean))
+  }
+
+  if (typeof value === 'string') {
+    return dedupeStrings(
+      value
+        .split('\n')
+        .map((entry) => normalizeWhitespace(entry))
+        .filter(Boolean),
+    )
+  }
+
+  return []
+}
+
+function isHttpUrl(value: string) {
+  return /^https?:\/\//i.test(value)
+}
+
+function isStoredBoatSearchImageReference(value: string) {
+  const normalized = value.trim()
+  if (!normalized) return false
+
+  try {
+    const url = normalized.startsWith('/')
+      ? new URL(normalized, 'https://boat-search.local')
+      : new URL(normalized)
+    return url.pathname.startsWith('/images/')
+  } catch {
+    return false
+  }
+}
+
+function normalizeImageContentType(value: string | null) {
+  return value?.split(';')[0]?.trim().toLowerCase() || null
+}
+
+function deriveSourceImages(record: ScraperBrowserRunRecord) {
+  const rawImages = toStringArray(record.rawFields.images)
+  const explicitSourceImages = toStringArray(record.sourceImages)
+  const externalCurrentImages = record.images.filter(
+    (image) => isHttpUrl(image) && !isStoredBoatSearchImageReference(image),
+  )
+
+  return dedupeStrings([...explicitSourceImages, ...rawImages, ...externalCurrentImages])
+}
+
+async function mirrorExternalImageToR2(
+  event: H3Event,
+  imageUrl: string,
+  uploadCache: Map<string, Promise<string>>,
+) {
+  const cachedUpload = uploadCache.get(imageUrl)
+  if (cachedUpload) {
+    return await cachedUpload
+  }
+
+  const uploadPromise = (async () => {
+    const response = await fetch(imageUrl, {
+      headers: {
+        Accept: 'image/*',
+      },
+    })
+
+    if (!response.ok) {
+      throw new Error(`Could not mirror image ${imageUrl} (${response.status}).`)
+    }
+
+    const contentType = normalizeImageContentType(response.headers.get('content-type'))
+    if (!contentType || !ALLOWED_TYPES.has(contentType)) {
+      throw new Error(`Skipped unsupported image type ${contentType || 'unknown'} for ${imageUrl}.`)
+    }
+
+    const payload = await response.arrayBuffer()
+    if (payload.byteLength > MAX_FILE_SIZE) {
+      throw new Error(`Skipped oversized image ${imageUrl}; it exceeds ${MAX_FILE_SIZE} bytes.`)
+    }
+
+    const key = `uploads/scraped/${crypto.randomUUID()}.${normalizeExtension(contentType)}`
+    await uploadToR2(event, key, payload, contentType)
+    return `/images/${key}`
+  })()
+
+  uploadCache.set(imageUrl, uploadPromise)
+
+  try {
+    return await uploadPromise
+  } catch (error) {
+    uploadCache.delete(imageUrl)
+    throw error
+  }
+}
+
+async function mirrorCandidateImagesToR2(
+  event: H3Event,
+  candidate: ExtractedBoatCandidate,
+  uploadCache: Map<string, Promise<string>>,
+) {
+  if (!event.context.cloudflare?.env?.BUCKET || !candidate.images.length) {
+    return
+  }
+
+  const nextImages: string[] = []
+  const nextWarnings = [...candidate.warnings]
+
+  for (const image of candidate.images) {
+    if (isStoredBoatSearchImageReference(image) || !isHttpUrl(image)) {
+      nextImages.push(image)
+      continue
+    }
+
+    try {
+      nextImages.push(await mirrorExternalImageToR2(event, image, uploadCache))
+    } catch (error: unknown) {
+      nextImages.push(image)
+      nextWarnings.push(
+        error instanceof Error ? error.message : `Could not mirror image ${image} into storage.`,
+      )
+    }
+  }
+
+  candidate.images = dedupeStrings(nextImages)
+  candidate.warnings = dedupeStrings(nextWarnings)
 }
 
 function applyRegex(value: string, pattern: string) {
@@ -125,8 +258,8 @@ function createEmptyCandidate(source: string): ExtractedBoatCandidate {
   return {
     source,
     url: null,
-    title: null,
     listingId: null,
+    title: null,
     make: null,
     model: null,
     year: null,
@@ -138,9 +271,11 @@ function createEmptyCandidate(source: string): ExtractedBoatCandidate {
     state: null,
     country: null,
     description: null,
+    ...createEmptyExtraRecordTextFields(),
     sellerType: null,
     listingType: null,
     images: [],
+    sourceImages: [],
     fullText: null,
     rawFields: {},
     warnings: [],
@@ -166,9 +301,13 @@ function fromBrowserRunRecord(
   candidate.state = record.state
   candidate.country = record.country
   candidate.description = record.description
+  for (const key of SCRAPER_EXTRA_RECORD_TEXT_KEYS) {
+    candidate[key] = record[key] ?? null
+  }
   candidate.sellerType = record.sellerType
   candidate.listingType = record.listingType
   candidate.images = record.images
+  candidate.sourceImages = deriveSourceImages(record)
   candidate.fullText = record.fullText
   candidate.rawFields = record.rawFields
   candidate.warnings = [...record.warnings]
@@ -301,6 +440,13 @@ function finalizeCandidate(candidate: ExtractedBoatCandidate) {
   if (!candidate.description) candidate.description = cleanBoatDescription(candidate.fullText)
   candidate.description = cleanBoatDescription(candidate.description)
   candidate.images = dedupeStrings(candidate.images)
+  candidate.sourceImages = dedupeStrings(
+    candidate.sourceImages.length
+      ? candidate.sourceImages
+      : candidate.images.filter(
+          (image) => isHttpUrl(image) && !isStoredBoatSearchImageReference(image),
+        ),
+  )
   deriveLocation(candidate)
   candidate.currency = candidate.currency || 'USD'
   candidate.country = candidate.country || 'US'
@@ -517,9 +663,11 @@ function toBoatInsertValues(candidate: ExtractedBoatCandidate, now: string) {
     state: candidate.state,
     country: candidate.country || 'US',
     description: candidate.description,
+    ...pickExtraRecordTextFields(candidate),
     sellerType: candidate.sellerType,
     listingType: candidate.listingType,
     images: candidate.images.length ? JSON.stringify(candidate.images) : null,
+    sourceImages: candidate.sourceImages.length ? JSON.stringify(candidate.sourceImages) : null,
     fullText: candidate.fullText,
     scrapedAt: now,
     updatedAt: now,
@@ -532,6 +680,7 @@ function toBoatInsertValues(candidate: ExtractedBoatCandidate, now: string) {
 
 async function persistCandidates(event: H3Event, candidates: ExtractedBoatCandidate[]) {
   const db = useAppDatabase(event)
+  const uploadedImageCache = new Map<string, Promise<string>>()
   const uniqueCandidates = [
     ...new Map(
       candidates
@@ -550,6 +699,7 @@ async function persistCandidates(event: H3Event, candidates: ExtractedBoatCandid
   let updated = 0
 
   for (const candidate of uniqueCandidates) {
+    await mirrorCandidateImagesToR2(event, candidate, uploadedImageCache)
     const now = new Date().toISOString()
     const values = toBoatInsertValues(candidate, now)
     const existing = existingByUrl.get(candidate.url)
@@ -584,7 +734,7 @@ function toFinalRunSummary(
       ...summary.warnings,
       ...candidates.flatMap((candidate) => candidate.warnings),
     ]),
-    records: candidates as ScraperRunRecord[],
+    records: candidates,
   }
 }
 

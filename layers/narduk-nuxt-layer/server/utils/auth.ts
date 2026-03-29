@@ -204,13 +204,13 @@ export async function destroySession(event: H3Event): Promise<void> {
 export type AuthUser = { id: string; email: string; name: string | null; isAdmin: boolean | null }
 
 /**
- * Get the current user from nuxt-auth-utils session or API key. Throws 401 if not authenticated.
- * Fallback chain: sealed session (nuxt-auth-utils) → API key → 401.
+ * Get the current user from API key or nuxt-auth-utils session. Throws 401 if not authenticated.
+ *
+ * If a machine/API key is explicitly provided, prefer it over any ambient browser
+ * session cookie. This avoids extension and CLI requests being accidentally
+ * downgraded by a non-admin session already present in the browser profile.
  */
 export async function requireAuth(event: H3Event): Promise<AuthUser> {
-  const session = await getUserSession(event)
-  if (session?.user) return session.user as unknown as AuthUser
-
   const apiKeyUser = await authenticateApiKey(event)
   if (apiKeyUser) {
     return {
@@ -220,6 +220,9 @@ export async function requireAuth(event: H3Event): Promise<AuthUser> {
       isAdmin: apiKeyUser.isAdmin,
     }
   }
+
+  const session = await getUserSession(event)
+  if (session?.user) return session.user as unknown as AuthUser
 
   throw createError({
     statusCode: 401,

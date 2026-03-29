@@ -22,9 +22,52 @@ type BoatRow = {
   state: string | null
   country: string | null
   description: string | null
+  contactInfo: string | null
+  contactName: string | null
+  contactPhone: string | null
+  otherDetails: string | null
+  disclaimer: string | null
+  features: string | null
+  electricalEquipment: string | null
+  electronics: string | null
+  insideEquipment: string | null
+  outsideEquipment: string | null
+  additionalEquipment: string | null
+  propulsion: string | null
+  engineMake: string | null
+  engineModel: string | null
+  engineYearDetail: string | null
+  totalPower: string | null
+  engineHours: string | null
+  engineTypeDetail: string | null
+  driveType: string | null
+  fuelTypeDetail: string | null
+  propellerType: string | null
+  propellerMaterial: string | null
+  specifications: string | null
+  cruisingSpeed: string | null
+  maxSpeed: string | null
+  range: string | null
+  lengthOverall: string | null
+  maxBridgeClearance: string | null
+  maxDraft: string | null
+  minDraftDetail: string | null
+  beamDetail: string | null
+  dryWeight: string | null
+  windlass: string | null
+  electricalCircuit: string | null
+  deadriseAtTransom: string | null
+  hullMaterial: string | null
+  hullShape: string | null
+  keelType: string | null
+  freshWaterTank: string | null
+  fuelTank: string | null
+  holdingTank: string | null
+  guestHeads: string | null
   sellerType: string | null
   listingType: string | null
   images: string | null
+  sourceImages: string | null
   scrapedAt: string
   updatedAt: string
 }
@@ -45,11 +88,120 @@ export interface InventoryBoat {
   state: string | null
   country: string | null
   description: string | null
+  contactInfo: string | null
+  contactName: string | null
+  contactPhone: string | null
+  otherDetails: string | null
+  disclaimer: string | null
+  features: string | null
+  electricalEquipment: string | null
+  electronics: string | null
+  insideEquipment: string | null
+  outsideEquipment: string | null
+  additionalEquipment: string | null
+  propulsion: string | null
+  engineMake: string | null
+  engineModel: string | null
+  engineYearDetail: string | null
+  totalPower: string | null
+  engineHours: string | null
+  engineTypeDetail: string | null
+  driveType: string | null
+  fuelTypeDetail: string | null
+  propellerType: string | null
+  propellerMaterial: string | null
+  specifications: string | null
+  cruisingSpeed: string | null
+  maxSpeed: string | null
+  range: string | null
+  lengthOverall: string | null
+  maxBridgeClearance: string | null
+  maxDraft: string | null
+  minDraftDetail: string | null
+  beamDetail: string | null
+  dryWeight: string | null
+  windlass: string | null
+  electricalCircuit: string | null
+  deadriseAtTransom: string | null
+  hullMaterial: string | null
+  hullShape: string | null
+  keelType: string | null
+  freshWaterTank: string | null
+  fuelTank: string | null
+  holdingTank: string | null
+  guestHeads: string | null
   sellerType: string | null
   listingType: string | null
   images: string[]
+  sourceImages: string[]
   scrapedAt: string
   updatedAt: string
+}
+
+export const INVENTORY_BOAT_SELECT = {
+  id: boats.id,
+  listingId: boats.listingId,
+  source: boats.source,
+  url: boats.url,
+  make: boats.make,
+  model: boats.model,
+  year: boats.year,
+  length: boats.length,
+  price: boats.price,
+  currency: boats.currency,
+  location: boats.location,
+  city: boats.city,
+  state: boats.state,
+  country: boats.country,
+  description: boats.description,
+  contactInfo: boats.contactInfo,
+  contactName: boats.contactName,
+  contactPhone: boats.contactPhone,
+  otherDetails: boats.otherDetails,
+  disclaimer: boats.disclaimer,
+  features: boats.features,
+  electricalEquipment: boats.electricalEquipment,
+  electronics: boats.electronics,
+  insideEquipment: boats.insideEquipment,
+  outsideEquipment: boats.outsideEquipment,
+  additionalEquipment: boats.additionalEquipment,
+  propulsion: boats.propulsion,
+  engineMake: boats.engineMake,
+  engineModel: boats.engineModel,
+  engineYearDetail: boats.engineYearDetail,
+  totalPower: boats.totalPower,
+  engineHours: boats.engineHours,
+  engineTypeDetail: boats.engineTypeDetail,
+  driveType: boats.driveType,
+  fuelTypeDetail: boats.fuelTypeDetail,
+  propellerType: boats.propellerType,
+  propellerMaterial: boats.propellerMaterial,
+  specifications: boats.specifications,
+  cruisingSpeed: boats.cruisingSpeed,
+  maxSpeed: boats.maxSpeed,
+  range: boats.range,
+  lengthOverall: boats.lengthOverall,
+  maxBridgeClearance: boats.maxBridgeClearance,
+  maxDraft: boats.maxDraft,
+  minDraftDetail: boats.minDraftDetail,
+  beamDetail: boats.beamDetail,
+  dryWeight: boats.dryWeight,
+  windlass: boats.windlass,
+  electricalCircuit: boats.electricalCircuit,
+  deadriseAtTransom: boats.deadriseAtTransom,
+  hullMaterial: boats.hullMaterial,
+  hullShape: boats.hullShape,
+  keelType: boats.keelType,
+  freshWaterTank: boats.freshWaterTank,
+  fuelTank: boats.fuelTank,
+  holdingTank: boats.holdingTank,
+  guestHeads: boats.guestHeads,
+  sellerType: boats.sellerType,
+  listingType: boats.listingType,
+  images: boats.images,
+  sourceImages: boats.sourceImages,
+  scrapedAt: boats.scrapedAt,
+  updatedAt: boats.updatedAt,
 }
 
 export function cleanBoatDescription(raw: string | null): string | null {
@@ -89,6 +241,7 @@ export function hydrateBoatRow(row: BoatRow): InventoryBoat {
   return {
     ...row,
     images: parseImages(row.images),
+    sourceImages: parseImages(row.sourceImages),
     price: row.price ? Number.parseInt(row.price, 10) : null,
     description: cleanBoatDescription(row.description),
   }
@@ -113,28 +266,7 @@ export async function selectBoatsByIds(db: AppDb, ids: number[]) {
   if (!ids.length) return []
 
   const rows = await db
-    .select({
-      id: boats.id,
-      listingId: boats.listingId,
-      source: boats.source,
-      url: boats.url,
-      make: boats.make,
-      model: boats.model,
-      year: boats.year,
-      length: boats.length,
-      price: boats.price,
-      currency: boats.currency,
-      location: boats.location,
-      city: boats.city,
-      state: boats.state,
-      country: boats.country,
-      description: boats.description,
-      sellerType: boats.sellerType,
-      listingType: boats.listingType,
-      images: boats.images,
-      scrapedAt: boats.scrapedAt,
-      updatedAt: boats.updatedAt,
-    })
+    .select(INVENTORY_BOAT_SELECT)
     .from(boats)
     .where(inArray(boats.id, ids))
 
@@ -178,28 +310,7 @@ export async function selectRecommendationCandidates(
   }
 
   const rows = await db
-    .select({
-      id: boats.id,
-      listingId: boats.listingId,
-      source: boats.source,
-      url: boats.url,
-      make: boats.make,
-      model: boats.model,
-      year: boats.year,
-      length: boats.length,
-      price: boats.price,
-      currency: boats.currency,
-      location: boats.location,
-      city: boats.city,
-      state: boats.state,
-      country: boats.country,
-      description: boats.description,
-      sellerType: boats.sellerType,
-      listingType: boats.listingType,
-      images: boats.images,
-      scrapedAt: boats.scrapedAt,
-      updatedAt: boats.updatedAt,
-    })
+    .select(INVENTORY_BOAT_SELECT)
     .from(boats)
     .where(conditions.length ? and(...conditions) : undefined)
     .orderBy(desc(boats.updatedAt), desc(sql`CAST(${boats.price} AS INTEGER)`))
@@ -210,28 +321,7 @@ export async function selectRecommendationCandidates(
 
 export async function selectInventoryBoat(db: AppDb, boatId: number) {
   const rows = await db
-    .select({
-      id: boats.id,
-      listingId: boats.listingId,
-      source: boats.source,
-      url: boats.url,
-      make: boats.make,
-      model: boats.model,
-      year: boats.year,
-      length: boats.length,
-      price: boats.price,
-      currency: boats.currency,
-      location: boats.location,
-      city: boats.city,
-      state: boats.state,
-      country: boats.country,
-      description: boats.description,
-      sellerType: boats.sellerType,
-      listingType: boats.listingType,
-      images: boats.images,
-      scrapedAt: boats.scrapedAt,
-      updatedAt: boats.updatedAt,
-    })
+    .select(INVENTORY_BOAT_SELECT)
     .from(boats)
     .where(eq(boats.id, boatId))
     .limit(1)
