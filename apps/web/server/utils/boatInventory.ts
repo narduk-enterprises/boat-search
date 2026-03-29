@@ -1,4 +1,4 @@
-import { and, desc, eq, gte, inArray, like, lte, or, sql, type SQL } from 'drizzle-orm'
+import { and, desc, eq, gte, inArray, isNull, like, lte, or, sql, type SQL } from 'drizzle-orm'
 import type { DrizzleD1Database } from 'drizzle-orm/d1'
 import type { BuyerProfile, RecommendationFilters } from '~~/lib/boatFinder'
 import { boats } from '~~/server/database/schema'
@@ -262,13 +262,61 @@ export function deriveRecommendationFilters(profile: BuyerProfile): Recommendati
   }
 }
 
+export async function resolveActiveBoatId(db: AppDb, boatId: number) {
+  const visited = new Set<number>()
+  let currentId: number | null = boatId
+
+  while (currentId != null && !visited.has(currentId)) {
+    visited.add(currentId)
+    const row = await db
+      .select({
+        id: boats.id,
+        supersededByBoatId: boats.supersededByBoatId,
+      })
+      .from(boats)
+      .where(eq(boats.id, currentId))
+      .limit(1)
+      .get()
+
+    if (!row) return null
+    if (row.supersededByBoatId == null) return row.id
+    currentId = row.supersededByBoatId
+  }
+
+  return null
+}
+
 export async function selectBoatsByIds(db: AppDb, ids: number[]) {
   if (!ids.length) return []
 
-  const rows = await db.select(INVENTORY_BOAT_SELECT).from(boats).where(inArray(boats.id, ids))
+  const resolvedIds: number[] = []
+  for (const id of ids) {
+    const resolvedId = await resolveActiveBoatId(db, id)
+    if (resolvedId != null) {
+      resolvedIds.push(resolvedId)
+    }
+  }
+
+  const uniqueResolvedIds = [...new Set(resolvedIds)]
+  if (!uniqueResolvedIds.length) return []
+
+  const rows = await db
+    .select(INVENTORY_BOAT_SELECT)
+    .from(boats)
+    .where(inArray(boats.id, uniqueResolvedIds))
 
   const byId = new Map(rows.map((row) => [row.id, hydrateBoatRow(row)]))
-  return ids.map((id) => byId.get(id)).filter((boat): boat is InventoryBoat => Boolean(boat))
+  const seen = new Set<number>()
+  const hydrated: InventoryBoat[] = []
+  for (const id of resolvedIds) {
+    if (seen.has(id)) continue
+    const boat = byId.get(id)
+    if (!boat) continue
+    seen.add(id)
+    hydrated.push(boat)
+  }
+
+  return hydrated
 }
 
 export async function selectRecommendationCandidates(
@@ -309,7 +357,7 @@ export async function selectRecommendationCandidates(
   const rows = await db
     .select(INVENTORY_BOAT_SELECT)
     .from(boats)
-    .where(conditions.length ? and(...conditions) : undefined)
+    .where(and(isNull(boats.supersededByBoatId), ...(conditions.length ? conditions : [])))
     .orderBy(desc(boats.updatedAt), desc(sql`CAST(${boats.price} AS INTEGER)`))
     .limit(options.limit ?? 120)
 
@@ -317,10 +365,13 @@ export async function selectRecommendationCandidates(
 }
 
 export async function selectInventoryBoat(db: AppDb, boatId: number) {
+  const resolvedBoatId = await resolveActiveBoatId(db, boatId)
+  if (resolvedBoatId == null) return null
+
   const rows = await db
     .select(INVENTORY_BOAT_SELECT)
     .from(boats)
-    .where(eq(boats.id, boatId))
+    .where(eq(boats.id, resolvedBoatId))
     .limit(1)
 
   const row = rows[0]

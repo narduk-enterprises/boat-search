@@ -83,7 +83,7 @@ function buildInsert(boat: NormalizedYachtWorldBoat): string {
     'NULL',
   ]
 
-  return `INSERT INTO boats (${columns.join(', ')}) VALUES (${values.join(', ')});`
+  return `INSERT INTO boats (${columns.join(', ')}) VALUES (${values.join(', ')}) ON CONFLICT(url) DO UPDATE SET listing_id = excluded.listing_id, source = excluded.source, make = excluded.make, model = excluded.model, year = excluded.year, length = excluded.length, price = excluded.price, currency = excluded.currency, location = excluded.location, city = excluded.city, state = excluded.state, country = excluded.country, description = excluded.description, seller_type = excluded.seller_type, listing_type = excluded.listing_type, images = excluded.images, full_text = excluded.full_text, scraped_at = excluded.scraped_at, updated_at = excluded.updated_at, search_length_min = excluded.search_length_min, search_length_max = excluded.search_length_max, search_type = excluded.search_type, search_location = excluded.search_location;`
 }
 
 function main() {
@@ -121,7 +121,7 @@ function main() {
     `-- Source file: ${absolute}`,
     `-- Generated at: ${now}`,
     `-- Row count (listings with URL): ${boats.length}`,
-    '-- NOTE: boats.url is not UNIQUE; re-running inserts duplicates unless you clear or use a staging table.',
+    '-- NOTE: This script upserts on active URL only. Run `pnpm boats:dedupe:rebuild` after importing to refresh canonical entities and diagnostics.',
     '',
     'BEGIN TRANSACTION;',
     '',

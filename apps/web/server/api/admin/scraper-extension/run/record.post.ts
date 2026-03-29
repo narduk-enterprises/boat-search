@@ -20,6 +20,7 @@ export default defineAdminMutation(
     return {
       inserted: result.inserted,
       updated: result.updated,
+      imagesUploaded: result.imagesUploaded,
       warnings: result.candidate.warnings,
     }
   },

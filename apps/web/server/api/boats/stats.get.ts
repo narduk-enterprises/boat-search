@@ -1,5 +1,5 @@
+import { isNull, sql } from 'drizzle-orm'
 import { boats } from '~~/server/database/schema'
-import { sql } from 'drizzle-orm'
 
 export default defineEventHandler(async (event) => {
   const db = useAppDatabase(event)
@@ -15,6 +15,7 @@ export default defineEventHandler(async (event) => {
       maxYear: sql<number>`MAX(${boats.year})`,
     })
     .from(boats)
+    .where(isNull(boats.supersededByBoatId))
 
   const stats = result[0]
 
@@ -25,6 +26,7 @@ export default defineEventHandler(async (event) => {
       count: sql<number>`COUNT(*)`,
     })
     .from(boats)
+    .where(isNull(boats.supersededByBoatId))
     .groupBy(boats.make)
     .orderBy(sql`COUNT(*) DESC`)
     .limit(10)

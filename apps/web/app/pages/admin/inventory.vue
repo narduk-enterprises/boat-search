@@ -17,6 +17,7 @@ useWebPageSchema({
 })
 
 const { data, status } = useInventoryHealth()
+const { data: dedupeData, status: dedupeStatus } = useInventoryDedupe()
 </script>
 
 <template>
@@ -52,10 +53,16 @@ const { data, status } = useInventoryHealth()
     </UPageSection>
 
     <UPageSection :ui="{ wrapper: 'py-4' }">
-      <div v-if="status === 'pending'" class="flex justify-center py-20">
+      <div
+        v-if="status === 'pending' || dedupeStatus === 'pending'"
+        class="flex justify-center py-20"
+      >
         <UIcon name="i-lucide-loader-2" class="size-8 animate-spin text-muted" />
       </div>
-      <InventoryHealthPanel v-else-if="data" :data="data" />
+      <div v-else class="space-y-6">
+        <InventoryHealthPanel v-if="data" :data="data" />
+        <InventoryDedupePanel v-if="dedupeData" :data="dedupeData" />
+      </div>
     </UPageSection>
   </UPage>
 </template>

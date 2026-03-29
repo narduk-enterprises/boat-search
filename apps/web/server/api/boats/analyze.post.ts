@@ -1,6 +1,6 @@
 import { z } from 'zod'
 import { boats, xaiAnalyses } from '~~/server/database/schema'
-import { and, desc, gte, like, lte, sql, type SQL } from 'drizzle-orm'
+import { and, desc, gte, isNull, like, lte, sql, type SQL } from 'drizzle-orm'
 import { definePublicMutation } from '#layer/server/utils/mutation'
 import { analyzeBoats } from '~~/server/utils/xai'
 
@@ -99,7 +99,7 @@ export default definePublicMutation(
         images: boats.images,
       })
       .from(boats)
-      .where(conditions.length > 0 ? and(...conditions) : undefined)
+      .where(and(isNull(boats.supersededByBoatId), ...(conditions.length > 0 ? conditions : [])))
       .orderBy(desc(sql`CAST(${boats.price} AS INTEGER)`))
       .limit(500)
 

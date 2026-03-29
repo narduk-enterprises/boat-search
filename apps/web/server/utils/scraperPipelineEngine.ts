@@ -1,4 +1,4 @@
-import { desc, eq, inArray } from 'drizzle-orm'
+import { desc, eq } from 'drizzle-orm'
 import type { H3Event } from 'h3'
 import { load, type CheerioAPI } from 'cheerio'
 import {
@@ -16,8 +16,9 @@ import {
 import { ALLOWED_TYPES, MAX_FILE_SIZE, normalizeExtension } from '#layer/server/utils/upload'
 import { uploadToR2 } from '#layer/server/utils/r2'
 import { cleanBoatDescription } from '#server/utils/boatInventory'
+import { rebuildBoatDedupeState, upsertBoatSourceListing } from '#server/utils/boatDedupe'
 import { useAppDatabase } from '#server/utils/database'
-import { boats, crawlJobs } from '#server/database/schema'
+import { crawlJobs } from '#server/database/schema'
 import { markScraperPipelineRun } from '#server/utils/scraperPipelineStore'
 
 type SelectorContext = ReturnType<CheerioAPI>
@@ -87,6 +88,10 @@ function isStoredBoatSearchImageReference(value: string) {
   } catch {
     return false
   }
+}
+
+function countStoredBoatSearchImages(values: string[]) {
+  return values.filter((value) => isStoredBoatSearchImageReference(value)).length
 }
 
 function normalizeImageContentType(value: string | null) {
@@ -680,8 +685,11 @@ function toBoatInsertValues(candidate: ExtractedBoatCandidate, now: string) {
   }
 }
 
-async function persistCandidates(event: H3Event, candidates: ExtractedBoatCandidate[]) {
-  const db = useAppDatabase(event)
+async function persistCandidates(
+  event: H3Event,
+  candidates: ExtractedBoatCandidate[],
+  options: { rebuildAfter?: boolean } = {},
+) {
   const uploadedImageCache = new Map<string, Promise<string>>()
   const uniqueCandidates = [
     ...new Map(
@@ -689,14 +697,12 @@ async function persistCandidates(event: H3Event, candidates: ExtractedBoatCandid
         .filter((candidate): candidate is ExtractedBoatCandidate & { url: string } =>
           Boolean(candidate.url),
         )
-        .map((candidate) => [candidate.url, candidate]),
+        .map((candidate) => [
+          candidate.listingId ? `${candidate.source}::${candidate.listingId}` : candidate.url,
+          candidate,
+        ]),
     ).values(),
   ]
-  const urls = uniqueCandidates.map((candidate) => candidate.url)
-  const existingRows = urls.length
-    ? await db.select({ id: boats.id, url: boats.url }).from(boats).where(inArray(boats.url, urls))
-    : []
-  const existingByUrl = new Map(existingRows.map((row) => [row.url, row]))
   let inserted = 0
   let updated = 0
 
@@ -704,16 +710,13 @@ async function persistCandidates(event: H3Event, candidates: ExtractedBoatCandid
     await mirrorCandidateImagesToR2(event, candidate, uploadedImageCache)
     const now = new Date().toISOString()
     const values = toBoatInsertValues(candidate, now)
-    const existing = existingByUrl.get(candidate.url)
+    const persisted = await upsertBoatSourceListing(event, values)
+    inserted += persisted.inserted
+    updated += persisted.updated
+  }
 
-    if (existing) {
-      await db.update(boats).set(values).where(eq(boats.id, existing.id)).run()
-      updated += 1
-      continue
-    }
-
-    await db.insert(boats).values(values).run()
-    inserted += 1
+  if ((options.rebuildAfter ?? true) && uniqueCandidates.length > 0) {
+    await rebuildBoatDedupeState(event)
   }
 
   return { inserted, updated }
@@ -748,10 +751,11 @@ export async function persistScraperBrowserRecord(
   },
 ) {
   const candidate = fromBrowserRunRecord(params.record, params.draft.boatSource)
-  const persisted = await persistCandidates(event, [candidate])
+  const persisted = await persistCandidates(event, [candidate], { rebuildAfter: false })
 
   return {
     candidate,
+    imagesUploaded: countStoredBoatSearchImages(candidate.images),
     ...persisted,
   }
 }
@@ -827,6 +831,7 @@ export async function completeScraperPipelineJob(
 ) {
   const db = useAppDatabase(event)
   const completedAt = new Date().toISOString()
+  await rebuildBoatDedupeState(event)
   const finalSummary = toFinalRunSummary(params.summary, [], params.inserted, params.updated)
 
   await db
@@ -899,6 +904,7 @@ export async function failScraperPipelineJob(
 ) {
   const db = useAppDatabase(event)
   const completedAt = new Date().toISOString()
+  await rebuildBoatDedupeState(event)
   const finalSummary = toFinalRunSummary(params.summary, [], params.inserted, params.updated)
 
   await db

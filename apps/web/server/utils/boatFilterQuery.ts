@@ -1,6 +1,6 @@
 import { z } from 'zod'
 import { boats } from '~~/server/database/schema'
-import { and, desc, gt, gte, like, lte, or, sql, type SQL } from 'drizzle-orm'
+import { and, desc, gt, gte, isNull, like, lte, or, sql, type SQL } from 'drizzle-orm'
 import type { DrizzleD1Database } from 'drizzle-orm/d1'
 import type * as schema from '~~/server/database/schema'
 import { INVENTORY_BOAT_SELECT } from '#server/utils/boatInventory'
@@ -61,7 +61,7 @@ export async function selectBoatsWithFilters(
   if (options.updatedAfter) {
     conditions.push(gt(boats.updatedAt, options.updatedAfter))
   }
-  const where = conditions.length > 0 ? and(...conditions) : undefined
+  const where = and(isNull(boats.supersededByBoatId), ...(conditions.length > 0 ? conditions : []))
 
   return db
     .select(INVENTORY_BOAT_SELECT)

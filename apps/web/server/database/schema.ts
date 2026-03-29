@@ -19,6 +19,10 @@ export const boats = sqliteTable(
     listingId: text('listing_id'),
     source: text('source').notNull().default('boats.com'),
     url: text('url').notNull(),
+    entityId: integer('entity_id'),
+    supersededByBoatId: integer('superseded_by_boat_id'),
+    dedupeMethod: text('dedupe_method'),
+    dedupeConfidence: integer('dedupe_confidence'),
     make: text('make'),
     model: text('model'),
     year: integer('year'),
@@ -87,10 +91,40 @@ export const boats = sqliteTable(
   (table) => [
     index('idx_boats_listing_id').on(table.listingId),
     index('idx_boats_url').on(table.url),
+    index('idx_boats_entity_id').on(table.entityId),
+    index('idx_boats_superseded_by_boat_id').on(table.supersededByBoatId),
     index('idx_boats_make_model').on(table.make, table.model),
     index('idx_boats_year').on(table.year),
     index('idx_boats_price').on(table.price),
     index('idx_boats_state').on(table.state),
+  ],
+)
+
+export const boatEntities = sqliteTable(
+  'boat_entities',
+  {
+    id: integer('id').primaryKey({ autoIncrement: true }),
+    representativeBoatId: integer('representative_boat_id'),
+    createdAt: text('created_at').notNull(),
+    updatedAt: text('updated_at').notNull(),
+  },
+  (table) => [index('idx_boat_entities_representative').on(table.representativeBoatId)],
+)
+
+export const boatDedupeCandidates = sqliteTable(
+  'boat_dedupe_candidates',
+  {
+    id: integer('id').primaryKey({ autoIncrement: true }),
+    leftBoatId: integer('left_boat_id').notNull(),
+    rightBoatId: integer('right_boat_id').notNull(),
+    confidenceScore: integer('confidence_score').notNull(),
+    ruleHitsJson: text('rule_hits_json').notNull(),
+    createdAt: text('created_at').notNull(),
+    updatedAt: text('updated_at').notNull(),
+  },
+  (table) => [
+    index('idx_boat_dedupe_candidates_left').on(table.leftBoatId),
+    index('idx_boat_dedupe_candidates_right').on(table.rightBoatId),
   ],
 )
 

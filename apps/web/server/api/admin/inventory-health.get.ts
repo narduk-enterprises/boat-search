@@ -1,4 +1,4 @@
-import { desc, sql } from 'drizzle-orm'
+import { desc, isNull, sql } from 'drizzle-orm'
 import { requireAdmin } from '#layer/server/utils/auth'
 import { boats, crawlJobs } from '~~/server/database/schema'
 
@@ -15,6 +15,7 @@ export default defineEventHandler(async (event) => {
       lastScrapedAt: sql<string | null>`MAX(${boats.scrapedAt})`,
     })
     .from(boats)
+    .where(isNull(boats.supersededByBoatId))
 
   const sourceRows = await db
     .select({
@@ -23,6 +24,7 @@ export default defineEventHandler(async (event) => {
       latestUpdatedAt: sql<string | null>`MAX(${boats.updatedAt})`,
     })
     .from(boats)
+    .where(isNull(boats.supersededByBoatId))
     .groupBy(boats.source)
 
   const recentCrawls = await db

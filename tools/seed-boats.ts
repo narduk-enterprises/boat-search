@@ -13,6 +13,7 @@ import { existsSync } from 'node:fs'
 import { resolve, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import Database from 'better-sqlite3'
+import { rebuildBoatDedupeInD1 } from './rebuild-boat-dedupe'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 
@@ -147,3 +148,7 @@ for (let i = 0; i < rows.length; i += BATCH_SIZE) {
 }
 
 console.log(`\n\n✅ Seeding complete! ${inserted}/${rows.length} boats inserted into D1.`)
+
+console.log('🔁 Rebuilding canonical entities and dedupe diagnostics...')
+rebuildBoatDedupeInD1({ isProduction, databaseName: D1_DATABASE, wranglerDir: WRANGLER_DIR })
+console.log('   ✅ Dedupe rebuild complete.')

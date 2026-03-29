@@ -13,13 +13,5 @@ export default defineEventHandler(async (event) => {
   const { limit, offset, ...filter } = query
 
   const results = await selectBoatsWithFilters(db, filter, { limit, offset })
-  const cleaned = results.map((boat) => hydrateBoatRow(boat))
-
-  const seen = new Set<string>()
-  return cleaned.filter((boat: (typeof cleaned)[number]) => {
-    const key = `${boat.make || ''}-${boat.model || ''}-${boat.year || ''}`.toLowerCase()
-    if (seen.has(key)) return false
-    seen.add(key)
-    return true
-  })
+  return results.map((boat) => hydrateBoatRow(boat))
 })
