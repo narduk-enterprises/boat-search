@@ -420,10 +420,6 @@ function getYachtWorldSearchFields(analysis?: AutoDetectedAnalysis | null) {
 
 function getYachtWorldDetailFields() {
   return [
-    createFieldRule('url', 'detail', ':root', {
-      regex: '(https?://[^\\s]+)',
-      required: false,
-    }),
     createFieldRule('listingId', 'detail', ':root', {
       regex: '-(\\d{6,})(?:/|$)',
       required: false,

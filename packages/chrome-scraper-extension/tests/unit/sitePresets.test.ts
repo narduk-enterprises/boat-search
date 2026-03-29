@@ -247,5 +247,10 @@ describe('site presets', () => {
         (field) => field.scope === 'detail' && field.key === 'images',
       )?.selector,
     ).toContain('div.style-module_mediaCarousel__gADiR')
+    expect(
+      runtimeDraft.config.fields.some(
+        (field) => field.scope === 'detail' && field.key === 'url',
+      ),
+    ).toBe(false)
   })
 })

@@ -1470,6 +1470,9 @@ export function useExtensionSession() {
     for (const key of scalarKeys) {
       const nextValue = detailPatch[key]
       if (nextValue != null && nextValue !== '') {
+        if (key === 'url' && baseRecord.url) {
+          continue
+        }
         nextRecord[key] = nextValue as never
       }
     }
