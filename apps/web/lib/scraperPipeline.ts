@@ -216,6 +216,7 @@ export const scraperBrowserRunSummarySchema = z.object({
   pagesVisited: z.number().int().min(0),
   itemsSeen: z.number().int().min(0),
   itemsExtracted: z.number().int().min(0),
+  skippedExisting: z.number().int().min(0).default(0),
   visitedUrls: z.array(z.string().url()).default([]),
   warnings: z.array(z.string()).default([]),
 })
@@ -226,6 +227,7 @@ export const scraperBrowserRunProgressSchema = z.object({
   pagesVisited: z.number().int().min(0),
   itemsSeen: z.number().int().min(0),
   itemsExtracted: z.number().int().min(0),
+  skippedExisting: z.number().int().min(0).default(0),
   detailPagesCompleted: z.number().int().min(0),
   detailPagesTotal: z.number().int().min(0),
   recordsPersisted: z.number().int().min(0),
@@ -360,6 +362,7 @@ export interface ScraperRunSummary {
   pagesVisited: number
   itemsSeen: number
   itemsExtracted: number
+  skippedExisting: number
   inserted: number
   updated: number
   visitedUrls: string[]

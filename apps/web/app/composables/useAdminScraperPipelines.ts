@@ -260,7 +260,10 @@ export function useAdminScraperPipelines() {
       previewSummary.value = response.summary
       toast.add({
         title: 'Preview complete',
-        description: `Extracted ${response.summary.itemsExtracted} listing candidates.`,
+        description:
+          response.summary.skippedExisting > 0
+            ? `Extracted ${response.summary.itemsExtracted} listing candidates and skipped ${response.summary.skippedExisting} existing boats.`
+            : `Extracted ${response.summary.itemsExtracted} listing candidates.`,
         color: 'success',
       })
     } catch (error: unknown) {
@@ -301,7 +304,10 @@ export function useAdminScraperPipelines() {
       await refresh()
       toast.add({
         title: 'Pipeline run complete',
-        description: `Inserted ${response.summary.inserted} and updated ${response.summary.updated} boats.`,
+        description:
+          response.summary.skippedExisting > 0
+            ? `Inserted ${response.summary.inserted}, updated ${response.summary.updated}, and skipped ${response.summary.skippedExisting} existing boats.`
+            : `Inserted ${response.summary.inserted} and updated ${response.summary.updated} boats.`,
         color: 'success',
       })
     } catch (error: unknown) {

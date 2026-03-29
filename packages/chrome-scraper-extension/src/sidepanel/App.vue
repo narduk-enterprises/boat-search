@@ -28,6 +28,9 @@ const debugCopyLabel = shallowRef('Copy debug snapshot')
 const expandedCompleteStepId = shallowRef<string | null>(null)
 
 const hasApiKey = computed(() => Boolean(connection.value.apiKey.trim()))
+const hasSavedConnection = computed(() =>
+  Boolean(connection.value.apiKey.trim() || session.value.appBaseUrl.trim()),
+)
 const connectionVerified = computed(() => Boolean(connection.value.verifiedAt))
 const usingDefaultApiKey = computed(() => connection.value.apiKeySource === 'local-default')
 const usingDefaultAppBaseUrl = computed(() => session.value.appBaseUrlSource === 'local-default')
@@ -78,11 +81,11 @@ const connectionStatus = computed<WorkflowStatus>(() => {
 })
 const connectionNote = computed(() => {
   if (connectionVerified.value) {
-    return `Connected as ${connection.value.verifiedEmail || 'an authenticated user'}.`
+    return `Connected as ${connection.value.verifiedEmail || 'an authenticated user'}. This connection is saved locally, so only forget it when rotating keys or switching accounts.`
   }
 
   if (hasApiKey.value) {
-    return 'The API key is saved locally. Test it now, or the scrape flow will verify it before the run starts.'
+    return 'The API key is already saved locally. For normal rescans, use Scan current page. Only forget the connection when rotating keys or switching accounts.'
   }
 
   return 'Paste a Boat Search API key so the extension can write boats and images directly without relying on the website session.'
@@ -138,11 +141,15 @@ const runStatus = computed<WorkflowStatus>(() => {
 })
 const runNote = computed(() => {
   if (remoteRun.value) {
-    return `Last run inserted ${remoteRun.value.summary.inserted} and updated ${remoteRun.value.summary.updated} boats.`
+    return `Last run ${formatRunOutcome(remoteRun.value.summary)} boats.`
   }
 
   if (browserRunProgress.value) {
-    return `Scrape running on ${browserRunProgress.value.pagesVisited} page${browserRunProgress.value.pagesVisited === 1 ? '' : 's'} with ${browserRunProgress.value.itemsExtracted} listing${browserRunProgress.value.itemsExtracted === 1 ? '' : 's'} extracted so far.`
+    const skippedSuffix =
+      browserRunProgress.value.skippedExisting > 0
+        ? ` and ${browserRunProgress.value.skippedExisting} existing skipped`
+        : ''
+    return `Scrape running on ${browserRunProgress.value.pagesVisited} page${browserRunProgress.value.pagesVisited === 1 ? '' : 's'} with ${browserRunProgress.value.itemsExtracted} new listing${browserRunProgress.value.itemsExtracted === 1 ? '' : 's'} extracted so far${skippedSuffix}.`
   }
 
   if (!trustedPresetActive.value) {
@@ -174,6 +181,20 @@ const captureNote = computed(() => {
   return 'Solve the challenge, dismiss banners, scroll the tab into the exact state you want, then capture the page.'
 })
 
+function formatRunOutcome(summary: {
+  inserted: number
+  updated: number
+  skippedExisting: number
+}) {
+  const parts = [`inserted ${summary.inserted}`, `updated ${summary.updated}`]
+
+  if (summary.skippedExisting > 0) {
+    parts.push(`skipped ${summary.skippedExisting} existing`)
+  }
+
+  return parts.join(', ')
+}
+
 function formatDebugTime(value: string) {
   try {
     return new Date(value).toLocaleTimeString([], {
@@ -202,6 +223,7 @@ function summarizeDebugDetail(detail: ExtensionDebugEvent['detail']) {
     typeof detail.pagesVisited === 'number' ? `pages ${detail.pagesVisited}` : null,
     typeof detail.itemsSeen === 'number' ? `seen ${detail.itemsSeen}` : null,
     typeof detail.itemsExtracted === 'number' ? `extracted ${detail.itemsExtracted}` : null,
+    typeof detail.skippedExisting === 'number' ? `skipped ${detail.skippedExisting}` : null,
     typeof detail.recordsPersisted === 'number'
       ? `written ${detail.recordsPersisted}`
       : null,
@@ -334,9 +356,9 @@ onMounted(async () => {
           <button
             type="button"
             class="secondary"
-            @click="extension.resetSession"
+            @click="extension.clearScrapeState"
           >
-            Reset session
+            Clear scrape state
           </button>
         </div>
       </div>
@@ -359,12 +381,17 @@ onMounted(async () => {
           <strong>{{ fixtureCaptureCount }} saved</strong>
         </article>
       </div>
+
+      <p class="toolbar__hint">
+        Use Scan current page for normal rescans. Clear scrape state only when you want a fresh
+        preset draft.
+      </p>
     </header>
 
     <WorkflowStepCard
       :step="1"
       title="Connect Boat Search"
-      subtitle="Store the app URL and API key locally so the extension can verify auth and write results directly."
+      subtitle="The extension stores the app URL and API key locally so it can verify auth and write results directly."
       :status="connectionStatus"
       :note="connectionNote"
       :open="isStepOpen('connection', connectionStatus)"
@@ -387,6 +414,14 @@ onMounted(async () => {
           @click="extension.verifyBoatSearchConnection(true)"
         >
           {{ verifyingConnection ? 'Testing…' : 'Test connection' }}
+        </button>
+        <button
+          type="button"
+          class="ghost"
+          :disabled="!hasSavedConnection"
+          @click="extension.forgetBoatSearchConnection"
+        >
+          Forget connection
         </button>
       </template>
 
@@ -439,7 +474,7 @@ onMounted(async () => {
     <WorkflowStepCard
       :step="2"
       title="Load a trusted preset"
-      subtitle="Scan the active tab, let the extension match the site preset, and optionally open one sample detail page for validation."
+      subtitle="For normal rescans, scan the active tab, let the extension match the site preset, and optionally open one sample detail page for validation."
       :status="presetStatus"
       :note="presetNote"
       :open="isStepOpen('preset', presetStatus)"
@@ -599,6 +634,10 @@ onMounted(async () => {
             <strong>{{ browserRunProgress.itemsExtracted }}</strong>
           </div>
           <div>
+            <span>Skipped existing</span>
+            <strong>{{ browserRunProgress.skippedExisting }}</strong>
+          </div>
+          <div>
             <span>Detail pages</span>
             <strong>
               {{ browserRunProgress.detailPagesCompleted }} /
@@ -649,6 +688,10 @@ onMounted(async () => {
           <div>
             <span>Updated</span>
             <strong>{{ remoteRun.summary.updated }}</strong>
+          </div>
+          <div>
+            <span>Skipped existing</span>
+            <strong>{{ remoteRun.summary.skippedExisting }}</strong>
           </div>
         </div>
 
@@ -848,6 +891,13 @@ onMounted(async () => {
   flex-wrap: wrap;
   justify-content: flex-end;
   gap: 0.55rem;
+}
+
+.toolbar__hint {
+  margin: 0;
+  font-size: 0.78rem;
+  line-height: 1.45;
+  color: var(--panel-muted);
 }
 
 .status-strip,

@@ -24,10 +24,17 @@ import {
   isTrustedPresetId,
   normalizePresetRecord,
 } from '@/shared/sitePresets'
+import {
+  createBrowserRunIdentityState,
+  hasKnownBoatIdentity,
+  rememberBoatIdentity,
+} from '@/shared/sourceIdentity'
 import { buildImportUrl } from '@/shared/transfer'
 import {
   applyAnalysisToSession,
+  buildClearedScrapeSession,
   buildAnalysisStatusMessage,
+  buildSessionWithoutConnection,
   collectBrowserDetailQueue,
   createDebugEvent,
   createSampleDetailRunState,
@@ -94,6 +101,7 @@ type RemoteRunSummary = {
   pagesVisited: number
   itemsSeen: number
   itemsExtracted: number
+  skippedExisting: number
   visitedUrls: string[]
   inserted: number
   updated: number
@@ -1980,6 +1988,7 @@ export function useExtensionSession() {
     const localRunState = {
       recordsPersisted: localRecords.length,
       imagesUploaded: 0,
+      skippedExisting: 0,
     }
 
     statusMessage.value = 'Boat Search is unavailable, so the helper is scraping locally and preparing a CSV...'
@@ -1996,6 +2005,7 @@ export function useExtensionSession() {
       draft,
       presetId,
       localRunState,
+      createBrowserRunIdentityState(null),
       async (record) => {
         upsertBrowserRunRecord(localRecords, cloneSerializableValue(record))
         localRunState.recordsPersisted = localRecords.length
@@ -2023,6 +2033,7 @@ export function useExtensionSession() {
         pagesVisited: browserRun.summary.pagesVisited,
         itemsSeen: browserRun.summary.itemsSeen,
         itemsExtracted: browserRun.summary.itemsExtracted,
+        skippedExisting: browserRun.summary.skippedExisting,
       },
     )
   }
@@ -2152,6 +2163,7 @@ export function useExtensionSession() {
       updated: number
       recordsPersisted: number
       imagesUploaded: number
+      skippedExisting: number
     },
   ) {
     return await fetchBoatSearchJson<ExtensionRunProgressResponse>(
@@ -2176,11 +2188,13 @@ export function useExtensionSession() {
     visitedUrls: string[],
     pagesVisited: number,
     itemsSeen: number,
+    skippedExisting: number,
   ) {
     return {
       pagesVisited,
       itemsSeen,
       itemsExtracted: searchRecords.length,
+      skippedExisting,
       visitedUrls: [...visitedUrls],
       warnings: uniqueStrings([
         ...searchWarnings,
@@ -2192,7 +2206,8 @@ export function useExtensionSession() {
   async function crawlDraftInBrowser(
     draft: ScraperPipelineDraft,
     presetId: SitePresetId | null,
-    runState: { recordsPersisted: number; imagesUploaded: number },
+    runState: { recordsPersisted: number; imagesUploaded: number; skippedExisting: number },
+    existingIdentityState: ReturnType<typeof createBrowserRunIdentityState>,
     onRecord: (record: BrowserScrapeRecord) => Promise<void>,
     onProgress: (summary: BrowserScrapeSummary, progress: BrowserScrapeProgress) => Promise<void>,
   ) {
@@ -2250,6 +2265,7 @@ export function useExtensionSession() {
           pagesVisited,
           itemsSeen,
           itemsExtracted: searchRecords.length,
+          skippedExisting: runState.skippedExisting,
           detailPagesCompleted: 0,
           detailPagesTotal: 0,
           recordsPersisted: runState.recordsPersisted,
@@ -2299,6 +2315,7 @@ export function useExtensionSession() {
           },
         )
 
+        let skippedExistingOnPage = 0
         for (const record of pageResult.records) {
           if (
             !shouldContinueBrowserSearchPagination({
@@ -2310,6 +2327,13 @@ export function useExtensionSession() {
             break
           }
 
+          if (hasKnownBoatIdentity(existingIdentityState, record)) {
+            runState.skippedExisting += 1
+            skippedExistingOnPage += 1
+            continue
+          }
+
+          rememberBoatIdentity(existingIdentityState, record)
           searchRecords.push(record)
           recordDebugEvent(
             'browser-scrape-listing-url',
@@ -2329,11 +2353,24 @@ export function useExtensionSession() {
                   visitedUrls,
                   pagesVisited,
                   itemsSeen,
+                  runState.skippedExisting,
                 ),
                 cloneSerializableValue(browserRunProgress.value),
               )
             }
           }
+        }
+
+        if (skippedExistingOnPage > 0) {
+          recordDebugEvent(
+            'browser-scrape-existing-skipped',
+            'Skipped listings that were already ingested.',
+            {
+              url: pageResult.pageUrl,
+              skippedExisting: skippedExistingOnPage,
+              totalSkippedExisting: runState.skippedExisting,
+            },
+          )
         }
 
         if (browserRunProgress.value) {
@@ -2344,6 +2381,7 @@ export function useExtensionSession() {
               visitedUrls,
               pagesVisited,
               itemsSeen,
+              runState.skippedExisting,
             ),
             cloneSerializableValue(browserRunProgress.value),
           )
@@ -2383,6 +2421,7 @@ export function useExtensionSession() {
               visitedUrls,
               pagesVisited,
               itemsSeen,
+              runState.skippedExisting,
             ),
             cloneSerializableValue(browserRunProgress.value),
           )
@@ -2401,6 +2440,7 @@ export function useExtensionSession() {
               visitedUrls,
               pagesVisited,
               itemsSeen,
+              runState.skippedExisting,
             ),
             cloneSerializableValue(browserRunProgress.value),
           )
@@ -2414,6 +2454,7 @@ export function useExtensionSession() {
         pagesVisited,
         itemsSeen,
         itemsExtracted: searchRecords.length,
+        skippedExisting: runState.skippedExisting,
         detailPagesCompleted: index,
         detailPagesTotal: detailRecords.length,
         recordsPersisted: runState.recordsPersisted,
@@ -2470,6 +2511,7 @@ export function useExtensionSession() {
                 visitedUrls,
                 pagesVisited,
                 itemsSeen,
+                runState.skippedExisting,
               ),
               cloneSerializableValue(browserRunProgress.value),
             )
@@ -2492,6 +2534,7 @@ export function useExtensionSession() {
               visitedUrls,
               pagesVisited,
               itemsSeen,
+              runState.skippedExisting,
             ),
             cloneSerializableValue(browserRunProgress.value),
           )
@@ -2506,6 +2549,7 @@ export function useExtensionSession() {
         visitedUrls,
         pagesVisited,
         itemsSeen,
+        runState.skippedExisting,
       ),
     }
   }
@@ -2568,6 +2612,7 @@ export function useExtensionSession() {
       updated: 0,
       recordsPersisted: 0,
       imagesUploaded: 0,
+      skippedExisting: 0,
     }
 
     try {
@@ -2604,12 +2649,15 @@ export function useExtensionSession() {
         },
       )
       activeRun = run
+      const existingIdentityState = createBrowserRunIdentityState(run.existingBoatIdentities)
       recordDebugEvent(
         'browser-scrape-started',
         'Boat Search accepted the browser scrape run.',
         {
           pipelineId: run.pipelineId,
           jobId: run.jobId,
+          knownListingIds: existingIdentityState.knownListingIds.size,
+          knownNormalizedUrls: existingIdentityState.knownNormalizedUrls.size,
         },
       )
       if (!imageUploadEnabled) {
@@ -2623,6 +2671,7 @@ export function useExtensionSession() {
         draft,
         activePresetId,
         runState,
+        existingIdentityState,
         async (record) => {
           upsertBrowserRunRecord(scrapedRecords, cloneSerializableValue(record))
           const persisted = await persistBrowserRecordToBoatSearch(run, draft, record)
@@ -2657,6 +2706,7 @@ export function useExtensionSession() {
         pagesVisited: summary.pagesVisited,
         itemsSeen: summary.itemsSeen,
         itemsExtracted: summary.itemsExtracted,
+        skippedExisting: summary.skippedExisting,
         detailPagesCompleted: draft.config.fetchDetailPages ? runState.recordsPersisted : 0,
         detailPagesTotal: draft.config.fetchDetailPages ? summary.itemsExtracted : 0,
         recordsPersisted: runState.recordsPersisted,
@@ -2692,7 +2742,10 @@ export function useExtensionSession() {
         summary: response.summary,
       }
       browserRunProgress.value = null
-      statusMessage.value = `Browser scrape complete. Inserted ${response.summary.inserted} and updated ${response.summary.updated} boats.`
+      statusMessage.value =
+        response.summary.skippedExisting > 0
+          ? `Browser scrape complete. Inserted ${response.summary.inserted}, updated ${response.summary.updated}, and skipped ${response.summary.skippedExisting} existing boats.`
+          : `Browser scrape complete. Inserted ${response.summary.inserted} and updated ${response.summary.updated} boats.`
       recordDebugEvent(
         'browser-scrape-complete',
         'Completed the browser scrape and Boat Search finalization.',
@@ -2702,6 +2755,7 @@ export function useExtensionSession() {
           pagesVisited: response.summary.pagesVisited,
           itemsSeen: response.summary.itemsSeen,
           itemsExtracted: response.summary.itemsExtracted,
+          skippedExisting: response.summary.skippedExisting,
           inserted: response.summary.inserted,
           updated: response.summary.updated,
         },
@@ -2735,6 +2789,7 @@ export function useExtensionSession() {
             pagesVisited: browserRunProgress.value?.pagesVisited ?? 0,
             itemsSeen: browserRunProgress.value?.itemsSeen ?? 0,
             itemsExtracted: browserRunProgress.value?.itemsExtracted ?? 0,
+            skippedExisting: browserRunProgress.value?.skippedExisting ?? runState.skippedExisting,
             recordsPersisted: runState.recordsPersisted,
             imagesUploaded: runState.imagesUploaded,
           })
@@ -2753,6 +2808,7 @@ export function useExtensionSession() {
                 pagesVisited: browserRunProgress.value.pagesVisited,
                 itemsSeen: browserRunProgress.value.itemsSeen,
                 itemsExtracted: browserRunProgress.value.itemsExtracted,
+                skippedExisting: browserRunProgress.value.skippedExisting,
                 visitedUrls: [],
                 warnings: [],
               },
@@ -2776,6 +2832,7 @@ export function useExtensionSession() {
         pagesVisited: browserRunProgress.value?.pagesVisited ?? 0,
         itemsSeen: browserRunProgress.value?.itemsSeen ?? 0,
         itemsExtracted: browserRunProgress.value?.itemsExtracted ?? 0,
+        skippedExisting: browserRunProgress.value?.skippedExisting ?? runState.skippedExisting,
         recordsPersisted: runState.recordsPersisted,
         imagesUploaded: runState.imagesUploaded,
       })
@@ -2798,9 +2855,7 @@ export function useExtensionSession() {
     session.value.appBaseUrlSource = 'manual'
   }
 
-  function resetSession() {
-    session.value = createConfiguredDefaultSession()
-    statusMessage.value = 'Session reset'
+  function clearTransientState() {
     errorMessage.value = ''
     pendingPicker.value = null
     itemSelectorTraining.value = null
@@ -2811,6 +2866,23 @@ export function useExtensionSession() {
     fixtureCapturePendingOverride.value = null
     capturingFixture.value = false
     void clearFieldPreview()
+  }
+
+  function clearScrapeState() {
+    session.value = buildClearedScrapeSession(session.value, createConfiguredDefaultSession())
+    statusMessage.value = 'Scrape state cleared. Use Scan current page to analyze the active tab again.'
+    clearTransientState()
+  }
+
+  function forgetBoatSearchConnection() {
+    session.value = buildSessionWithoutConnection(session.value)
+    statusMessage.value =
+      'Boat Search connection forgotten. Add the app URL and API key again to reconnect.'
+    clearTransientState()
+  }
+
+  function resetSession() {
+    clearScrapeState()
   }
 
   async function previewItemSelector() {
@@ -2949,6 +3021,8 @@ export function useExtensionSession() {
     applyMatchedPreset,
     updateConnectionApiKey,
     updateAppBaseUrl,
+    clearScrapeState,
+    forgetBoatSearchConnection,
     startScrapeInBoatSearch,
     openBoatSearchAccountSettings,
     handoffToBoatSearch,

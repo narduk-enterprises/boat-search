@@ -2,7 +2,11 @@ import { and, eq, inArray, isNull, or, type SQL } from 'drizzle-orm'
 import type { H3Event } from 'h3'
 import type { DrizzleD1Database } from 'drizzle-orm/d1'
 import type { BoatDedupeInput, BoatDedupeRecord, BoatEntityDraft } from '~~/lib/boatDedupe'
-import { deriveBoatDedupeState, findMatchingSourceListing } from '~~/lib/boatDedupe'
+import {
+  deriveBoatDedupeState,
+  findMatchingSourceListing,
+  normalizeBoatUrl,
+} from '~~/lib/boatDedupe'
 import type * as schema from '~~/server/database/schema'
 import { boatDedupeCandidates, boatEntities, boats } from '~~/server/database/schema'
 import { useAppDatabase } from '#server/utils/database'
@@ -236,6 +240,38 @@ export async function upsertBoatSourceListing(
   }
 
   return { boatId: created.id, inserted: 1, updated: 0 }
+}
+
+export async function listActiveBoatSourceListingIdentities(event: H3Event, source: string) {
+  const db = useAppDatabase(event)
+  const rows = await db
+    .select({
+      listingId: boats.listingId,
+      url: boats.url,
+    })
+    .from(boats)
+    .where(and(eq(boats.source, source), isNull(boats.supersededByBoatId)))
+    .all()
+
+  const listingIds = new Set<string>()
+  const normalizedUrls = new Set<string>()
+
+  for (const row of rows) {
+    const listingId = row.listingId?.trim()
+    if (listingId) {
+      listingIds.add(listingId)
+    }
+
+    const normalizedUrl = normalizeBoatUrl(row.url)
+    if (normalizedUrl) {
+      normalizedUrls.add(normalizedUrl)
+    }
+  }
+
+  return {
+    listingIds: [...listingIds],
+    normalizedUrls: [...normalizedUrls],
+  }
 }
 
 async function insertBoatEntities(db: AppDb, entities: BoatEntityDraft[]) {

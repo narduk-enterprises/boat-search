@@ -1,5 +1,6 @@
 import { isTrustedPresetId } from '@/shared/sitePresets'
 import { hostToSourceName } from '@/shared/transfer'
+import { cloneSerializableValue } from '@/sidepanel/utils/cloneSerializableValue'
 import type {
   AutoDetectedAnalysis,
   BrowserScrapeRecord,
@@ -114,6 +115,37 @@ export function applyAnalysisToSession(session: ExtensionSession, analysis: Auto
   for (const field of analysis.fields) {
     upsertFieldRule(session.draft.config.fields, field)
   }
+}
+
+export function buildClearedScrapeSession(
+  currentSession: ExtensionSession,
+  fallbackSession: ExtensionSession,
+) {
+  const nextSession = cloneSerializableValue(fallbackSession)
+
+  nextSession.appBaseUrl = currentSession.appBaseUrl
+  nextSession.appBaseUrlSource = currentSession.appBaseUrlSource
+  nextSession.connection = cloneSerializableValue(currentSession.connection)
+  nextSession.currentTabUrl = currentSession.currentTabUrl
+
+  return nextSession
+}
+
+export function buildSessionWithoutConnection(currentSession: ExtensionSession) {
+  const nextSession = cloneSerializableValue(currentSession)
+
+  nextSession.appBaseUrl = ''
+  nextSession.appBaseUrlSource = 'manual'
+  nextSession.connection = {
+    apiKey: '',
+    apiKeySource: 'manual',
+    verifiedAt: null,
+    verifiedEmail: null,
+    verifiedName: null,
+    imageUploadEnabled: false,
+  }
+
+  return nextSession
 }
 
 export function isPaginationAutoDetected(session: ExtensionSession) {

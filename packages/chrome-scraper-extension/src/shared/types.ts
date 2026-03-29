@@ -217,6 +217,7 @@ export interface BrowserScrapeSummary {
   pagesVisited: number
   itemsSeen: number
   itemsExtracted: number
+  skippedExisting: number
   visitedUrls: string[]
   warnings: string[]
 }
@@ -227,6 +228,7 @@ export interface BrowserScrapeProgress {
   pagesVisited: number
   itemsSeen: number
   itemsExtracted: number
+  skippedExisting: number
   detailPagesCompleted: number
   detailPagesTotal: number
   recordsPersisted: number
@@ -379,10 +381,16 @@ export interface ExtensionAuthStatusResponse {
   uploadEndpoint: string
 }
 
+export interface ExtensionKnownBoatIdentities {
+  listingIds: string[]
+  normalizedUrls: string[]
+}
+
 export interface ExtensionRunStartResponse {
   pipelineId: number
   jobId: number
   startedAt: string
+  existingBoatIdentities: ExtensionKnownBoatIdentities
 }
 
 export interface ExtensionRunRecordResponse {
@@ -398,6 +406,7 @@ export interface ExtensionRunProgressResponse {
     pagesVisited: number
     itemsSeen: number
     itemsExtracted: number
+    skippedExisting: number
     inserted: number
     updated: number
     visitedUrls: string[]
@@ -411,6 +420,7 @@ export interface ExtensionRunCompleteResponse {
     pagesVisited: number
     itemsSeen: number
     itemsExtracted: number
+    skippedExisting: number
     inserted: number
     updated: number
     visitedUrls: string[]

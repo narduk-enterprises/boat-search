@@ -6,6 +6,7 @@ import {
   updateScraperPipeline,
 } from '#server/utils/scraperPipelineStore'
 import { createRunningCrawlJob } from '#server/utils/scraperPipelineEngine'
+import { listActiveBoatSourceListingIdentities } from '#server/utils/boatDedupe'
 
 export default defineAdminMutation(
   {
@@ -34,12 +35,17 @@ export default defineAdminMutation(
       runMode: 'extension',
       startedAt,
     })
+    const existingBoatIdentities = await listActiveBoatSourceListingIdentities(
+      event,
+      pipeline.boatSource,
+    )
 
     return {
       pipelineId: pipeline.id,
       pipeline,
       jobId,
       startedAt,
+      existingBoatIdentities,
     }
   },
 )

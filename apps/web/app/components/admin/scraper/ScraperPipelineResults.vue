@@ -44,6 +44,7 @@ const activeSummary = computed(() => props.runSummary || props.previewSummary)
             { label: 'Pages visited', value: activeSummary.pagesVisited },
             { label: 'Items seen', value: activeSummary.itemsSeen },
             { label: 'Candidates extracted', value: activeSummary.itemsExtracted },
+            { label: 'Skipped existing', value: activeSummary.skippedExisting },
             { label: 'Inserted', value: activeSummary.inserted },
             { label: 'Updated', value: activeSummary.updated },
             { label: 'Warnings', value: activeSummary.warnings.length },
