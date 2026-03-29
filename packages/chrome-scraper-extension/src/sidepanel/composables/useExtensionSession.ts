@@ -1,6 +1,14 @@
 import { computed, onScopeDispose, ref, shallowRef, watch } from 'vue'
 import { createDefaultSession, createFieldRule } from '@/shared/defaults'
 import {
+  buildFixtureCaptureFileNames,
+  buildFixtureCaptureFileStem,
+  buildFixtureCaptureMetadata,
+  evaluateFixtureCaptureTemplate,
+  normalizeFixtureCaptureSessionState,
+  resolveFixtureLabel,
+} from '@/shared/fixtureCapture'
+import {
   buildPresetDraft,
   buildPresetDraftFingerprint,
   buildRuntimePresetDraft,
@@ -34,6 +42,9 @@ import type {
   BrowserScrapeSummary,
   DetailPageExtractResponse,
   ExtensionAuthStatusResponse,
+  FixtureCaptureResponse,
+  FixtureCaptureSummary,
+  FixtureCaptureTemplate,
   ExtensionRunCompleteResponse,
   ExtensionRunProgressResponse,
   ExtensionRunRecordResponse,
@@ -90,6 +101,10 @@ type RemoteRunState = {
 
 type BrowserRunProgressState = BrowserScrapeProgress | null
 type SampleDetailRunRefState = SampleDetailRunState | null
+type FixtureCaptureOverrideState = {
+  template: FixtureCaptureTemplate
+  message: string
+} | null
 
 const MAX_DEBUG_EVENTS = 120
 
@@ -459,6 +474,10 @@ function normalizeSession(value: unknown, fallback: ExtensionSession): Extension
     stage: raw.stage === 'detail' ? 'detail' : 'search',
     sampleDetailUrl: typeof raw.sampleDetailUrl === 'string' ? raw.sampleDetailUrl : null,
     preset: normalizePresetState(raw.preset, fallback.preset),
+    fixtureCapture: normalizeFixtureCaptureSessionState(
+      raw.fixtureCapture,
+      fallback.fixtureCapture,
+    ),
     draft: normalizeDraft(raw.draft, fallback.draft),
     lastAnalysis:
       raw.lastAnalysis && typeof raw.lastAnalysis === 'object'
@@ -549,6 +568,8 @@ export function useExtensionSession() {
   const remoteRun = shallowRef<RemoteRunState>(null)
   const browserRunProgress = shallowRef<BrowserRunProgressState>(null)
   const sampleDetailRun = shallowRef<SampleDetailRunRefState>(null)
+  const fixtureCapturePendingOverride = shallowRef<FixtureCaptureOverrideState>(null)
+  const capturingFixture = shallowRef(false)
   const startingRemoteRun = shallowRef(false)
   const verifyingConnection = shallowRef(false)
   const debugEvents = shallowRef<ExtensionDebugEvent[]>([])
@@ -573,6 +594,7 @@ export function useExtensionSession() {
         ? cloneSerializableValue(session.value.lastAnalysis)
         : null,
       preset: cloneSerializableValue(session.value.preset),
+      fixtureCapture: cloneSerializableValue(session.value.fixtureCapture),
       connection: {
         apiKeySource: session.value.connection.apiKeySource,
         appBaseUrlSource: session.value.appBaseUrlSource,
@@ -795,11 +817,21 @@ export function useExtensionSession() {
       (session.value.preset.appliedPresetId !== matchedPreset.value.id ||
         session.value.preset.isDraftDirty ||
         !session.value.preset.appliedDraftFingerprint),
-    ),
+      ),
   )
 
-  function applyAnalysis(analysis: AutoDetectedAnalysis) {
-    applyAnalysisToSession(session.value, analysis)
+  function syncAnalysisSnapshot(
+    analysis: AutoDetectedAnalysis,
+    options: { mutateDraft: boolean },
+  ) {
+    if (options.mutateDraft) {
+      applyAnalysisToSession(session.value, analysis)
+    } else {
+      session.value.currentTabUrl = analysis.pageUrl
+      session.value.lastAnalysis = cloneSerializableValue(analysis)
+      updateMatchedPreset(analysis.pageUrl)
+    }
+
     recordDebugEvent('analysis-applied', buildAnalysisStatusMessage(analysis), {
       pageType: analysis.pageType,
       pageState: analysis.pageState,
@@ -808,9 +840,11 @@ export function useExtensionSession() {
       detailLinkCount: analysis.stats.detailLinkCount,
       distinctImageCount: analysis.stats.distinctImageCount,
       fieldCount: analysis.fields.length,
+      mutateDraft: options.mutateDraft,
     })
 
     if (
+      options.mutateDraft &&
       analysis.pageType === 'search' &&
       analysis.pageState === 'ok' &&
       analysis.nextPageSelector
@@ -824,7 +858,12 @@ export function useExtensionSession() {
       )
     }
 
-    if (analysis.pageType === 'search' && analysis.pageState === 'ok' && analysis.sampleDetailUrl) {
+    if (
+      options.mutateDraft &&
+      analysis.pageType === 'search' &&
+      analysis.pageState === 'ok' &&
+      analysis.sampleDetailUrl
+    ) {
       recordDebugEvent(
         'sample-detail-discovered',
         'Captured a sample detail URL from the search page.',
@@ -833,6 +872,10 @@ export function useExtensionSession() {
         },
       )
     }
+  }
+
+  function applyAnalysis(analysis: AutoDetectedAnalysis) {
+    syncAnalysisSnapshot(analysis, { mutateDraft: true })
   }
 
   function canAutoApplyMatchedPreset(presetId: SitePresetId, context: 'search' | 'detail' | null) {
@@ -928,7 +971,9 @@ export function useExtensionSession() {
     }
 
     if (match.context !== 'search') {
-      throw new Error('Open a YachtWorld search results page before loading the YachtWorld preset.')
+      throw new Error(
+        `Open a supported search results page before loading ${match.label}.`,
+      )
     }
 
     statusMessage.value =
@@ -942,6 +987,28 @@ export function useExtensionSession() {
     return match
   }
 
+  async function ensureTrustedPresetLoaded() {
+    if (trustedPresetActive.value) {
+      return session.value.preset.appliedPresetId
+    }
+
+    const match = matchedPreset.value
+    if (match?.id && match.context === 'search') {
+      await applyMatchedPreset('manual')
+      return session.value.preset.appliedPresetId
+    }
+
+    if (match?.context === 'detail') {
+      throw new Error(
+        'Open a supported search results page so the extension can load the full trusted preset before scraping.',
+      )
+    }
+
+    throw new Error(
+      'Preset scraping is only available on supported search results pages. Open one, then scan the page to load its preset.',
+    )
+  }
+
   async function initializeForCurrentTab() {
     try {
       await loadSession()
@@ -949,7 +1016,7 @@ export function useExtensionSession() {
 
       if (!tab?.url || !isWebPageUrl(tab.url)) {
         statusMessage.value =
-          'Open a YachtWorld results page or another site to begin configuring a scrape.'
+          'Open a supported results page or another site to begin configuring a scrape.'
         return
       }
 
@@ -973,7 +1040,7 @@ export function useExtensionSession() {
       }
 
       if (match.context === 'detail') {
-        statusMessage.value = `${match.label} detail page detected. Open a YachtWorld search results page to auto-load the full preset, or validate this detail page manually.`
+        statusMessage.value = `${match.label} detail page detected. Open a supported search results page to auto-load the full preset, or validate this detail page manually.`
         return
       }
 
@@ -1022,7 +1089,14 @@ export function useExtensionSession() {
       const analysis = await sendToActiveTab<AutoDetectedAnalysis>({
         type: 'EXTENSION_ANALYZE_PAGE',
       })
-      applyAnalysis(analysis)
+      const match = updateMatchedPreset(analysis.pageUrl)
+
+      if (match?.context === 'search' && canAutoApplyMatchedPreset(match.id, match.context)) {
+        commitPresetDraft(match.id, 'auto', analysis.pageUrl, analysis)
+        return
+      }
+
+      syncAnalysisSnapshot(analysis, { mutateDraft: false })
       statusMessage.value = buildAnalysisStatusMessage(analysis)
     } catch (error: unknown) {
       const message =
@@ -1030,6 +1104,167 @@ export function useExtensionSession() {
       errorMessage.value = message
       statusMessage.value = 'Analysis failed'
       recordDebugEvent('analysis-failed', message)
+    }
+  }
+
+  function setSelectedFixtureTemplate(template: FixtureCaptureTemplate) {
+    session.value.fixtureCapture.selectedTemplate = template
+    if (fixtureCapturePendingOverride.value?.template !== template) {
+      fixtureCapturePendingOverride.value = null
+    }
+  }
+
+  function updateFixtureCustomLabel(value: string) {
+    session.value.fixtureCapture.customLabel = value
+  }
+
+  async function captureVisibleTabPng(activeTabValue: chrome.tabs.Tab) {
+    if (typeof activeTabValue.windowId !== 'number') {
+      throw new Error('Could not identify the current browser window for screenshot capture.')
+    }
+
+    return await chrome.tabs.captureVisibleTab(activeTabValue.windowId, {
+      format: 'png',
+    })
+  }
+
+  async function captureFixture(
+    template: FixtureCaptureTemplate,
+    options: { allowMismatch?: boolean } = {},
+  ) {
+    setSelectedFixtureTemplate(template)
+    errorMessage.value = ''
+    capturingFixture.value = true
+    statusMessage.value = 'Analyzing the current page for fixture capture...'
+
+    try {
+      const tab = await refreshActiveTab()
+      if (!tab?.id || !isWebPageUrl(tab.url)) {
+        throw new Error('Open the page you want to capture in the active tab first.')
+      }
+
+      const analysis = await sendToTab<AutoDetectedAnalysis>(tab, {
+        type: 'EXTENSION_ANALYZE_PAGE',
+      })
+      syncAnalysisSnapshot(analysis, { mutateDraft: false })
+
+      const validation = evaluateFixtureCaptureTemplate(
+        template,
+        analysis,
+        session.value.currentTabUrl,
+      )
+      if (template !== 'custom' && validation.status === 'mismatch' && !options.allowMismatch) {
+        fixtureCapturePendingOverride.value = {
+          template,
+          message: validation.note,
+        }
+        statusMessage.value = validation.note
+        recordDebugEvent('fixture-capture-validation-blocked', validation.note, {
+          template,
+          pageType: analysis.pageType,
+          pageState: analysis.pageState,
+          pageUrl: analysis.pageUrl,
+        })
+        return
+      }
+
+      fixtureCapturePendingOverride.value = null
+      statusMessage.value = 'Capturing the current page and preparing fixture downloads...'
+
+      const [captureResponse, screenshotDataUrl] = await Promise.all([
+        sendToTab<FixtureCaptureResponse>(tab, {
+          type: 'EXTENSION_CAPTURE_PAGE',
+          request: { template },
+        }),
+        captureVisibleTabPng(tab),
+      ])
+
+      syncAnalysisSnapshot(captureResponse.analysis, { mutateDraft: false })
+
+      const fixtureLabel = resolveFixtureLabel(template, session.value.fixtureCapture.customLabel)
+      const host = (() => {
+        try {
+          return new URL(captureResponse.page.url).hostname
+        } catch {
+          return 'unknown'
+        }
+      })()
+      const fileStem = buildFixtureCaptureFileStem(host, fixtureLabel)
+      const files = buildFixtureCaptureFileNames(fileStem)
+      const capturedAt = new Date().toISOString()
+      const metadata = buildFixtureCaptureMetadata({
+        capturedAt,
+        host,
+        fixtureLabel,
+        currentUrl: captureResponse.page.url,
+        title: captureResponse.page.title,
+        analysis: captureResponse.analysis,
+        matchedPresetId: session.value.preset.matchedPresetId,
+        matchedPresetLabel: session.value.preset.matchedPresetLabel,
+        appliedPresetId: session.value.preset.appliedPresetId,
+        appliedPresetLabel: session.value.preset.appliedPresetLabel,
+        viewport: captureResponse.page.viewport,
+      })
+
+      const [htmlFileName, pngFileName, metaFileName] = files
+      await Promise.all([
+        downloadBlobFile(
+          htmlFileName,
+          new Blob([captureResponse.html], {
+            type: 'text/html;charset=utf-8',
+          }),
+        ),
+        dataUrlToBlob(screenshotDataUrl).then((blob) => downloadBlobFile(pngFileName, blob)),
+        downloadBlobFile(
+          metaFileName,
+          new Blob([`${JSON.stringify(metadata, null, 2)}\n`], {
+            type: 'application/json;charset=utf-8',
+          }),
+        ),
+      ])
+
+      const summary: FixtureCaptureSummary = {
+        template,
+        fileStem,
+        files,
+        currentUrl: captureResponse.page.url,
+        pageType: captureResponse.analysis.pageType,
+        pageState: captureResponse.analysis.pageState,
+        capturedAt,
+      }
+      session.value.fixtureCapture.captured[template] = {
+        template,
+        fileStem,
+        files,
+        currentUrl: captureResponse.page.url,
+        pageType: captureResponse.analysis.pageType,
+        pageState: captureResponse.analysis.pageState,
+        capturedAt,
+      }
+      session.value.fixtureCapture.lastCapture = summary
+
+      statusMessage.value = `Downloaded ${htmlFileName}, ${pngFileName}, and ${metaFileName}.`
+      recordDebugEvent(
+        'fixture-capture-complete',
+        `Downloaded fixture files for ${template}.`,
+        {
+          template,
+          fileStem,
+          pageUrl: captureResponse.page.url,
+          pageType: captureResponse.analysis.pageType,
+          pageState: captureResponse.analysis.pageState,
+        },
+      )
+    } catch (error: unknown) {
+      const message =
+        error instanceof Error ? error.message : 'Could not capture the current fixture page.'
+      errorMessage.value = message
+      statusMessage.value = 'Fixture capture failed'
+      recordDebugEvent('fixture-capture-failed', message, {
+        template,
+      })
+    } finally {
+      capturingFixture.value = false
     }
   }
 
@@ -1244,7 +1479,9 @@ export function useExtensionSession() {
       const detailAnalysis = await sendToTab<AutoDetectedAnalysis>(readyTab, {
         type: 'EXTENSION_ANALYZE_PAGE',
       })
-      applyAnalysis(detailAnalysis)
+      syncAnalysisSnapshot(detailAnalysis, {
+        mutateDraft: !trustedPresetActive.value,
+      })
       statusMessage.value =
         detailAnalysis.pageType === 'detail' && detailAnalysis.pageState === 'ok'
           ? `Scanned the detail page and found ${detailAnalysis.fields.length} field suggestion${detailAnalysis.fields.length === 1 ? '' : 's'} across ${detailAnalysis.stats.distinctImageCount} images.`
@@ -1462,6 +1699,48 @@ export function useExtensionSession() {
       'state',
       'country',
       'description',
+      'contactInfo',
+      'contactName',
+      'contactPhone',
+      'otherDetails',
+      'disclaimer',
+      'features',
+      'electricalEquipment',
+      'electronics',
+      'insideEquipment',
+      'outsideEquipment',
+      'additionalEquipment',
+      'propulsion',
+      'engineMake',
+      'engineModel',
+      'engineYearDetail',
+      'totalPower',
+      'engineHours',
+      'engineTypeDetail',
+      'driveType',
+      'fuelTypeDetail',
+      'propellerType',
+      'propellerMaterial',
+      'specifications',
+      'cruisingSpeed',
+      'maxSpeed',
+      'range',
+      'lengthOverall',
+      'maxBridgeClearance',
+      'maxDraft',
+      'minDraftDetail',
+      'beamDetail',
+      'dryWeight',
+      'windlass',
+      'electricalCircuit',
+      'deadriseAtTransom',
+      'hullMaterial',
+      'hullShape',
+      'keelType',
+      'freshWaterTank',
+      'fuelTank',
+      'holdingTank',
+      'guestHeads',
       'sellerType',
       'listingType',
       'fullText',
@@ -1518,6 +1797,48 @@ export function useExtensionSession() {
       'state',
       'country',
       'description',
+      'contactInfo',
+      'contactName',
+      'contactPhone',
+      'otherDetails',
+      'disclaimer',
+      'features',
+      'electricalEquipment',
+      'electronics',
+      'insideEquipment',
+      'outsideEquipment',
+      'additionalEquipment',
+      'propulsion',
+      'engineMake',
+      'engineModel',
+      'engineYearDetail',
+      'totalPower',
+      'engineHours',
+      'engineTypeDetail',
+      'driveType',
+      'fuelTypeDetail',
+      'propellerType',
+      'propellerMaterial',
+      'specifications',
+      'cruisingSpeed',
+      'maxSpeed',
+      'range',
+      'lengthOverall',
+      'maxBridgeClearance',
+      'maxDraft',
+      'minDraftDetail',
+      'beamDetail',
+      'dryWeight',
+      'windlass',
+      'electricalCircuit',
+      'deadriseAtTransom',
+      'hullMaterial',
+      'hullShape',
+      'keelType',
+      'freshWaterTank',
+      'fuelTank',
+      'holdingTank',
+      'guestHeads',
       'sellerType',
       'listingType',
       'images',
@@ -1542,6 +1863,48 @@ export function useExtensionSession() {
         record.state,
         record.country,
         record.description,
+        record.contactInfo,
+        record.contactName,
+        record.contactPhone,
+        record.otherDetails,
+        record.disclaimer,
+        record.features,
+        record.electricalEquipment,
+        record.electronics,
+        record.insideEquipment,
+        record.outsideEquipment,
+        record.additionalEquipment,
+        record.propulsion,
+        record.engineMake,
+        record.engineModel,
+        record.engineYearDetail,
+        record.totalPower,
+        record.engineHours,
+        record.engineTypeDetail,
+        record.driveType,
+        record.fuelTypeDetail,
+        record.propellerType,
+        record.propellerMaterial,
+        record.specifications,
+        record.cruisingSpeed,
+        record.maxSpeed,
+        record.range,
+        record.lengthOverall,
+        record.maxBridgeClearance,
+        record.maxDraft,
+        record.minDraftDetail,
+        record.beamDetail,
+        record.dryWeight,
+        record.windlass,
+        record.electricalCircuit,
+        record.deadriseAtTransom,
+        record.hullMaterial,
+        record.hullShape,
+        record.keelType,
+        record.freshWaterTank,
+        record.fuelTank,
+        record.holdingTank,
+        record.guestHeads,
         record.sellerType,
         record.listingType,
         record.images,
@@ -1555,31 +1918,42 @@ export function useExtensionSession() {
     return [headers.join(','), ...rows].join('\r\n')
   }
 
-  async function downloadBrowserRunCsv(draft: ScraperPipelineDraft, records: BrowserScrapeRecord[]) {
+  async function downloadBlobFile(fileName: string, blob: Blob) {
     if (typeof document === 'undefined' || typeof URL === 'undefined') {
-      throw new Error('CSV download is unavailable in this browser context.')
+      throw new Error('File download is unavailable in this browser context.')
     }
 
+    const blobUrl = URL.createObjectURL(blob)
+
+    try {
+      const response = (await chrome.runtime.sendMessage({
+        type: 'EXTENSION_DOWNLOAD_FILE',
+        fileName,
+        url: blobUrl,
+      } satisfies BackgroundMessage)) as { ok?: boolean; error?: string; downloadId?: number }
+
+      if (!response?.ok || typeof response.downloadId !== 'number') {
+        throw new Error(response?.error || `Could not start the download for ${fileName}.`)
+      }
+    } finally {
+      window.setTimeout(() => {
+        URL.revokeObjectURL(blobUrl)
+      }, 60_000)
+    }
+  }
+
+  async function dataUrlToBlob(dataUrl: string) {
+    const response = await fetch(dataUrl)
+    return await response.blob()
+  }
+
+  async function downloadBrowserRunCsv(draft: ScraperPipelineDraft, records: BrowserScrapeRecord[]) {
     const stem = sanitizeFileStem(draft.name || draft.boatSource || 'browser-scrape') || 'browser-scrape'
     const fileName = `${stem}-${formatCsvTimestamp()}.csv`
     const blob = new Blob([buildBrowserRunCsv(records)], {
       type: 'text/csv;charset=utf-8',
     })
-    const blobUrl = URL.createObjectURL(blob)
-
-    try {
-      const link = document.createElement('a')
-      link.href = blobUrl
-      link.download = fileName
-      link.rel = 'noopener'
-      document.body.append(link)
-      link.click()
-      link.remove()
-    } finally {
-      window.setTimeout(() => {
-        URL.revokeObjectURL(blobUrl)
-      }, 1_000)
-    }
+    await downloadBlobFile(fileName, blob)
 
     return fileName
   }
@@ -1661,6 +2035,7 @@ export function useExtensionSession() {
     try {
       response = await fetch(requestUrl, {
         ...init,
+        credentials: 'omit',
         headers,
       })
     } catch (error: unknown) {
@@ -2216,9 +2591,10 @@ export function useExtensionSession() {
 
   async function handoffToBoatSearch() {
     errorMessage.value = ''
-    statusMessage.value = 'Opening Boat Search pipeline builder...'
+    statusMessage.value = 'Preparing the trusted preset draft for Boat Search...'
 
     try {
+      await ensureTrustedPresetLoaded()
       const url = buildImportUrl(session.value.appBaseUrl, session.value.draft)
       await chrome.runtime.sendMessage({
         type: 'EXTENSION_OPEN_URL',
@@ -2274,6 +2650,8 @@ export function useExtensionSession() {
     }
 
     try {
+      await ensureTrustedPresetLoaded()
+
       if (!session.value.connection.apiKey.trim()) {
         throw new Error('Add a Boat Search API key before starting a browser scrape.')
       }
@@ -2515,6 +2893,8 @@ export function useExtensionSession() {
     remoteRun.value = null
     browserRunProgress.value = null
     sampleDetailRun.value = null
+    fixtureCapturePendingOverride.value = null
+    capturingFixture.value = false
     void clearFieldPreview()
   }
 
@@ -2623,6 +3003,8 @@ export function useExtensionSession() {
     browserRunProgress,
     debugEvents,
     sampleDetailRun,
+    fixtureCapturePendingOverride,
+    capturingFixture,
     startingRemoteRun,
     verifyingConnection,
     statusMessage,
@@ -2635,6 +3017,9 @@ export function useExtensionSession() {
     initializeForCurrentTab,
     refreshActiveTab,
     analyzeCurrentPage,
+    setSelectedFixtureTemplate,
+    updateFixtureCustomLabel,
+    captureFixture,
     startPicker,
     previewField,
     clearFieldPreview,

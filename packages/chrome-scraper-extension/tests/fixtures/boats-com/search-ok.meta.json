@@ -1,0 +1,25 @@
+{
+  "captureMethod": "devtools-console-clipboard",
+  "fixtureLabel": "search-ok",
+  "capturedAt": "2026-03-29T06:10:37.469Z",
+  "finalUrl": "https://www.boats.com/boats-for-sale/?condition=used&boat-type=power&class=power-saltfish&price=100000-200000&distance=100&postal-code=77388",
+  "title": "Used saltwater fishing boats for sale - boats.com",
+  "host": "www.boats.com",
+  "readyState": "complete",
+  "viewport": {
+    "width": 2723,
+    "height": 935,
+    "scrollX": 0,
+    "scrollY": 0,
+    "scrollWidth": 2723,
+    "scrollHeight": 2665,
+    "clientWidth": 2723,
+    "clientHeight": 935
+  },
+  "stats": {
+    "anchorCount": 251,
+    "imageCount": 20,
+    "textLength": 3488
+  },
+  "outputHtmlPath": "/Users/narduk/new-code/template-apps/boat-search/packages/chrome-scraper-extension/tests/fixtures/boats-com/search-ok.html"
+}

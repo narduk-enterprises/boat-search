@@ -6,6 +6,7 @@ import type {
   BrowserScrapeRecord,
   DetailPageExtractRequest,
   DetailPageExtractResponse,
+  FixtureCaptureResponse,
   ScraperFieldRule,
   SearchPageExtractRequest,
   SearchPageExtractResponse,
@@ -28,7 +29,7 @@ const BLOCK_TITLE_SUBSTRINGS = [
 ]
 const NO_RESULTS_PATTERN = /no boats match|no results|0 results|no listings found/i
 const PRICE_PATTERN = /\$\s?[\d,.]+/
-const DETAIL_LINK_PATTERN = /\/yacht\//i
+const DETAIL_LINK_PATTERN = /\/(?:yacht|power-boats)\//i
 const SELECTABLE_TEXT_SELECTOR = 'a, h1, h2, h3, p, span, div, li, strong'
 
 function normalizeText(value: string | null | undefined) {
@@ -71,6 +72,15 @@ function getSiteName(pageUrl: string) {
 function isYachtWorldPage(pageUrl: string) {
   try {
     return new URL(pageUrl).hostname === 'www.yachtworld.com'
+  } catch {
+    return false
+  }
+}
+
+function isBoatsComPage(pageUrl: string) {
+  try {
+    const hostname = new URL(pageUrl).hostname.toLowerCase()
+    return hostname === 'www.boats.com' || hostname === 'boats.com'
   } catch {
     return false
   }
@@ -386,6 +396,48 @@ function createEmptyBrowserRecord(source: string): BrowserScrapeRecord {
     state: null,
     country: null,
     description: null,
+    contactInfo: null,
+    contactName: null,
+    contactPhone: null,
+    otherDetails: null,
+    disclaimer: null,
+    features: null,
+    electricalEquipment: null,
+    electronics: null,
+    insideEquipment: null,
+    outsideEquipment: null,
+    additionalEquipment: null,
+    propulsion: null,
+    engineMake: null,
+    engineModel: null,
+    engineYearDetail: null,
+    totalPower: null,
+    engineHours: null,
+    engineTypeDetail: null,
+    driveType: null,
+    fuelTypeDetail: null,
+    propellerType: null,
+    propellerMaterial: null,
+    specifications: null,
+    cruisingSpeed: null,
+    maxSpeed: null,
+    range: null,
+    lengthOverall: null,
+    maxBridgeClearance: null,
+    maxDraft: null,
+    minDraftDetail: null,
+    beamDetail: null,
+    dryWeight: null,
+    windlass: null,
+    electricalCircuit: null,
+    deadriseAtTransom: null,
+    hullMaterial: null,
+    hullShape: null,
+    keelType: null,
+    freshWaterTank: null,
+    fuelTank: null,
+    holdingTank: null,
+    guestHeads: null,
     sellerType: null,
     listingType: null,
     images: [],
@@ -786,6 +838,7 @@ function classifyDocumentState(document: Document, pageUrl: string) {
   const title = normalizeText(document.title).toLowerCase()
   const body = normalizeText(document.body?.innerText || document.body?.textContent).toLowerCase()
   const html = document.documentElement.outerHTML.toLowerCase()
+  const detailAnchorCount = getDetailAnchors(document).length
 
   if (BLOCK_TITLE_SUBSTRINGS.some((needle) => title.includes(needle))) {
     return {
@@ -805,7 +858,7 @@ function classifyDocumentState(document: Document, pageUrl: string) {
     }
   }
 
-  if (NO_RESULTS_PATTERN.test(body)) {
+  if (NO_RESULTS_PATTERN.test(body) && detailAnchorCount === 0) {
     return {
       pageState: 'no_results' as const,
       stateMessage: 'The page loaded successfully but the source reported no matching listings.',
@@ -868,6 +921,7 @@ function buildSearchAnalysis(document: Document, pageUrl: string): AutoDetectedA
   const analysis = createBaseAnalysis(document, pageUrl)
   const state = classifyDocumentState(document, pageUrl)
   const yachtWorldPage = isYachtWorldPage(pageUrl)
+  const boatsComPage = isBoatsComPage(pageUrl)
   const detailAnchors = getDetailAnchors(document)
 
   analysis.pageType = 'search'
@@ -885,6 +939,8 @@ function buildSearchAnalysis(document: Document, pageUrl: string): AutoDetectedA
   const itemSelector =
     yachtWorldPage && queryAll(document, 'div.grid-item').length >= 3
       ? 'div.grid-item'
+      : boatsComPage && queryAll(document, 'li[data-listing-id]').length >= 3
+        ? 'li[data-listing-id]'
       : detectRepeatedItemSelector(document, detailAnchors)
   const itemRoots = itemSelector ? queryAll<HTMLElement>(document, itemSelector) : []
   const firstItem = itemRoots[0] || null
@@ -892,6 +948,11 @@ function buildSearchAnalysis(document: Document, pageUrl: string): AutoDetectedA
     (yachtWorldPage && firstItem
       ? queryAll<HTMLAnchorElement>(firstItem, 'a.grid-listing-link[href*="/yacht/"]').find(
           (anchor) => Boolean(anchor.href),
+        ) || null
+      : null) ||
+    (boatsComPage && firstItem
+      ? queryAll<HTMLAnchorElement>(firstItem, 'a[href*="/power-boats/"]').find((anchor) =>
+          Boolean(anchor.href),
         ) || null
       : null) ||
     (firstItem ? findBestTitleAnchor(firstItem) : findBestTitleAnchor(document))
@@ -906,6 +967,9 @@ function buildSearchAnalysis(document: Document, pageUrl: string): AutoDetectedA
           null
         : findLikelyPriceElement(firstItem) || null)
     : null
+  const boatsComPriceElement = firstItem
+    ? queryAll<HTMLElement>(firstItem, '.price').find((element) => isVisible(element)) || null
+    : null
   const locationElement = firstItem
     ? (yachtWorldPage
         ? queryAll<HTMLElement>(
@@ -915,6 +979,9 @@ function buildSearchAnalysis(document: Document, pageUrl: string): AutoDetectedA
           findLikelyLocationElement(firstItem) ||
           null
         : findLikelyLocationElement(firstItem) || null)
+    : null
+  const boatsComLocationElement = firstItem
+    ? queryAll<HTMLElement>(firstItem, '.country').find((element) => isVisible(element)) || null
     : null
   const imageElement = firstItem
     ? (yachtWorldPage
@@ -926,15 +993,22 @@ function buildSearchAnalysis(document: Document, pageUrl: string): AutoDetectedA
           null
         : findLikelyImageElement(firstItem) || null)
     : null
+  const boatsComImageElement = firstItem
+    ? queryAll<HTMLImageElement>(firstItem, '.img-container img').find((image) =>
+        isMeaningfulGalleryImage(image, false),
+      ) || null
+    : null
 
   analysis.itemSelector = itemSelector
   analysis.nextPageSelector =
     (yachtWorldPage && queryAll(document, 'a.next').length ? 'a.next' : '') ||
     (yachtWorldPage && queryAll(document, 'a[rel="next"]').length ? 'a[rel="next"]' : '') ||
+    (boatsComPage && queryAll(document, 'a.next').length ? 'a.next' : '') ||
+    (boatsComPage && queryAll(document, 'a[rel="next"]').length ? 'a[rel="next"]' : '') ||
     detectNextPageSelector(document)
   analysis.sampleDetailUrl = sampleDetailUrl
   analysis.stats.listingCardCount = itemRoots.length
-  analysis.stats.distinctImageCount = imageElement ? 1 : 0
+  analysis.stats.distinctImageCount = (boatsComImageElement || imageElement) ? 1 : 0
 
   if (!itemSelector) {
     analysis.warnings.push(
@@ -959,20 +1033,41 @@ function buildSearchAnalysis(document: Document, pageUrl: string): AutoDetectedA
       transform: 'url',
     }),
     ruleFromElement(document, 'title', 'item', titleAnchor || null, firstItem || document),
-    ruleFromElement(document, 'price', 'item', priceElement, firstItem || document, {
+    ruleFromElement(
+      document,
+      'price',
+      'item',
+      boatsComPriceElement || priceElement,
+      firstItem || document,
+      {
       transform: 'price',
       required: false,
-    }),
-    ruleFromElement(document, 'location', 'item', locationElement, firstItem || document, {
+      },
+    ),
+    ruleFromElement(
+      document,
+      'location',
+      'item',
+      boatsComLocationElement || locationElement,
+      firstItem || document,
+      {
       required: false,
-    }),
-    ruleFromElement(document, 'images', 'item', imageElement, firstItem || document, {
+      },
+    ),
+    ruleFromElement(
+      document,
+      'images',
+      'item',
+      boatsComImageElement || imageElement,
+      firstItem || document,
+      {
       extract: 'attr',
       attribute: 'src',
       multiple: true,
       transform: 'url',
       required: false,
-    }),
+      },
+    ),
   ].filter((field): field is ScraperFieldRule => Boolean(field))
 
   return analysis
@@ -982,11 +1077,16 @@ function buildDetailAnalysis(document: Document, pageUrl: string): AutoDetectedA
   const analysis = createBaseAnalysis(document, pageUrl)
   const state = classifyDocumentState(document, pageUrl)
   const yachtWorldPage = isYachtWorldPage(pageUrl)
+  const boatsComPage = isBoatsComPage(pageUrl)
   const titleElement =
     (yachtWorldPage
       ? queryAll<HTMLElement>(document, 'div#bdp-boat-summary h1').find((element) => isVisible(element)) ||
         null
       : null) || findVisibleTitleElement(document)
+  const boatsComTitleElement =
+    queryAll<HTMLElement>(document, 'section.boat-details h1, .boat-details h1').find((element) =>
+      isVisible(element),
+    ) || null
   const summaryRoot = findDetailSummaryRoot(document, titleElement)
   const priceElement =
     (yachtWorldPage
@@ -998,6 +1098,11 @@ function buildDetailAnalysis(document: Document, pageUrl: string): AutoDetectedA
     findLikelyPriceElement(summaryRoot) ||
     findLikelyPriceElement(document) ||
     null
+  const boatsComPriceElement =
+    queryAll<HTMLElement>(
+      document,
+      'section.boat-details .details-header .price, section.boat-details .price',
+    ).find((element) => isVisible(element)) || null
   const locationElement =
     (yachtWorldPage
       ? queryAll<HTMLElement>(
@@ -1008,6 +1113,10 @@ function buildDetailAnalysis(document: Document, pageUrl: string): AutoDetectedA
     findLikelyLocationElement(summaryRoot) ||
     findLikelyLocationElement(document) ||
     null
+  const boatsComLocationElement =
+    queryAll<HTMLElement>(document, '#seller-map-view, button.map-trigger').find((element) =>
+      isVisible(element),
+    ) || null
   const descriptionElement =
     (yachtWorldPage
       ? queryAll<HTMLElement>(
@@ -1025,9 +1134,26 @@ function buildDetailAnalysis(document: Document, pageUrl: string): AutoDetectedA
           'div.style-module_mediaCarousel__gADiR div.embla__slide img',
         ).find((image) => isMeaningfulGalleryImage(image, false)) || null
       : null) ||
+    (boatsComPage
+      ? queryAll<HTMLImageElement>(document, '#detail-carousel img, .img-gallery img').find(
+          (image) => isMeaningfulGalleryImage(image, false),
+        ) || null
+      : null) ||
     findLikelyImageElement(document) ||
     null
-  const detailImage = buildDetailImageSelector(document, imageElement)
+  const boatsComGalleryImages = boatsComPage
+    ? queryAll<HTMLImageElement>(
+        document,
+        '#detail-carousel img[src*="images.boats.com"], .img-gallery img[src*="images.boats.com"]',
+      ).filter((image) => Boolean(readImageSource(image)))
+    : []
+  const detailImage =
+    boatsComPage && boatsComGalleryImages.length
+      ? {
+          selector: '#detail-carousel img, .img-gallery img',
+          distinctImageCount: getDistinctImageSourceCount(boatsComGalleryImages),
+        }
+      : buildDetailImageSelector(document, imageElement)
   const descriptionIsMeta = descriptionElement?.tagName.toLowerCase() === 'meta'
 
   analysis.pageType = 'detail'
@@ -1043,12 +1169,12 @@ function buildDetailAnalysis(document: Document, pageUrl: string): AutoDetectedA
   }
 
   analysis.fields = [
-    ruleFromElement(document, 'title', 'detail', titleElement || null, document),
-    ruleFromElement(document, 'price', 'detail', priceElement, document, {
+    ruleFromElement(document, 'title', 'detail', boatsComTitleElement || titleElement || null, document),
+    ruleFromElement(document, 'price', 'detail', boatsComPriceElement || priceElement, document, {
       transform: 'price',
       required: false,
     }),
-    ruleFromElement(document, 'location', 'detail', locationElement, document, {
+    ruleFromElement(document, 'location', 'detail', boatsComLocationElement || locationElement, document, {
       required: false,
     }),
     ruleFromElement(document, 'description', 'detail', descriptionElement, document, {
@@ -1192,6 +1318,34 @@ export function extractDetailPageDocument(
     pageUrl,
     record: normalizedRecord,
     warnings: uniqueStrings([...analysis.warnings, ...normalizedRecord.warnings]),
+  }
+}
+
+export function capturePageDocument(document: Document, pageUrl: string): FixtureCaptureResponse {
+  const analysis = analyzeDocument(document, pageUrl)
+  const doctype = document.doctype
+    ? `<!DOCTYPE ${document.doctype.name}${document.doctype.publicId ? ` PUBLIC "${document.doctype.publicId}"` : ''}${document.doctype.systemId ? ` "${document.doctype.systemId}"` : ''}>`
+    : ''
+  const view = document.defaultView
+
+  return {
+    html: [doctype, document.documentElement.outerHTML].filter(Boolean).join('\n'),
+    analysis,
+    page: {
+      url: pageUrl,
+      title: document.title,
+      readyState: document.readyState,
+      viewport: {
+        width: view?.innerWidth || 0,
+        height: view?.innerHeight || 0,
+        scrollX: view?.scrollX || 0,
+        scrollY: view?.scrollY || 0,
+        scrollWidth: document.documentElement.scrollWidth,
+        scrollHeight: document.documentElement.scrollHeight,
+        clientWidth: document.documentElement.clientWidth,
+        clientHeight: document.documentElement.clientHeight,
+      },
+    },
   }
 }
 

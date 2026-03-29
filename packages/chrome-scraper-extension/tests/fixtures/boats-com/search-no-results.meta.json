@@ -1,0 +1,25 @@
+{
+  "captureMethod": "devtools-console-clipboard",
+  "fixtureLabel": "search-no-results",
+  "capturedAt": "2026-03-29T06:16:47.130Z",
+  "finalUrl": "https://www.boats.com/boats-for-sale/?condition=used&boat-type=power&country=myanmar&price-from=50000&price-to=55000&currency=usd",
+  "title": "Used power boats for sale in Myanmar - boats.com",
+  "host": "www.boats.com",
+  "readyState": "complete",
+  "viewport": {
+    "width": 2723,
+    "height": 1416,
+    "scrollX": 0,
+    "scrollY": 0,
+    "scrollWidth": 2723,
+    "scrollHeight": 1416,
+    "clientWidth": 2723,
+    "clientHeight": 1416
+  },
+  "stats": {
+    "anchorCount": 159,
+    "imageCount": 2,
+    "textLength": 1154
+  },
+  "outputHtmlPath": "/Users/narduk/new-code/template-apps/boat-search/packages/chrome-scraper-extension/tests/fixtures/boats-com/search-no-results.html"
+}

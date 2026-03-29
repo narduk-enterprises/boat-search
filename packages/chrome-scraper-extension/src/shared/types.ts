@@ -30,9 +30,15 @@ export type ScraperFieldTransform = (typeof FIELD_TRANSFORMS)[number]
 export type PageType = 'search' | 'detail' | 'unknown'
 export type AnalysisPageState = 'ok' | 'challenge' | 'no_results' | 'parser_changed'
 export type PickerKind = 'itemSelector' | 'nextPageSelector' | 'field'
-export type SitePresetId = 'yachtworld-search'
+export type SitePresetId = 'boats-com-search' | 'yachtworld-search'
 export type SitePresetPageContext = 'search' | 'detail'
 export type SitePresetApplicationMode = 'auto' | 'manual'
+export type FixtureCaptureTemplate =
+  | 'search-ok'
+  | 'search-no-results'
+  | 'detail-ok'
+  | 'detail-gallery-noise'
+  | 'custom'
 export type SessionValueSource = 'manual' | 'local-default' | null
 
 export interface ScraperFieldRule {
@@ -131,6 +137,48 @@ export interface BrowserScrapeRecord {
   state: string | null
   country: string | null
   description: string | null
+  contactInfo?: string | null
+  contactName?: string | null
+  contactPhone?: string | null
+  otherDetails?: string | null
+  disclaimer?: string | null
+  features?: string | null
+  electricalEquipment?: string | null
+  electronics?: string | null
+  insideEquipment?: string | null
+  outsideEquipment?: string | null
+  additionalEquipment?: string | null
+  propulsion?: string | null
+  engineMake?: string | null
+  engineModel?: string | null
+  engineYearDetail?: string | null
+  totalPower?: string | null
+  engineHours?: string | null
+  engineTypeDetail?: string | null
+  driveType?: string | null
+  fuelTypeDetail?: string | null
+  propellerType?: string | null
+  propellerMaterial?: string | null
+  specifications?: string | null
+  cruisingSpeed?: string | null
+  maxSpeed?: string | null
+  range?: string | null
+  lengthOverall?: string | null
+  maxBridgeClearance?: string | null
+  maxDraft?: string | null
+  minDraftDetail?: string | null
+  beamDetail?: string | null
+  dryWeight?: string | null
+  windlass?: string | null
+  electricalCircuit?: string | null
+  deadriseAtTransom?: string | null
+  hullMaterial?: string | null
+  hullShape?: string | null
+  keelType?: string | null
+  freshWaterTank?: string | null
+  fuelTank?: string | null
+  holdingTank?: string | null
+  guestHeads?: string | null
   sellerType: string | null
   listingType: string | null
   images: string[]
@@ -195,6 +243,76 @@ export interface SampleDetailRunState {
   message: string
 }
 
+export interface FixtureCaptureViewport {
+  width: number
+  height: number
+  scrollX: number
+  scrollY: number
+  scrollWidth: number
+  scrollHeight: number
+  clientWidth: number
+  clientHeight: number
+}
+
+export interface FixtureCaptureRequest {
+  template: FixtureCaptureTemplate
+}
+
+export interface FixtureCaptureResponse {
+  html: string
+  analysis: AutoDetectedAnalysis
+  page: {
+    url: string
+    title: string
+    readyState: string
+    viewport: FixtureCaptureViewport
+  }
+}
+
+export interface FixtureCaptureMetadata {
+  capturedAt: string
+  host: string
+  fixtureLabel: string
+  currentUrl: string
+  title: string
+  pageType: PageType
+  pageState: AnalysisPageState
+  analysisWarnings: string[]
+  stats: AutoDetectedAnalysis['stats']
+  matchedPresetId: SitePresetId | null
+  matchedPresetLabel: string | null
+  appliedPresetId: SitePresetId | null
+  appliedPresetLabel: string | null
+  viewport: FixtureCaptureViewport
+}
+
+export interface FixtureCaptureRecord {
+  template: FixtureCaptureTemplate
+  fileStem: string | null
+  files: string[]
+  currentUrl: string | null
+  pageType: PageType | null
+  pageState: AnalysisPageState | null
+  capturedAt: string | null
+}
+
+export interface FixtureCaptureSummary {
+  template: FixtureCaptureTemplate
+  fileStem: string
+  files: string[]
+  currentUrl: string
+  pageType: PageType
+  pageState: AnalysisPageState
+  capturedAt: string
+}
+
+export interface FixtureCaptureSessionState {
+  selectedTemplate: FixtureCaptureTemplate
+  customLabel: string
+  captured: Record<FixtureCaptureTemplate, FixtureCaptureRecord>
+  lastCapture: FixtureCaptureSummary | null
+}
+
 export interface ExtensionDebugEvent {
   type: string
   at: string
@@ -208,6 +326,7 @@ export interface ExtensionDebugSnapshot {
   currentTabUrl: string | null
   analysis: AutoDetectedAnalysis | null
   preset: ExtensionPresetState
+  fixtureCapture: FixtureCaptureSessionState
   connection: {
     apiKeySource: SessionValueSource
     appBaseUrlSource: SessionValueSource
@@ -315,11 +434,13 @@ export interface ExtensionSession {
   sampleDetailUrl: string | null
   lastAnalysis: AutoDetectedAnalysis | null
   preset: ExtensionPresetState
+  fixtureCapture: FixtureCaptureSessionState
   draft: ScraperPipelineDraft
 }
 
 export type ContentMessage =
   | { type: 'EXTENSION_ANALYZE_PAGE' }
+  | { type: 'EXTENSION_CAPTURE_PAGE'; request: FixtureCaptureRequest }
   | { type: 'EXTENSION_START_PICKER'; picker: PickerRequest }
   | { type: 'EXTENSION_PREVIEW_FIELD'; preview: FieldPreviewRequest }
   | { type: 'EXTENSION_EXTRACT_SEARCH_PAGE'; request: SearchPageExtractRequest }
@@ -329,6 +450,12 @@ export type ContentMessage =
 
 export type BackgroundMessage =
   | { type: 'EXTENSION_OPEN_URL'; url: string }
+  | {
+      type: 'EXTENSION_DOWNLOAD_FILE'
+      fileName: string
+      url: string
+      saveAs?: boolean
+    }
   | { type: 'EXTENSION_PICKER_RESULT'; result: PickerResult }
   | { type: 'EXTENSION_PICKER_PROGRESS'; progress: PickerProgress }
   | { type: 'EXTENSION_PICKER_CANCELLED'; kind: PickerKind }

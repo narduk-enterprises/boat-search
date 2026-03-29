@@ -6,6 +6,8 @@
   "scripts": {
     "crawl:test": "node scripts/crawl-test.mjs",
     "crawl:test:doppler": "doppler run --project narduk-nuxt-template --config prd -- node scripts/crawl-test.mjs",
+    "capture:console": "node scripts/capture-console-fixture.mjs",
+    "capture:trusted": "node scripts/capture-trusted-page.mjs",
     "scrape:boats": "node scripts/scrape-boats.mjs",
     "setup:db": "node scripts/setup-db.mjs",
     "crawl:texas": "node scripts/crawl-texas-boats.mjs",

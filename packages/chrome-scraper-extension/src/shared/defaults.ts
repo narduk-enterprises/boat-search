@@ -6,6 +6,7 @@ import type {
   ScraperFieldScope,
   ScraperPipelineDraft,
 } from './types'
+import { createDefaultFixtureCaptureSessionState } from './fixtureCapture'
 
 export type SessionDefaults = Partial<Omit<ExtensionSession, 'connection' | 'preset' | 'draft'>> & {
   connection?: Partial<ExtensionConnection>
@@ -112,6 +113,7 @@ export function createDefaultSession(overrides: SessionDefaults = {}): Extension
     sampleDetailUrl: null,
     lastAnalysis: null,
     preset,
+    fixtureCapture: createDefaultFixtureCaptureSessionState(),
     draft: overrides.draft ? structuredClone(overrides.draft) : createEmptyDraft(),
   }
 

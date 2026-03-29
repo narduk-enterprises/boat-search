@@ -11,10 +11,12 @@ const props = withDefaults(
     status: WorkflowStatus
     note?: string
     open?: boolean
+    toggleable?: boolean
   }>(),
   {
     note: undefined,
     open: false,
+    toggleable: true,
   },
 )
 
@@ -75,6 +77,7 @@ const statusLabel = computed(() => {
           </div>
 
           <button
+            v-if="props.toggleable"
             type="button"
             class="step-card__toggle"
             :aria-expanded="props.open"

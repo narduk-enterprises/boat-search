@@ -1,5 +1,6 @@
 import {
   analyzeDocument,
+  capturePageDocument,
   extractDetailPageDocument,
   extractSearchPageDocument,
 } from './analyzer'
@@ -10,6 +11,7 @@ import type {
   DetailPageExtractResponse,
   FieldPreviewRequest,
   FieldPreviewResult,
+  FixtureCaptureResponse,
   PickerProgress,
   PickerRequest,
   PickerResult,
@@ -564,6 +566,10 @@ function analyzeCurrentPage() {
   return analyzeDocument(document, window.location.href)
 }
 
+function captureCurrentPage(): FixtureCaptureResponse {
+  return capturePageDocument(document, window.location.href)
+}
+
 function inferPickerSelection(target: HTMLElement, request: PickerRequest): PickerResult {
   if (request.kind === 'nextPageSelector') {
     return {
@@ -1070,6 +1076,11 @@ chrome.runtime.onMessage.addListener((message: ContentMessage, _sender, sendResp
 
   if (message.type === 'EXTENSION_ANALYZE_PAGE') {
     sendResponse(analyzeCurrentPage())
+    return false
+  }
+
+  if (message.type === 'EXTENSION_CAPTURE_PAGE') {
+    sendResponse(captureCurrentPage())
     return false
   }
 

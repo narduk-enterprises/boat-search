@@ -38,7 +38,68 @@ interface SitePresetDefinition {
 
 const YACHTWORLD_LABEL = 'YachtWorld Search'
 const YACHTWORLD_ALLOWED_DOMAINS = ['www.yachtworld.com', 'images.yachtworld.com']
+const BOATS_COM_LABEL = 'Boats.com Search'
+const BOATS_COM_ALLOWED_DOMAINS = ['www.boats.com', 'images.boats.com']
 const EMPTY_DRAFT_FINGERPRINT = JSON.stringify(createEmptyDraft())
+const YACHTWORLD_FEATURE_SECTION_HEADINGS = [
+  'Electrical Equipment',
+  'Electronics',
+  'Inside Equipment',
+  'Outside Equipment',
+  'Additional Equipment',
+  'Covers',
+  'Rigging',
+  'Miscellaneous Equipment',
+] as const
+const YACHTWORLD_PROPULSION_FIELD_LABELS = [
+  'Engine Make',
+  'Engine Model',
+  'Engine Year',
+  'Total Power',
+  'Engine Hours',
+  'Engine Type',
+  'Drive Type',
+  'Fuel Type',
+  'Propeller Type',
+  'Propeller Material',
+] as const
+const YACHTWORLD_SPEC_FIELD_LABELS = [
+  'Cruising Speed',
+  'Max Speed',
+  'Range',
+  'Length Overall',
+  'Max Bridge Clearance',
+  'Max Draft',
+  'Min Draft',
+  'Beam',
+  'Dry Weight',
+  'Windlass',
+  'Electrical Circuit',
+  'Deadrise At Transom',
+  'Hull Material',
+  'Hull Shape',
+  'Keel Type',
+  'Fresh Water Tank',
+  'Fuel Tank',
+  'Holding Tank',
+  'Guest Heads',
+] as const
+const YACHTWORLD_SPEC_SECTION_MARKERS = [
+  'Speed & Distance',
+  'Dimensions',
+  'Weights',
+  'Miscellaneous',
+  'Tanks',
+  'Accommodations',
+] as const
+const YACHTWORLD_SECTION_CALLOUT_PATTERNS = [
+  /Show More/gi,
+  /Need more details\?Ask the seller/gi,
+  /Want more features\?Ask the seller/gi,
+  /Want more specs\?Ask the seller/gi,
+]
+const PHONE_PATTERN =
+  /(?:\+?1[-.\s]*)?(?:\(\d{3}\)|\d{3})[-.\s]*\d{3}[-.\s]*\d{4}/
 
 function uniqueStrings(values: string[]) {
   return [...new Set(values.map((value) => value.trim()).filter(Boolean))]
@@ -62,6 +123,10 @@ function mergeFieldRules(...fieldGroups: ScraperFieldRule[][]) {
 
 function normalizeTitle(value: string | null | undefined) {
   return (value || '').replaceAll(/\s+/g, ' ').trim()
+}
+
+function escapeRegExp(value: string) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 }
 
 function normalizeYachtWorldTitleText(title: string | null | undefined) {
@@ -251,6 +316,277 @@ function isGenericYachtWorldDescription(value: string | null | undefined) {
   )
 }
 
+function cleanYachtWorldSectionText(value: string | null | undefined) {
+  let normalized = normalizeTitle(value)
+  if (!normalized) {
+    return null
+  }
+
+  for (const pattern of YACHTWORLD_SECTION_CALLOUT_PATTERNS) {
+    normalized = normalized.replace(pattern, ' ')
+  }
+
+  normalized = normalizeTitle(normalized)
+  return normalized || null
+}
+
+function normalizeStructuredListValue(value: string | null | undefined) {
+  const normalized = cleanYachtWorldSectionText(value)
+  if (!normalized) {
+    return null
+  }
+
+  const expanded = normalized
+    .replace(/([a-z0-9✓)])([A-Z])/g, '$1\n$2')
+    .replace(/:\s*(?=\S)/g, ': ')
+
+  const parts = expanded
+    .split(/\n+/)
+    .map((part) =>
+      normalizeTitle(part)
+        .replace(/:\s*✓$/i, '')
+        .replace(/:\s*$/i, '')
+        .trim(),
+    )
+    .filter(
+      (part) =>
+        Boolean(part) &&
+        !/^(?:Need more details\?|Want more features\?|Want more specs\?|Ask the seller)$/i.test(
+          part,
+        ),
+    )
+
+  return parts.length ? parts.join(' | ') : null
+}
+
+function joinUniqueValues(values: Array<string | null | undefined>) {
+  const normalized = uniqueStrings(values.map((value) => normalizeTitle(value)).filter(Boolean))
+  return normalized.length ? normalized.join(' | ') : null
+}
+
+function assignDerivedRecordValue<K extends keyof BrowserScrapeRecord>(
+  record: BrowserScrapeRecord,
+  key: K,
+  value: BrowserScrapeRecord[K] | null | undefined,
+) {
+  const normalized =
+    typeof value === 'string'
+      ? normalizeTitle(value)
+      : Array.isArray(value)
+        ? value
+        : value
+  if (normalized == null || normalized === '') {
+    return
+  }
+
+  const existing = record[key]
+  if (
+    existing != null &&
+    existing !== '' &&
+    (!Array.isArray(existing) || existing.length > 0)
+  ) {
+    return
+  }
+
+  record[key] = normalized as BrowserScrapeRecord[K]
+  if (typeof normalized === 'string') {
+    record.rawFields[key as string] = normalized
+  }
+}
+
+function findHeadingOccurrence(
+  text: string,
+  heading: string,
+  options: {
+    before?: number
+    after?: number
+    validate?: (tail: string) => boolean
+  } = {},
+) {
+  const before =
+    typeof options.before === 'number' && options.before >= 0 ? options.before : text.length
+  const after = typeof options.after === 'number' && options.after >= 0 ? options.after : 0
+  const haystack = text.slice(after, before)
+
+  let searchFrom = haystack.length
+  while (searchFrom >= 0) {
+    const localIndex = haystack.lastIndexOf(heading, searchFrom)
+    if (localIndex < 0) {
+      return -1
+    }
+
+    const absoluteIndex = after + localIndex
+    const tail = normalizeTitle(text.slice(absoluteIndex + heading.length, absoluteIndex + heading.length + 160))
+    if (!options.validate || options.validate(tail)) {
+      return absoluteIndex
+    }
+
+    searchFrom = localIndex - 1
+  }
+
+  return -1
+}
+
+function extractIndexedSection(
+  text: string,
+  heading: string,
+  startIndex: number,
+  endIndexes: number[],
+) {
+  if (startIndex < 0) {
+    return null
+  }
+
+  const nextIndex = endIndexes
+    .filter((index) => index > startIndex)
+    .sort((left, right) => left - right)[0]
+
+  return cleanYachtWorldSectionText(
+    text.slice(startIndex + heading.length, nextIndex && nextIndex > 0 ? nextIndex : undefined),
+  )
+}
+
+function buildLookaheadPattern(literalMarkers: string[], regexMarkers: string[] = []) {
+  return [...literalMarkers.map((marker) => escapeRegExp(marker)), ...regexMarkers].join('|')
+}
+
+function extractLabeledChunk(
+  text: string | null | undefined,
+  label: string,
+  literalMarkers: string[],
+  regexMarkers: string[] = [],
+) {
+  const normalized = cleanYachtWorldSectionText(text)
+  if (!normalized) {
+    return null
+  }
+
+  const lookahead = buildLookaheadPattern(
+    literalMarkers.filter((marker) => marker !== label),
+    regexMarkers,
+  )
+  const match = normalized.match(
+    new RegExp(
+      `${escapeRegExp(label)}:?\\s*(.*?)\\s*(?=${lookahead ? `(?:${lookahead})` : '$'}|$)`,
+      'i',
+    ),
+  )
+
+  return cleanYachtWorldSectionText(match?.[1] || null)
+}
+
+function extractRepeatedLabeledValues(
+  text: string | null | undefined,
+  label: string,
+  literalMarkers: string[],
+  regexMarkers: string[] = [],
+) {
+  const normalized = cleanYachtWorldSectionText(text)
+  if (!normalized) {
+    return []
+  }
+
+  const lookahead = buildLookaheadPattern(
+    literalMarkers.filter((marker) => marker !== label),
+    regexMarkers,
+  )
+  const pattern = new RegExp(
+    `${escapeRegExp(label)}:?\\s*(.*?)\\s*(?=${lookahead ? `(?:${lookahead})` : '$'}|$)`,
+    'gi',
+  )
+  const values: string[] = []
+
+  for (const match of normalized.matchAll(pattern)) {
+    const value = cleanYachtWorldSectionText(match[1] || null)
+    if (value) {
+      values.push(value)
+    }
+  }
+
+  return values
+}
+
+function extractYachtWorldDetailSections(fullText: string | null | undefined) {
+  const normalized = cleanYachtWorldSectionText(fullText)
+  if (!normalized) {
+    return {
+      contactInfo: null,
+      otherDetails: null,
+      features: null,
+      propulsion: null,
+      specifications: null,
+    }
+  }
+
+  const specificationsIndex = findHeadingOccurrence(normalized, 'Specifications', {
+    validate: (tail) =>
+      /^(?:Speed & Distance|Dimensions|Weights|Miscellaneous|Tanks|Accommodations|Length Overall:|Min Draft:|Beam:)/i.test(
+        tail,
+      ),
+  })
+  const propulsionIndex = findHeadingOccurrence(normalized, 'Propulsion', {
+    before: specificationsIndex >= 0 ? specificationsIndex : normalized.length,
+    validate: (tail) => /^(?:Engine \d|Engine Make:)/i.test(tail),
+  })
+  const featuresIndex = findHeadingOccurrence(normalized, 'Features', {
+    before:
+      propulsionIndex >= 0
+        ? propulsionIndex
+        : specificationsIndex >= 0
+          ? specificationsIndex
+          : normalized.length,
+    validate: (tail) =>
+      new RegExp(`^(?:${YACHTWORLD_FEATURE_SECTION_HEADINGS.map((value) => escapeRegExp(value)).join('|')})`, 'i').test(
+        tail,
+      ),
+  })
+  const otherDetailsIndex = findHeadingOccurrence(normalized, 'Other Details', {
+    before:
+      featuresIndex >= 0
+        ? featuresIndex
+        : propulsionIndex >= 0
+          ? propulsionIndex
+          : specificationsIndex >= 0
+            ? specificationsIndex
+            : normalized.length,
+  })
+  const contactInfoIndex = findHeadingOccurrence(normalized, 'Contact Information', {
+    before:
+      otherDetailsIndex >= 0
+        ? otherDetailsIndex
+        : featuresIndex >= 0
+          ? featuresIndex
+          : propulsionIndex >= 0
+            ? propulsionIndex
+            : specificationsIndex >= 0
+              ? specificationsIndex
+              : normalized.length,
+    validate: (tail) => /^(?:Please contact|Ask the seller)/i.test(tail),
+  })
+
+  return {
+    contactInfo: extractIndexedSection(normalized, 'Contact Information', contactInfoIndex, [
+      otherDetailsIndex,
+      featuresIndex,
+      propulsionIndex,
+      specificationsIndex,
+    ]),
+    otherDetails: extractIndexedSection(normalized, 'Other Details', otherDetailsIndex, [
+      featuresIndex,
+      propulsionIndex,
+      specificationsIndex,
+    ]),
+    features: extractIndexedSection(normalized, 'Features', featuresIndex, [
+      propulsionIndex,
+      specificationsIndex,
+    ]),
+    propulsion: extractIndexedSection(normalized, 'Propulsion', propulsionIndex, [
+      specificationsIndex,
+    ]),
+    specifications: extractIndexedSection(normalized, 'Specifications', specificationsIndex, []),
+  }
+}
+
 function normalizeImageIdentity(url: string) {
   try {
     const parsed = new URL(url)
@@ -360,6 +696,324 @@ function inferYachtWorldListingTypeFromPageUrl(pageUrl: string | null | undefine
   if (normalized.includes('/condition-new/')) return 'new'
 
   return null
+}
+
+function splitBoatsComTitle(title: string | null | undefined) {
+  const normalized = normalizeTitle(title).replace(/^(?:19|20)\d{2}\s+/, '')
+  if (!normalized) {
+    return {
+      make: null,
+      model: null,
+    }
+  }
+
+  const [make = '', ...modelParts] = normalized.split(/\s+/)
+
+  return {
+    make: make || null,
+    model: modelParts.join(' ').trim() || null,
+  }
+}
+
+function isBoatsComBoatImageUrl(url: string, listingId: string | null | undefined) {
+  try {
+    const parsed = new URL(url)
+    const hostname = parsed.hostname.toLowerCase()
+    const pathname = parsed.pathname.toLowerCase()
+
+    if (!/^https?:$/i.test(parsed.protocol) || hostname !== 'images.boats.com') {
+      return false
+    }
+
+    if (
+      /(?:^|\/)(?:sprite|icon|logo|avatar|placeholder|blank|tracking|pixel|spinner|preloader)/i.test(
+        pathname,
+      )
+    ) {
+      return false
+    }
+
+    if (listingId && !pathname.includes(`-${listingId}-`)) {
+      return false
+    }
+
+    return true
+  } catch {
+    return false
+  }
+}
+
+function normalizeBoatsComImages(images: string[], listingId: string | null | undefined) {
+  const deduped = new Map<string, string>()
+
+  for (const image of images) {
+    if (!isBoatsComBoatImageUrl(image, listingId)) {
+      continue
+    }
+
+    const identity = normalizeImageIdentity(image)
+    if (!deduped.has(identity)) {
+      deduped.set(identity, image)
+    }
+  }
+
+  if (!deduped.size) {
+    for (const image of images) {
+      if (!isBoatsComBoatImageUrl(image, null)) {
+        continue
+      }
+
+      const identity = normalizeImageIdentity(image)
+      if (!deduped.has(identity)) {
+        deduped.set(identity, image)
+      }
+    }
+  }
+
+  return [...deduped.values()]
+}
+
+function inferBoatsComListingTypeFromPageUrl(pageUrl: string | null | undefined) {
+  try {
+    const url = new URL(pageUrl || '')
+    const condition = normalizeTitle(url.searchParams.get('condition')).toLowerCase()
+
+    if (condition.includes('used')) return 'used'
+    if (condition.includes('new')) return 'new'
+
+    return null
+  } catch {
+    return null
+  }
+}
+
+function createBoatsComPipelineName(pageUrl: string) {
+  try {
+    const url = new URL(pageUrl)
+    const boatClass = normalizeTitle(url.searchParams.get('class'))
+    if (!boatClass) {
+      return 'Boats.com Search Pipeline'
+    }
+
+    const label = boatClass
+      .replaceAll(/[-_]+/g, ' ')
+      .replace(/\b\w/g, (character) => character.toUpperCase())
+
+    return `Boats.com ${label} Pipeline`
+  } catch {
+    return 'Boats.com Search Pipeline'
+  }
+}
+
+function getBoatsComSearchFields(analysis?: AutoDetectedAnalysis | null) {
+  const inferredFields =
+    analysis?.pageType === 'search' && analysis.pageState === 'ok'
+      ? analysis.fields.filter((field) => field.scope === 'item')
+      : []
+
+  const staticFields = [
+    createFieldRule('url', 'item', 'a[href*="/power-boats/"]', {
+      extract: 'attr',
+      attribute: 'href',
+      transform: 'url',
+    }),
+    createFieldRule('listingId', 'item', 'a[href*="/power-boats/"]', {
+      extract: 'attr',
+      attribute: 'href',
+      regex: '-(\\d{6,})(?:/|$)',
+      required: false,
+    }),
+    createFieldRule('title', 'item', 'h2'),
+    createFieldRule('year', 'item', '.year', {
+      transform: 'year',
+      required: false,
+    }),
+    createFieldRule('price', 'item', '.price', {
+      transform: 'price',
+      regex: '((?:US|C|CA)?\\$\\s*[\\d,.]+|€\\s*[\\d,.]+|£\\s*[\\d,.]+)',
+      required: false,
+    }),
+    createFieldRule('currency', 'item', '.price', {
+      regex: '(USD|CAD|EUR|GBP|\\$|€|£)',
+      required: false,
+    }),
+    createFieldRule('location', 'item', '.country', {
+      required: false,
+    }),
+    createFieldRule('city', 'item', '.country', {
+      regex: '^([^,]+)',
+      required: false,
+    }),
+    createFieldRule('state', 'item', '.country', {
+      regex: '^[^,]+,\\s*([^,]+)',
+      required: false,
+    }),
+    createFieldRule('country', 'item', '.country', {
+      regex: '^[^,]+,\\s*[^,]+,\\s*(.+)$',
+      required: false,
+    }),
+    createFieldRule('images', 'item', '.img-container img', {
+      extract: 'attr',
+      attribute: 'src',
+      multiple: true,
+      transform: 'url',
+      required: false,
+    }),
+  ]
+
+  // Boats.com card anchors wrap the full tile, so analyzer-inferred item fields
+  // can capture badges, seller text, and other noise. Keep trusted static
+  // selectors authoritative for overlapping keys.
+  return mergeFieldRules(inferredFields, staticFields)
+}
+
+function getBoatsComDetailFields() {
+  return [
+    createFieldRule('listingId', 'detail', 'link[rel="canonical"]', {
+      extract: 'attr',
+      attribute: 'href',
+      regex: '-(\\d{6,})(?:/|$)',
+      transform: 'text',
+      required: false,
+    }),
+    createFieldRule('title', 'detail', 'section.boat-details h1, .boat-details h1, h1'),
+    createFieldRule('year', 'detail', 'title', {
+      regex: '^((?:19|20)\\d{2})\\b',
+      transform: 'year',
+      required: false,
+    }),
+    createFieldRule('price', 'detail', 'section.boat-details .details-header .price, section.boat-details .price', {
+      transform: 'price',
+      regex: '((?:US|C|CA)?\\$\\s*[\\d,.]+|€\\s*[\\d,.]+|£\\s*[\\d,.]+)',
+      required: false,
+    }),
+    createFieldRule('currency', 'detail', 'section.boat-details .details-header .price, section.boat-details .price', {
+      regex: '(USD|CAD|EUR|GBP|\\$|€|£)',
+      required: false,
+    }),
+    createFieldRule('location', 'detail', '#seller-map-view, button.map-trigger', {
+      required: false,
+    }),
+    createFieldRule('city', 'detail', '#seller-map-view, button.map-trigger', {
+      regex: '^([^,]+)',
+      required: false,
+    }),
+    createFieldRule('state', 'detail', '#seller-map-view, button.map-trigger', {
+      regex: '^[^,]+,\\s*([^,]+)',
+      required: false,
+    }),
+    createFieldRule('country', 'detail', '#seller-map-view, button.map-trigger', {
+      regex: '^[^,]+,\\s*[^,]+,\\s*(.+)$',
+      required: false,
+    }),
+    createFieldRule('length', 'detail', 'main', {
+      regex: 'Length\\s+([\\d.]+\\s*ft)',
+      required: false,
+    }),
+    createFieldRule('description', 'detail', 'meta[name="description"]', {
+      extract: 'attr',
+      attribute: 'content',
+      required: false,
+    }),
+    createFieldRule('images', 'detail', '#detail-carousel img, .img-gallery img', {
+      extract: 'attr',
+      attribute: 'src',
+      transform: 'url',
+      multiple: true,
+      required: false,
+    }),
+    createFieldRule('fullText', 'detail', 'main', {
+      required: false,
+    }),
+  ]
+}
+
+function buildBoatsComDraft({ pageUrl, analysis }: PresetDraftOptions) {
+  const draft = createEmptyDraft()
+  const currentHost = (() => {
+    try {
+      return new URL(pageUrl).hostname
+    } catch {
+      return ''
+    }
+  })()
+
+  draft.name = createBoatsComPipelineName(pageUrl)
+  draft.boatSource = 'Boats.com'
+  draft.description =
+    'Trusted Boats.com preset. Search selectors, detail fields, and pagination rules were auto-loaded in the extension.'
+  draft.config.startUrls = [pageUrl]
+  draft.config.allowedDomains = uniqueStrings([...BOATS_COM_ALLOWED_DOMAINS, currentHost])
+  draft.config.itemSelector =
+    analysis?.pageType === 'search' && analysis.pageState === 'ok' && analysis.itemSelector
+      ? analysis.itemSelector
+      : 'li[data-listing-id]'
+  draft.config.nextPageSelector =
+    analysis?.pageType === 'search' && analysis.pageState === 'ok' && analysis.nextPageSelector
+      ? analysis.nextPageSelector
+      : 'a.next, a[rel="next"]'
+  draft.config.fetchDetailPages = true
+  draft.config.fields = [...getBoatsComSearchFields(analysis), ...getBoatsComDetailFields()]
+
+  return draft
+}
+
+function normalizeBoatsComRecord(
+  record: BrowserScrapeRecord,
+  { context, pageUrl }: PresetRecordNormalizationOptions,
+) {
+  const nextRecord: BrowserScrapeRecord = {
+    ...record,
+    rawFields: {
+      ...record.rawFields,
+    },
+    images: uniqueStrings(record.images),
+    warnings: uniqueStrings(record.warnings),
+  }
+
+  if (!nextRecord.url && context === 'detail') {
+    nextRecord.url = pageUrl
+  }
+
+  if (!nextRecord.listingId) {
+    nextRecord.listingId = extractListingIdFromUrl(nextRecord.url || pageUrl)
+  }
+
+  const titleParts = splitBoatsComTitle(nextRecord.title)
+  const locationParts = splitLocationParts(nextRecord.location)
+
+  assignDerivedRecordValue(nextRecord, 'make', titleParts.make)
+  assignDerivedRecordValue(nextRecord, 'model', titleParts.model)
+  assignDerivedRecordValue(nextRecord, 'city', locationParts.city)
+  assignDerivedRecordValue(nextRecord, 'state', locationParts.state)
+  assignDerivedRecordValue(nextRecord, 'country', locationParts.country || (nextRecord.location ? 'US' : null))
+
+  nextRecord.currency =
+    extractCurrencyFromText(nextRecord.currency) ||
+    extractCurrencyFromText(
+      typeof nextRecord.rawFields.currency === 'string' ? nextRecord.rawFields.currency : '',
+    ) ||
+    extractCurrencyFromText(
+      typeof nextRecord.rawFields.price === 'string' ? nextRecord.rawFields.price : '',
+    ) ||
+    (nextRecord.price ? 'USD' : null) ||
+    nextRecord.currency
+
+  if (!nextRecord.length) {
+    nextRecord.length =
+      extractLengthFromText(
+        typeof nextRecord.rawFields.length === 'string' ? nextRecord.rawFields.length : '',
+      ) || nextRecord.length
+  }
+
+  nextRecord.images = normalizeBoatsComImages(nextRecord.images, nextRecord.listingId)
+  nextRecord.sellerType = inferSellerType(nextRecord.sellerType) || nextRecord.sellerType
+  nextRecord.listingType =
+    inferBoatsComListingTypeFromPageUrl(context === 'search' ? pageUrl : null) ||
+    normalizeListingType(nextRecord.listingType) ||
+    nextRecord.listingType
+
+  return nextRecord
 }
 
 function createYachtWorldPipelineName(pageUrl: string) {
@@ -589,6 +1243,297 @@ function normalizeYachtWorldRecord(
       nextRecord.fullText ||
       nextRecord.description,
   )
+  const detailSections = extractYachtWorldDetailSections(fullText)
+  const disclaimer =
+    extractLabeledChunk(
+      detailSections.otherDetails,
+      'Disclaimer',
+      ['Manufacturer Provided Description', 'Standard Features', 'Disclaimer'],
+      ['Need more details\\?Ask the seller', 'Features', 'Propulsion', 'Specifications'],
+    ) || null
+  const contactInfo = detailSections.contactInfo
+  const contactPhone = contactInfo?.match(PHONE_PATTERN)?.[0] || null
+  const contactName =
+    contactInfo?.match(/Please contact\s+(.+?)\s+at\b/i)?.[1] ||
+    contactInfo?.match(/Please contact\s+(.+?)(?=\(?\d{3}\)?[-.\s]*\d{3}[-.\s]*\d{4})/i)?.[1] ||
+    null
+  const electricalEquipment = normalizeStructuredListValue(
+    extractLabeledChunk(
+      detailSections.features,
+      'Electrical Equipment',
+      [...YACHTWORLD_FEATURE_SECTION_HEADINGS],
+      ['Want more features\\?Ask the seller', 'Propulsion', 'Specifications'],
+    ),
+  )
+  const electronics = normalizeStructuredListValue(
+    extractLabeledChunk(
+      detailSections.features,
+      'Electronics',
+      [...YACHTWORLD_FEATURE_SECTION_HEADINGS],
+      ['Want more features\\?Ask the seller', 'Propulsion', 'Specifications'],
+    ),
+  )
+  const insideEquipment = normalizeStructuredListValue(
+    extractLabeledChunk(
+      detailSections.features,
+      'Inside Equipment',
+      [...YACHTWORLD_FEATURE_SECTION_HEADINGS],
+      ['Want more features\\?Ask the seller', 'Propulsion', 'Specifications'],
+    ),
+  )
+  const outsideEquipment = normalizeStructuredListValue(
+    extractLabeledChunk(
+      detailSections.features,
+      'Outside Equipment',
+      [...YACHTWORLD_FEATURE_SECTION_HEADINGS],
+      ['Want more features\\?Ask the seller', 'Propulsion', 'Specifications'],
+    ),
+  )
+  const additionalEquipment = normalizeStructuredListValue(
+    extractLabeledChunk(
+      detailSections.features,
+      'Additional Equipment',
+      [...YACHTWORLD_FEATURE_SECTION_HEADINGS],
+      ['Want more features\\?Ask the seller', 'Propulsion', 'Specifications'],
+    ),
+  )
+  const propulsionFieldRegexMarkers = ['Engine \\d+', 'Specifications']
+  const specificationsFieldRegexMarkers = [
+    ...YACHTWORLD_SPEC_SECTION_MARKERS.map((marker) => escapeRegExp(marker)),
+    'Want more specs\\?Ask the seller',
+  ]
+  const engineMake = joinUniqueValues(
+    extractRepeatedLabeledValues(
+      detailSections.propulsion,
+      'Engine Make',
+      [...YACHTWORLD_PROPULSION_FIELD_LABELS],
+      propulsionFieldRegexMarkers,
+    ),
+  )
+  const engineModel = joinUniqueValues(
+    extractRepeatedLabeledValues(
+      detailSections.propulsion,
+      'Engine Model',
+      [...YACHTWORLD_PROPULSION_FIELD_LABELS],
+      propulsionFieldRegexMarkers,
+    ),
+  )
+  const engineYearDetail = joinUniqueValues(
+    extractRepeatedLabeledValues(
+      detailSections.propulsion,
+      'Engine Year',
+      [...YACHTWORLD_PROPULSION_FIELD_LABELS],
+      propulsionFieldRegexMarkers,
+    ),
+  )
+  const totalPower = joinUniqueValues(
+    extractRepeatedLabeledValues(
+      detailSections.propulsion,
+      'Total Power',
+      [...YACHTWORLD_PROPULSION_FIELD_LABELS],
+      propulsionFieldRegexMarkers,
+    ),
+  )
+  const engineHours = joinUniqueValues(
+    extractRepeatedLabeledValues(
+      detailSections.propulsion,
+      'Engine Hours',
+      [...YACHTWORLD_PROPULSION_FIELD_LABELS],
+      propulsionFieldRegexMarkers,
+    ),
+  )
+  const engineTypeDetail = joinUniqueValues(
+    extractRepeatedLabeledValues(
+      detailSections.propulsion,
+      'Engine Type',
+      [...YACHTWORLD_PROPULSION_FIELD_LABELS],
+      propulsionFieldRegexMarkers,
+    ),
+  )
+  const driveType = joinUniqueValues(
+    extractRepeatedLabeledValues(
+      detailSections.propulsion,
+      'Drive Type',
+      [...YACHTWORLD_PROPULSION_FIELD_LABELS],
+      propulsionFieldRegexMarkers,
+    ),
+  )
+  const fuelTypeDetail = joinUniqueValues(
+    extractRepeatedLabeledValues(
+      detailSections.propulsion,
+      'Fuel Type',
+      [...YACHTWORLD_PROPULSION_FIELD_LABELS],
+      propulsionFieldRegexMarkers,
+    ),
+  )
+  const propellerType = joinUniqueValues(
+    extractRepeatedLabeledValues(
+      detailSections.propulsion,
+      'Propeller Type',
+      [...YACHTWORLD_PROPULSION_FIELD_LABELS],
+      propulsionFieldRegexMarkers,
+    ),
+  )
+  const propellerMaterial = joinUniqueValues(
+    extractRepeatedLabeledValues(
+      detailSections.propulsion,
+      'Propeller Material',
+      [...YACHTWORLD_PROPULSION_FIELD_LABELS],
+      propulsionFieldRegexMarkers,
+    ),
+  )
+  const cruisingSpeed = joinUniqueValues(
+    extractRepeatedLabeledValues(
+      detailSections.specifications,
+      'Cruising Speed',
+      [...YACHTWORLD_SPEC_FIELD_LABELS],
+      specificationsFieldRegexMarkers,
+    ),
+  )
+  const maxSpeed = joinUniqueValues(
+    extractRepeatedLabeledValues(
+      detailSections.specifications,
+      'Max Speed',
+      [...YACHTWORLD_SPEC_FIELD_LABELS],
+      specificationsFieldRegexMarkers,
+    ),
+  )
+  const range = joinUniqueValues(
+    extractRepeatedLabeledValues(
+      detailSections.specifications,
+      'Range',
+      [...YACHTWORLD_SPEC_FIELD_LABELS],
+      specificationsFieldRegexMarkers,
+    ),
+  )
+  const lengthOverall = joinUniqueValues(
+    extractRepeatedLabeledValues(
+      detailSections.specifications,
+      'Length Overall',
+      [...YACHTWORLD_SPEC_FIELD_LABELS],
+      specificationsFieldRegexMarkers,
+    ),
+  )
+  const maxBridgeClearance = joinUniqueValues(
+    extractRepeatedLabeledValues(
+      detailSections.specifications,
+      'Max Bridge Clearance',
+      [...YACHTWORLD_SPEC_FIELD_LABELS],
+      specificationsFieldRegexMarkers,
+    ),
+  )
+  const maxDraft = joinUniqueValues(
+    extractRepeatedLabeledValues(
+      detailSections.specifications,
+      'Max Draft',
+      [...YACHTWORLD_SPEC_FIELD_LABELS],
+      specificationsFieldRegexMarkers,
+    ),
+  )
+  const minDraftDetail = joinUniqueValues(
+    extractRepeatedLabeledValues(
+      detailSections.specifications,
+      'Min Draft',
+      [...YACHTWORLD_SPEC_FIELD_LABELS],
+      specificationsFieldRegexMarkers,
+    ),
+  )
+  const beamDetail = joinUniqueValues(
+    extractRepeatedLabeledValues(
+      detailSections.specifications,
+      'Beam',
+      [...YACHTWORLD_SPEC_FIELD_LABELS],
+      specificationsFieldRegexMarkers,
+    ),
+  )
+  const dryWeight = joinUniqueValues(
+    extractRepeatedLabeledValues(
+      detailSections.specifications,
+      'Dry Weight',
+      [...YACHTWORLD_SPEC_FIELD_LABELS],
+      specificationsFieldRegexMarkers,
+    ),
+  )
+  const windlass = joinUniqueValues(
+    extractRepeatedLabeledValues(
+      detailSections.specifications,
+      'Windlass',
+      [...YACHTWORLD_SPEC_FIELD_LABELS],
+      specificationsFieldRegexMarkers,
+    ),
+  )
+  const electricalCircuit = joinUniqueValues(
+    extractRepeatedLabeledValues(
+      detailSections.specifications,
+      'Electrical Circuit',
+      [...YACHTWORLD_SPEC_FIELD_LABELS],
+      specificationsFieldRegexMarkers,
+    ),
+  )
+  const deadriseAtTransom = joinUniqueValues(
+    extractRepeatedLabeledValues(
+      detailSections.specifications,
+      'Deadrise At Transom',
+      [...YACHTWORLD_SPEC_FIELD_LABELS],
+      specificationsFieldRegexMarkers,
+    ),
+  )
+  const hullMaterial = joinUniqueValues(
+    extractRepeatedLabeledValues(
+      detailSections.specifications,
+      'Hull Material',
+      [...YACHTWORLD_SPEC_FIELD_LABELS],
+      specificationsFieldRegexMarkers,
+    ),
+  )
+  const hullShape = joinUniqueValues(
+    extractRepeatedLabeledValues(
+      detailSections.specifications,
+      'Hull Shape',
+      [...YACHTWORLD_SPEC_FIELD_LABELS],
+      specificationsFieldRegexMarkers,
+    ),
+  )
+  const keelType = joinUniqueValues(
+    extractRepeatedLabeledValues(
+      detailSections.specifications,
+      'Keel Type',
+      [...YACHTWORLD_SPEC_FIELD_LABELS],
+      specificationsFieldRegexMarkers,
+    ),
+  )
+  const freshWaterTank = joinUniqueValues(
+    extractRepeatedLabeledValues(
+      detailSections.specifications,
+      'Fresh Water Tank',
+      [...YACHTWORLD_SPEC_FIELD_LABELS],
+      specificationsFieldRegexMarkers,
+    ),
+  )
+  const fuelTank = joinUniqueValues(
+    extractRepeatedLabeledValues(
+      detailSections.specifications,
+      'Fuel Tank',
+      [...YACHTWORLD_SPEC_FIELD_LABELS],
+      specificationsFieldRegexMarkers,
+    ),
+  )
+  const holdingTank = joinUniqueValues(
+    extractRepeatedLabeledValues(
+      detailSections.specifications,
+      'Holding Tank',
+      [...YACHTWORLD_SPEC_FIELD_LABELS],
+      specificationsFieldRegexMarkers,
+    ),
+  )
+  const guestHeads = joinUniqueValues(
+    extractRepeatedLabeledValues(
+      detailSections.specifications,
+      'Guest Heads',
+      [...YACHTWORLD_SPEC_FIELD_LABELS],
+      specificationsFieldRegexMarkers,
+    ),
+  )
 
   if (!nextRecord.url && context === 'detail') {
     nextRecord.url = pageUrl
@@ -640,6 +1585,49 @@ function normalizeYachtWorldRecord(
     nextRecord.description = null
   }
 
+  assignDerivedRecordValue(nextRecord, 'contactInfo', contactInfo)
+  assignDerivedRecordValue(nextRecord, 'contactName', contactName)
+  assignDerivedRecordValue(nextRecord, 'contactPhone', contactPhone)
+  assignDerivedRecordValue(nextRecord, 'otherDetails', detailSections.otherDetails)
+  assignDerivedRecordValue(nextRecord, 'disclaimer', disclaimer)
+  assignDerivedRecordValue(nextRecord, 'features', detailSections.features)
+  assignDerivedRecordValue(nextRecord, 'electricalEquipment', electricalEquipment)
+  assignDerivedRecordValue(nextRecord, 'electronics', electronics)
+  assignDerivedRecordValue(nextRecord, 'insideEquipment', insideEquipment)
+  assignDerivedRecordValue(nextRecord, 'outsideEquipment', outsideEquipment)
+  assignDerivedRecordValue(nextRecord, 'additionalEquipment', additionalEquipment)
+  assignDerivedRecordValue(nextRecord, 'propulsion', detailSections.propulsion)
+  assignDerivedRecordValue(nextRecord, 'engineMake', engineMake)
+  assignDerivedRecordValue(nextRecord, 'engineModel', engineModel)
+  assignDerivedRecordValue(nextRecord, 'engineYearDetail', engineYearDetail)
+  assignDerivedRecordValue(nextRecord, 'totalPower', totalPower)
+  assignDerivedRecordValue(nextRecord, 'engineHours', engineHours)
+  assignDerivedRecordValue(nextRecord, 'engineTypeDetail', engineTypeDetail)
+  assignDerivedRecordValue(nextRecord, 'driveType', driveType)
+  assignDerivedRecordValue(nextRecord, 'fuelTypeDetail', fuelTypeDetail)
+  assignDerivedRecordValue(nextRecord, 'propellerType', propellerType)
+  assignDerivedRecordValue(nextRecord, 'propellerMaterial', propellerMaterial)
+  assignDerivedRecordValue(nextRecord, 'specifications', detailSections.specifications)
+  assignDerivedRecordValue(nextRecord, 'cruisingSpeed', cruisingSpeed)
+  assignDerivedRecordValue(nextRecord, 'maxSpeed', maxSpeed)
+  assignDerivedRecordValue(nextRecord, 'range', range)
+  assignDerivedRecordValue(nextRecord, 'lengthOverall', lengthOverall)
+  assignDerivedRecordValue(nextRecord, 'maxBridgeClearance', maxBridgeClearance)
+  assignDerivedRecordValue(nextRecord, 'maxDraft', maxDraft)
+  assignDerivedRecordValue(nextRecord, 'minDraftDetail', minDraftDetail)
+  assignDerivedRecordValue(nextRecord, 'beamDetail', beamDetail)
+  assignDerivedRecordValue(nextRecord, 'dryWeight', dryWeight)
+  assignDerivedRecordValue(nextRecord, 'windlass', windlass)
+  assignDerivedRecordValue(nextRecord, 'electricalCircuit', electricalCircuit)
+  assignDerivedRecordValue(nextRecord, 'deadriseAtTransom', deadriseAtTransom)
+  assignDerivedRecordValue(nextRecord, 'hullMaterial', hullMaterial)
+  assignDerivedRecordValue(nextRecord, 'hullShape', hullShape)
+  assignDerivedRecordValue(nextRecord, 'keelType', keelType)
+  assignDerivedRecordValue(nextRecord, 'freshWaterTank', freshWaterTank)
+  assignDerivedRecordValue(nextRecord, 'fuelTank', fuelTank)
+  assignDerivedRecordValue(nextRecord, 'holdingTank', holdingTank)
+  assignDerivedRecordValue(nextRecord, 'guestHeads', guestHeads)
+
   nextRecord.images = normalizeYachtWorldImages(nextRecord.images, nextRecord.listingId)
   nextRecord.sellerType = inferSellerType(nextRecord.sellerType || fullText) || nextRecord.sellerType
   nextRecord.listingType =
@@ -656,6 +1644,33 @@ function normalizeYachtWorldRecord(
 }
 
 const SITE_PRESETS: SitePresetDefinition[] = [
+  {
+    id: 'boats-com-search',
+    label: BOATS_COM_LABEL,
+    match: (pageUrl) => {
+      try {
+        const url = new URL(pageUrl)
+        const hostname = url.hostname.toLowerCase()
+        if (hostname !== 'www.boats.com' && hostname !== 'boats.com') {
+          return null
+        }
+
+        if (/\/boats-for-sale\/?/i.test(url.pathname)) {
+          return 'search'
+        }
+
+        if (/\/power-boats\/?/i.test(url.pathname)) {
+          return 'detail'
+        }
+
+        return null
+      } catch {
+        return null
+      }
+    },
+    buildDraft: buildBoatsComDraft,
+    normalizeRecord: normalizeBoatsComRecord,
+  },
   {
     id: 'yachtworld-search',
     label: YACHTWORLD_LABEL,
