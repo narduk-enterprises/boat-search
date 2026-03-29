@@ -65,7 +65,7 @@ const isFullBleedLayout = computed(() => {
 const shellContentClass = computed(() =>
   isFullBleedLayout.value
     ? 'w-full px-4 pb-10 pt-4 sm:px-6 sm:pb-14 lg:px-8'
-    : 'mx-auto w-full max-w-[94rem] px-4 pb-12 pt-6 sm:px-6 lg:px-8',
+    : 'mx-auto w-full max-w-[94rem] px-4 pb-12 pt-3 sm:px-6 sm:pt-4 lg:px-8',
 )
 const footerLinkClass = 'text-sm text-muted hover:text-default transition-fast'
 

@@ -190,8 +190,13 @@ function scrollToListingBrief() {
     </div>
 
     <template v-else-if="boat">
-      <!-- Centered hero: title + price, gallery below (minimal top padding) -->
-      <UPageSection :ui="{ wrapper: '!pt-2 pb-6 sm:!pt-3' }">
+      <!-- UPageSection padding lives on `container`, not `wrapper` (Nuxt UI defaults: py-16/24/32). -->
+      <UPageSection
+        :ui="{
+          container:
+            'flex flex-col lg:grid gap-6 sm:gap-8 pt-1 pb-6 sm:pt-2 sm:pb-8 lg:pb-10',
+        }"
+      >
         <div class="mx-auto w-full max-w-5xl px-4 sm:px-6">
           <UButton
             :to="backToSearch"
@@ -315,8 +320,12 @@ function scrollToListingBrief() {
         </div>
       </UPageSection>
 
-      <!-- Single main column: details + scroll-contained brief; sticky actions -->
-      <UPageSection :ui="{ wrapper: 'py-4' }">
+      <UPageSection
+        :ui="{
+          container:
+            'flex flex-col lg:grid gap-6 py-4 pb-10 sm:gap-8 sm:py-6 sm:pb-12 lg:pb-14',
+        }"
+      >
         <div class="mx-auto grid min-w-0 max-w-6xl gap-6 px-4 sm:px-6 lg:grid-cols-[minmax(0,1fr)_17.5rem] lg:items-start lg:gap-8">
           <UCard
             class="brand-surface brand-grid-panel min-w-0 lg:col-start-1"
