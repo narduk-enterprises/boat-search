@@ -10,6 +10,8 @@ const props = withDefaults(
     height?: number
     sizes?: string
     quality?: number
+    /** Tiny strip / thumb slots: icon-only fallback instead of a tall copy block */
+    compactFallback?: boolean
   }>(),
   {
     src: null,
@@ -20,6 +22,7 @@ const props = withDefaults(
     height: undefined,
     sizes: undefined,
     quality: 72,
+    compactFallback: false,
   },
 )
 
@@ -130,15 +133,25 @@ onBeforeUnmount(() => {
       @error="handleImageError"
     />
 
-    <div v-else class="boat-image-fallback absolute inset-0 flex items-center justify-center">
+    <div
+      v-else
+      class="absolute inset-0 flex items-center justify-center"
+      :class="props.compactFallback ? 'bg-muted' : 'boat-image-fallback'"
+    >
+      <template v-if="props.compactFallback">
+        <span class="sr-only">{{ props.alt }} — preview unavailable</span>
+        <UIcon name="i-lucide-image-off" class="text-xl text-dimmed" aria-hidden="true" />
+      </template>
       <div
-        class="brand-surface-soft relative flex flex-col items-center gap-2 rounded-3xl px-5 py-4"
+        v-else
+        class="brand-surface-soft relative mx-4 max-w-md flex flex-col items-center gap-3 rounded-3xl px-6 py-5 text-center shadow-card"
       >
-        <UIcon name="i-lucide-ship-wheel" class="text-2xl text-primary" />
-        <div class="space-y-1 text-center">
-          <p class="text-sm font-semibold text-default">Photo unavailable</p>
-          <p class="max-w-[12rem] text-xs text-muted">
-            Open the source listing for the freshest gallery and broker media.
+        <UIcon name="i-lucide-images" class="text-3xl text-primary" aria-hidden="true" />
+        <div class="space-y-1">
+          <p class="text-sm font-semibold text-default">Photos load on the source site</p>
+          <p class="text-pretty text-sm leading-relaxed text-muted">
+            We could not show a cached image. Open the original listing for the full gallery and the
+            freshest broker media.
           </p>
         </div>
       </div>

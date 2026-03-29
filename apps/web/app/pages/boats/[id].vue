@@ -7,6 +7,8 @@ import {
   makeInventorySearchLink,
 } from '~~/app/utils/boatBrowse'
 
+const LISTING_BRIEF_ID = 'listing-brief'
+
 const route = useRoute()
 const session = useUserSession()
 const { fetchBoat } = useBoats()
@@ -79,6 +81,17 @@ const boatSummary = computed(() => {
   )
 })
 
+const snapshotTeaser = computed(() => {
+  const full = boatSummary.value?.trim() || ''
+  if (!full) return { text: '', hasMore: false }
+  const max = 320
+  if (full.length <= max) return { text: full, hasMore: false }
+  const slice = full.slice(0, max)
+  const lastSpace = slice.lastIndexOf(' ')
+  const end = lastSpace > 160 ? lastSpace : max
+  return { text: `${full.slice(0, end).trim()}…`, hasMore: true }
+})
+
 const overviewFacts = computed(() => {
   if (!boat.value) return []
 
@@ -87,21 +100,25 @@ const overviewFacts = computed(() => {
       label: 'Year',
       value: boat.value.year ? String(boat.value.year) : 'Year unlisted',
       detail: 'Original model year reported by the source listing.',
+      icon: 'i-lucide-calendar',
     },
     {
       label: 'Length',
       value: formatLength(boat.value.length),
       detail: 'Hull length pulled directly from the marketplace source.',
+      icon: 'i-lucide-ruler',
     },
     {
       label: 'Seller',
       value: boat.value.sellerType || 'Seller type unlisted',
       detail: 'Useful when deciding how much diligence to do before contacting them.',
+      icon: 'i-lucide-store',
     },
     {
       label: 'Location',
       value: headlineLocation.value,
       detail: 'Helps you gauge logistics, survey travel, and delivery options.',
+      icon: 'i-lucide-map-pin',
     },
   ]
 })
@@ -156,6 +173,11 @@ watch(
 function goLoginForFavorite() {
   navigateTo({ path: '/login', query: { redirect: route.fullPath } })
 }
+
+function scrollToListingBrief() {
+  if (!import.meta.client) return
+  document.getElementById(LISTING_BRIEF_ID)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+}
 </script>
 
 <template>
@@ -167,10 +189,10 @@ function goLoginForFavorite() {
     <template v-else-if="boat">
       <UPageSection :ui="{ wrapper: 'py-2' }">
         <UCard
-          class="brand-surface brand-grid-panel brand-orbit"
-          :ui="{ body: 'relative p-6 sm:p-8 space-y-6' }"
+          class="brand-surface brand-grid-panel brand-orbit overflow-hidden"
+          :ui="{ body: 'relative p-6 sm:p-8 lg:p-10 space-y-8 lg:space-y-10' }"
         >
-          <div class="space-y-5">
+          <div class="space-y-6">
             <UButton
               :to="backToSearch"
               :label="backLabel"
@@ -180,51 +202,132 @@ function goLoginForFavorite() {
               class="self-start"
             />
 
-            <div class="space-y-4">
-              <div class="flex flex-wrap gap-2">
-                <UBadge :label="getSourceLabel(boat.source)" color="primary" variant="subtle" />
-                <UBadge
-                  :label="boat.sellerType || 'Seller type unlisted'"
-                  color="neutral"
-                  variant="soft"
-                />
-                <UBadge :label="formatLength(boat.length)" color="neutral" variant="soft" />
+            <div class="flex flex-col gap-8 lg:flex-row lg:items-start lg:justify-between lg:gap-12">
+              <div class="min-w-0 max-w-3xl space-y-4">
+                <div class="flex flex-wrap items-center gap-2">
+                  <UBadge
+                    :label="getSourceLabel(boat.source)"
+                    color="primary"
+                    variant="subtle"
+                    size="md"
+                  />
+                  <UBadge
+                    :label="boat.sellerType || 'Seller type unlisted'"
+                    color="neutral"
+                    variant="soft"
+                    size="md"
+                  />
+                  <UBadge :label="formatLength(boat.length)" color="neutral" variant="soft" size="md" />
+                </div>
+                <div class="space-y-3">
+                  <h1 class="text-balance text-3xl font-bold tracking-tight text-highlighted sm:text-4xl lg:text-5xl">
+                    {{ pageTitle }}
+                  </h1>
+                  <p
+                    class="flex items-start gap-2 text-base text-muted sm:items-center sm:text-lg"
+                  >
+                    <UIcon
+                      name="i-lucide-map-pin"
+                      class="mt-0.5 shrink-0 text-primary sm:mt-0"
+                      aria-hidden="true"
+                    />
+                    <span>{{ headlineLocation }}</span>
+                  </p>
+                </div>
               </div>
-              <div class="space-y-2">
-                <h1 class="max-w-4xl text-3xl font-bold text-highlighted sm:text-5xl">
-                  {{ pageTitle }}
-                </h1>
-                <p class="text-sm text-muted sm:text-base">
-                  {{ headlineLocation }}
+
+              <div
+                class="shrink-0 rounded-[1.35rem] border border-default bg-elevated p-5 shadow-card sm:min-w-[16rem] lg:max-w-sm lg:text-right"
+              >
+                <p class="text-xs font-semibold uppercase tracking-[0.18em] text-dimmed">
+                  Asking price
                 </p>
+                <p class="mt-2 text-3xl font-bold tabular-nums text-primary sm:text-4xl">
+                  {{ formatPrice(boat.price) }}
+                </p>
+                <div class="mt-4 flex flex-col gap-2 lg:items-end">
+                  <UButton
+                    v-if="boat.url"
+                    :to="boat.url"
+                    external
+                    target="_blank"
+                    :label="getSourceCta(boat.source)"
+                    icon="i-lucide-external-link"
+                    size="lg"
+                    class="brand-button-shadow w-full justify-center lg:w-auto"
+                  />
+                  <p class="text-xs text-muted">
+                    {{ galleryImages.length || 0 }} cached photo{{
+                      galleryImages.length === 1 ? '' : 's'
+                    }}
+                    · verify on source
+                  </p>
+                </div>
               </div>
             </div>
           </div>
 
           <div
-            class="grid min-w-0 gap-6 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)] lg:items-start"
+            class="grid min-w-0 gap-8 lg:gap-10 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)] lg:items-start"
           >
-            <div class="order-2 min-w-0 space-y-5 lg:order-1">
-              <div class="brand-surface-soft rounded-[1.25rem] p-4 sm:p-5">
-                <p class="text-xs font-semibold uppercase tracking-[0.18em] text-dimmed">
-                  Listing snapshot
+            <div class="order-2 min-w-0 space-y-6 lg:order-1">
+              <div class="space-y-4 rounded-[1.35rem] border border-default bg-muted/40 p-5 sm:p-6">
+                <div class="flex items-center gap-2">
+                  <UIcon name="i-lucide-sparkles" class="text-lg text-primary" aria-hidden="true" />
+                  <p class="text-xs font-semibold uppercase tracking-[0.18em] text-dimmed">
+                    Listing snapshot
+                  </p>
+                </div>
+                <p class="text-pretty text-base leading-relaxed text-default">
+                  {{ snapshotTeaser.text }}
                 </p>
-                <p class="mt-2 line-clamp-4 text-sm text-muted sm:line-clamp-none sm:text-base">
-                  {{ boatSummary }}
-                </p>
+                <div v-if="snapshotTeaser.hasMore || boat.description" class="flex flex-wrap gap-2">
+                  <UButton
+                    v-if="snapshotTeaser.hasMore && boat.description"
+                    label="Read full description"
+                    icon="i-lucide-arrow-down"
+                    color="primary"
+                    variant="soft"
+                    size="md"
+                    @click="scrollToListingBrief"
+                  />
+                  <UButton
+                    v-else-if="boat.description"
+                    label="Jump to full brief"
+                    icon="i-lucide-file-text"
+                    color="neutral"
+                    variant="ghost"
+                    size="md"
+                    @click="scrollToListingBrief"
+                  />
+                </div>
               </div>
 
-              <div class="grid grid-cols-2 gap-3">
-                <div
-                  v-for="item in overviewFacts"
-                  :key="item.label"
-                  class="brand-surface-soft rounded-[1.25rem] p-4"
-                >
-                  <p class="text-xs font-semibold uppercase tracking-[0.18em] text-dimmed">
-                    {{ item.label }}
-                  </p>
-                  <p class="mt-2 text-base font-semibold text-highlighted">{{ item.value }}</p>
-                  <p class="mt-1 hidden text-sm text-muted sm:block">{{ item.detail }}</p>
+              <div>
+                <p class="mb-3 text-xs font-semibold uppercase tracking-[0.18em] text-dimmed">
+                  At a glance
+                </p>
+                <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <div
+                    v-for="item in overviewFacts"
+                    :key="item.label"
+                    class="flex gap-3 rounded-[1.25rem] border border-default bg-elevated p-4 transition-base hover:border-primary/25"
+                  >
+                    <UIcon
+                      :name="item.icon"
+                      class="mt-0.5 size-5 shrink-0 text-primary"
+                      aria-hidden="true"
+                    />
+                    <div class="min-w-0">
+                      <p class="text-xs font-semibold uppercase tracking-[0.12em] text-dimmed">
+                        {{ item.label }}
+                      </p>
+                      <p class="mt-1 text-base font-semibold text-highlighted">{{ item.value }}</p>
+                      <p class="mt-1 hidden text-sm leading-snug text-muted sm:block">
+                        {{ item.detail }}
+                      </p>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
@@ -237,37 +340,38 @@ function goLoginForFavorite() {
                 :height="1080"
                 sizes="(min-width: 1024px) 45vw, 100vw"
                 :quality="74"
-                class="aspect-[4/3] w-full max-w-full rounded-[1.4rem] border border-default bg-muted"
+                class="aspect-[4/3] w-full max-w-full overflow-hidden rounded-[1.35rem] border border-default bg-muted shadow-card"
                 img-class="h-full w-full max-w-full object-cover"
                 loading="eager"
               >
-                <div class="absolute inset-x-0 bottom-0 flex items-end justify-between gap-3 p-4">
-                  <div class="rounded-2xl bg-black/35 px-3 py-2 text-white backdrop-blur-md">
-                    <p
-                      class="text-[0.65rem] font-semibold uppercase tracking-[0.24em] text-white/70"
-                    >
-                      Asking
-                    </p>
-                    <p class="mt-1 text-xl font-semibold text-white sm:text-2xl">
-                      {{ formatPrice(boat.price) }}
-                    </p>
-                  </div>
+                <div
+                  class="pointer-events-none absolute inset-x-0 bottom-0 bg-linear-to-t from-default/80 to-transparent px-4 pb-4 pt-16"
+                />
+                <div class="absolute inset-x-0 bottom-0 flex items-end justify-end gap-3 p-4">
                   <UBadge
-                    :label="`${galleryImages.length || 0} photo${galleryImages.length === 1 ? '' : 's'}`"
+                    :label="`${galleryImages.length || 0} in gallery`"
                     color="neutral"
                     variant="solid"
+                    size="md"
+                    class="pointer-events-auto shadow-elevated"
                   />
                 </div>
               </BoatMediaImage>
 
-              <div v-if="galleryImages.length > 1" class="flex gap-2 overflow-x-auto pb-1">
+              <div
+                v-if="galleryImages.length > 1"
+                class="flex gap-3 overflow-x-auto pb-2 [-webkit-overflow-scrolling:touch]"
+                aria-label="Listing photo thumbnails"
+              >
                 <UButton
                   v-for="(image, index) in galleryImages"
-                  :key="image"
+                  :key="`${image}-${index}`"
                   color="neutral"
                   variant="ghost"
-                  class="h-20 w-28 shrink-0 overflow-hidden rounded-2xl border border-default p-0"
-                  :class="index === selectedImage ? 'ring-2 ring-primary' : ''"
+                  class="h-24 min-h-11 w-32 min-w-11 shrink-0 overflow-hidden rounded-2xl border border-default p-0"
+                  :class="index === selectedImage ? 'ring-2 ring-primary ring-offset-2 ring-offset-default' : ''"
+                  :aria-label="`Show photo ${index + 1} of ${galleryImages.length}`"
+                  :aria-pressed="index === selectedImage"
                   @click="selectedImage = index"
                 >
                   <BoatMediaImage
@@ -275,8 +379,9 @@ function goLoginForFavorite() {
                     :alt="`${pageTitle} image ${index + 1}`"
                     :width="224"
                     :height="160"
-                    sizes="112px sm:160px"
+                    sizes="128px"
                     :quality="56"
+                    compact-fallback
                     class="h-full w-full"
                     img-class="h-full w-full object-cover"
                   />
@@ -287,19 +392,30 @@ function goLoginForFavorite() {
         </UCard>
       </UPageSection>
 
-      <UPageSection :ui="{ wrapper: 'py-0' }">
-        <div class="grid gap-8 xl:grid-cols-[0.98fr_1.02fr]">
-          <div class="order-2 grid gap-6 xl:order-1">
-            <UCard class="brand-surface" :ui="{ body: 'p-6 space-y-4' }">
-              <div class="space-y-2">
-                <h2 class="text-2xl font-semibold text-highlighted">Market context</h2>
-                <p class="text-sm text-muted">
-                  Use these next steps to compare this listing against the surrounding market before
-                  you schedule calls, surveys, or travel.
-                </p>
+      <UPageSection :ui="{ wrapper: 'py-2' }">
+        <div
+          class="grid min-w-0 gap-10 xl:grid-cols-[minmax(0,1fr)_minmax(0,22rem)] xl:items-start"
+        >
+          <div class="order-2 min-w-0 space-y-8 xl:order-1">
+            <UCard class="brand-surface" :ui="{ body: 'p-6 sm:p-8 space-y-5' }">
+              <div class="flex items-start gap-3">
+                <UIcon
+                  name="i-lucide-compass"
+                  class="mt-1 size-6 shrink-0 text-primary"
+                  aria-hidden="true"
+                />
+                <div class="min-w-0 space-y-2">
+                  <h2 class="text-2xl font-semibold text-highlighted">Market context</h2>
+                  <p class="text-sm leading-relaxed text-muted sm:text-base">
+                    Compare this listing against the surrounding market before you schedule calls,
+                    surveys, or travel.
+                  </p>
+                </div>
               </div>
 
-              <div class="brand-surface-soft rounded-[1.25rem] p-4 text-sm text-muted">
+              <USeparator />
+
+              <div class="rounded-[1.25rem] border border-default bg-muted/30 p-4 text-sm leading-relaxed text-muted">
                 {{ getSourceNote(boat.source) }}
               </div>
 
@@ -312,31 +428,45 @@ function goLoginForFavorite() {
                   :icon="link.icon"
                   color="neutral"
                   variant="soft"
+                  size="md"
                 />
               </div>
             </UCard>
 
-            <UCard v-if="boat.description" class="brand-surface" :ui="{ body: 'p-6 space-y-4' }">
-              <div class="space-y-2">
-                <h2 class="text-2xl font-semibold text-highlighted">Listing brief</h2>
-                <p class="text-sm text-muted">
-                  Source-marketplace copy pulled into Boat Search so you can review context before
-                  jumping out to the broker page.
+            <div v-if="boat.description" :id="LISTING_BRIEF_ID" class="scroll-mt-28">
+              <UCard class="brand-surface" :ui="{ body: 'p-6 sm:p-8 space-y-5' }">
+                <div class="flex items-start gap-3">
+                  <UIcon
+                    name="i-lucide-scroll-text"
+                    class="mt-1 size-6 shrink-0 text-primary"
+                    aria-hidden="true"
+                  />
+                  <div class="min-w-0 space-y-2">
+                    <h2 class="text-2xl font-semibold text-highlighted">Listing brief</h2>
+                    <p class="text-sm leading-relaxed text-muted sm:text-base">
+                      Full source copy is below. Use it for context, then confirm details on the
+                      broker page.
+                    </p>
+                  </div>
+                </div>
+                <USeparator />
+                <p class="max-w-prose whitespace-pre-wrap text-base leading-relaxed text-default">
+                  {{ boat.description }}
                 </p>
-              </div>
-              <p class="whitespace-pre-wrap text-sm text-muted">
-                {{ boat.description }}
-              </p>
-            </UCard>
+              </UCard>
+            </div>
           </div>
 
-          <div class="order-1 space-y-6 xl:order-2 xl:sticky xl:top-28">
-            <UCard class="brand-surface" :ui="{ body: 'p-6 space-y-5' }">
-              <div class="space-y-2">
+          <div class="order-1 min-w-0 space-y-6 xl:order-2 xl:sticky xl:top-28">
+            <UCard
+              class="brand-surface border-primary/15 shadow-elevated"
+              :ui="{ body: 'p-6 sm:p-7 space-y-5' }"
+            >
+              <div class="space-y-1">
                 <p class="text-xs font-semibold uppercase tracking-[0.18em] text-dimmed">
-                  Listing action board
+                  Next steps
                 </p>
-                <p class="text-3xl font-semibold text-primary">{{ formatPrice(boat.price) }}</p>
+                <p class="text-3xl font-bold tabular-nums text-primary">{{ formatPrice(boat.price) }}</p>
                 <p class="text-sm text-muted">
                   {{ getSourceLabel(boat.source) }} · {{ headlineLocation }}
                 </p>
@@ -350,6 +480,7 @@ function goLoginForFavorite() {
                   target="_blank"
                   :label="getSourceCta(boat.source)"
                   icon="i-lucide-external-link"
+                  size="lg"
                   class="brand-button-shadow"
                 />
                 <UButton
@@ -358,6 +489,7 @@ function goLoginForFavorite() {
                   icon="i-lucide-heart"
                   :color="favorited ? 'primary' : 'neutral'"
                   variant="soft"
+                  size="lg"
                   :loading="favoriteSaving"
                   @click="toggleFavorite"
                 />
@@ -367,12 +499,15 @@ function goLoginForFavorite() {
                   icon="i-lucide-heart"
                   color="neutral"
                   variant="soft"
+                  size="lg"
                   @click="goLoginForFavorite"
                 />
               </div>
 
+              <USeparator />
+
               <div class="grid gap-3 sm:grid-cols-2">
-                <div class="brand-surface-soft rounded-[1.15rem] p-4">
+                <div class="rounded-[1.15rem] border border-default bg-muted/25 p-4">
                   <p class="text-xs font-semibold uppercase tracking-[0.18em] text-dimmed">
                     Listing ID
                   </p>
@@ -380,7 +515,7 @@ function goLoginForFavorite() {
                     {{ boat.listingId || 'Not supplied' }}
                   </p>
                 </div>
-                <div class="brand-surface-soft rounded-[1.15rem] p-4">
+                <div class="rounded-[1.15rem] border border-default bg-muted/25 p-4">
                   <p class="text-xs font-semibold uppercase tracking-[0.18em] text-dimmed">
                     Listing type
                   </p>
