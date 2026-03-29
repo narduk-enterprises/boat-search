@@ -8,7 +8,7 @@ import type {
 } from './types'
 import { createDefaultFixtureCaptureSessionState } from './fixtureCapture'
 
-export const DEFAULT_BROWSER_SCRAPE_MAX_PAGES = 100
+export const DEFAULT_BROWSER_SCRAPE_MAX_PAGES = 500
 export const MAX_BROWSER_SCRAPE_MAX_PAGES = 500
 export const DEFAULT_BROWSER_SCRAPE_MAX_ITEMS_PER_RUN = 1000
 export const MAX_BROWSER_SCRAPE_MAX_ITEMS_PER_RUN = 2000

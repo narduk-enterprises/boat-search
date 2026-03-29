@@ -1,4 +1,8 @@
-import { createEmptyDraft, createFieldRule } from './defaults'
+import {
+  createEmptyDraft,
+  createFieldRule,
+  DEFAULT_BROWSER_SCRAPE_MAX_PAGES,
+} from './defaults'
 import type {
   AutoDetectedAnalysis,
   BrowserScrapeRecord,
@@ -1211,6 +1215,7 @@ function buildYachtWorldDraft({ pageUrl, analysis }: PresetDraftOptions) {
     analysis?.pageType === 'search' && analysis.pageState === 'ok' && analysis.nextPageSelector
       ? analysis.nextPageSelector
       : 'a.next, a[rel="next"], a[aria-label*="next" i]'
+  draft.config.maxPages = DEFAULT_BROWSER_SCRAPE_MAX_PAGES
   draft.config.fetchDetailPages = true
   draft.config.fields = [
     ...getYachtWorldSearchFields(analysis),

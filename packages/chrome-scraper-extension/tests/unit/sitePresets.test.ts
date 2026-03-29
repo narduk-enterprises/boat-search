@@ -4,7 +4,7 @@ import { fileURLToPath } from 'node:url'
 import { JSDOM } from 'jsdom'
 import { describe, expect, it } from 'vitest'
 import { analyzeDocument } from '@/content/analyzer'
-import { createEmptyDraft } from '@/shared/defaults'
+import { createEmptyDraft, DEFAULT_BROWSER_SCRAPE_MAX_PAGES } from '@/shared/defaults'
 import {
   buildPresetDraft,
   buildRuntimePresetDraft,
@@ -542,5 +542,14 @@ describe('site presets', () => {
         (field) => field.scope === 'detail' && field.key === 'url',
       ),
     ).toBe(false)
+  })
+
+  it('builds the YachtWorld preset with the full browser pagination default', () => {
+    const draft = buildPresetDraft('yachtworld-search', {
+      pageUrl: 'https://www.yachtworld.com/boats-for-sale/type-power/class-power-saltwater-fishing/',
+      analysis: null,
+    })
+
+    expect(draft.config.maxPages).toBe(DEFAULT_BROWSER_SCRAPE_MAX_PAGES)
   })
 })
