@@ -136,8 +136,16 @@ describe('boat recommendation prompt packaging', () => {
       [createBoat(101)],
     )
 
-    const hardSection = extractPromptSection(payload.userPrompt, 'Hard constraints', 'Soft preferences')
-    const softSection = extractPromptSection(payload.userPrompt, 'Soft preferences', 'Reflective context')
+    const hardSection = extractPromptSection(
+      payload.userPrompt,
+      'Hard constraints',
+      'Soft preferences',
+    )
+    const softSection = extractPromptSection(
+      payload.userPrompt,
+      'Soft preferences',
+      'Reflective context',
+    )
     const reflectiveSection = extractPromptSection(
       payload.userPrompt,
       'Reflective context',
@@ -155,7 +163,9 @@ describe('boat recommendation prompt packaging', () => {
     expect(softSection).toContain('Center console')
     expect(softSection).toContain('Must-have: Easy boarding')
     expect(reflectiveSection).toContain('Partner alignment: Supportive but cautious')
-    expect(reflectiveSection).toContain('Open note: If this turns into a high-maintenance guilt machine')
+    expect(reflectiveSection).toContain(
+      'Open note: If this turns into a high-maintenance guilt machine',
+    )
     expect(uncertaintySection).toContain('Not sure: Propulsion preference')
     expect(uncertaintySection).toContain('Skipped: Dream vs practical')
     expect(payload.userPrompt).toContain('Relaxed constraints to keep inventory viable')
@@ -267,7 +277,9 @@ describe('boat recommendation prompt packaging', () => {
     const filterSection = extractPromptSection(payload.userPrompt, 'Structured filters', 'Boat')
 
     expect(reflectiveSection).toContain('This will create tension if the boat is wrong')
-    expect(reflectiveSection).toContain('Open note: This has to feel easy enough that we actually use it.')
+    expect(reflectiveSection).toContain(
+      'Open note: This has to feel easy enough that we actually use it.',
+    )
     expect(filterSection).toContain('"location": "Charleston"')
     expect(filterSection).not.toContain('This will create tension if the boat is wrong')
     expect(payload.userPrompt).toContain('"boatId": 202')

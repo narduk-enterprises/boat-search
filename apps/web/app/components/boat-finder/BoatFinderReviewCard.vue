@@ -83,7 +83,9 @@ function handleSaveOverridesUpdate(value: boolean | string) {
       </div>
 
       <div class="space-y-2">
-        <p class="text-xs font-semibold uppercase tracking-[0.18em] text-dimmed">Life-fit context</p>
+        <p class="text-xs font-semibold uppercase tracking-[0.18em] text-dimmed">
+          Life-fit context
+        </p>
         <div class="flex flex-wrap gap-2">
           <UBadge
             v-for="item in props.context.filterSummary.reflectiveSummary"
@@ -92,7 +94,10 @@ function handleSaveOverridesUpdate(value: boolean | string) {
             color="neutral"
             variant="subtle"
           />
-          <p v-if="props.context.filterSummary.reflectiveSummary.length === 0" class="text-sm text-muted">
+          <p
+            v-if="props.context.filterSummary.reflectiveSummary.length === 0"
+            class="text-sm text-muted"
+          >
             No reflective context added. The shortlist will lean on the factual answers only.
           </p>
         </div>
@@ -100,7 +105,9 @@ function handleSaveOverridesUpdate(value: boolean | string) {
     </div>
 
     <div v-if="props.context.uncertainties.length" class="space-y-2">
-      <p class="text-xs font-semibold uppercase tracking-[0.18em] text-dimmed">Skipped or unclear</p>
+      <p class="text-xs font-semibold uppercase tracking-[0.18em] text-dimmed">
+        Skipped or unclear
+      </p>
       <div class="flex flex-wrap gap-2">
         <UBadge
           v-for="item in props.context.uncertainties"

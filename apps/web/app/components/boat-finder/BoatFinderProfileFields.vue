@@ -1,6 +1,9 @@
 <script setup lang="ts">
 import type { BuyerAnswersDraft } from '~~/lib/boatFinder'
-import { BOAT_FINDER_SECTIONS, getVisibleBoatFinderQuestions } from '~~/app/utils/boatFinderQuestions'
+import {
+  BOAT_FINDER_SECTIONS,
+  getVisibleBoatFinderQuestions,
+} from '~~/app/utils/boatFinderQuestions'
 
 const answers = defineModel<BuyerAnswersDraft>({ required: true })
 

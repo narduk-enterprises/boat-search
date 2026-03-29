@@ -29,7 +29,8 @@ type Scenario = {
   setup: () => ReturnType<typeof createEmptyBuyerAnswers>
 }
 
-type PromptPayloadBuilder = typeof import('../../server/utils/boatRecommendations').buildRecommendationPromptPayload
+type PromptPayloadBuilder =
+  typeof import('../../server/utils/boatRecommendations').buildRecommendationPromptPayload
 
 type ModelListResponse = {
   data?: Array<{ id?: string }>
@@ -75,19 +76,31 @@ async function fetchCandidatesWithRelaxations(
   for (;;) {
     const response = await fetch(toBoatApiUrl(activeFilters))
     if (!response.ok) {
-      throw new Error(`Inventory API failed (${response.status}) for ${toBoatApiUrl(activeFilters)}`)
+      throw new Error(
+        `Inventory API failed (${response.status}) for ${toBoatApiUrl(activeFilters)}`,
+      )
     }
 
     const payload = (await response.json()) as { items?: InventoryBoat[]; total?: number }
     const candidates = payload.items ?? []
 
     if (candidates.length >= 6) {
-      return { activeFilters, relaxedConstraints, candidates, total: payload.total ?? candidates.length }
+      return {
+        activeFilters,
+        relaxedConstraints,
+        candidates,
+        total: payload.total ?? candidates.length,
+      }
     }
 
     const nextRelaxation = SOFT_RELAXATION_ORDER.find((key) => activeFilters[key] != null)
     if (!nextRelaxation) {
-      return { activeFilters, relaxedConstraints, candidates, total: payload.total ?? candidates.length }
+      return {
+        activeFilters,
+        relaxedConstraints,
+        candidates,
+        total: payload.total ?? candidates.length,
+      }
     }
 
     activeFilters = { ...activeFilters, [nextRelaxation]: undefined }
@@ -276,53 +289,49 @@ const scenarios: Scenario[] = [
 ]
 
 describe('manual boat recommendation scenarios', () => {
-  it(
-    'runs real-boat recommendation scenarios against production inventory and xAI',
-    async () => {
-      const apiKey = process.env.XAI_API_KEY
+  it('runs real-boat recommendation scenarios against production inventory and xAI', async () => {
+    const apiKey = process.env.XAI_API_KEY
 
-      expect(apiKey, 'Set XAI_API_KEY before running manual scenarios').toBeTruthy()
+    expect(apiKey, 'Set XAI_API_KEY before running manual scenarios').toBeTruthy()
 
-      const boatRecommendationUtils = await import('../../server/utils/boatRecommendations')
-      buildRecommendationPromptPayload = boatRecommendationUtils.buildRecommendationPromptPayload
+    const boatRecommendationUtils = await import('../../server/utils/boatRecommendations')
+    buildRecommendationPromptPayload = boatRecommendationUtils.buildRecommendationPromptPayload
 
-      const model = await resolveModel(apiKey!)
+    const model = await resolveModel(apiKey!)
 
-      for (const scenario of scenarios) {
-        const answers = scenario.setup()
-        const profile = createProfile(answers)
-        const filters = deriveRecommendationFilters(profile)
-        const context = buildBuyerContext(answers)
-        const { activeFilters, relaxedConstraints, candidates, total } =
-          await fetchCandidatesWithRelaxations(filters)
+    for (const scenario of scenarios) {
+      const answers = scenario.setup()
+      const profile = createProfile(answers)
+      const filters = deriveRecommendationFilters(profile)
+      const context = buildBuyerContext(answers)
+      const { activeFilters, relaxedConstraints, candidates, total } =
+        await fetchCandidatesWithRelaxations(filters)
 
-        expect(candidates.length).toBeGreaterThan(0)
+      expect(candidates.length).toBeGreaterThan(0)
 
-        const promptPayload = buildRecommendationPromptPayload(
-          answers,
-          activeFilters,
-          context,
-          relaxedConstraints,
-          candidates,
-        )
-        const response = await callXaiRecommendation(apiKey!, model, promptPayload)
+      const promptPayload = buildRecommendationPromptPayload(
+        answers,
+        activeFilters,
+        context,
+        relaxedConstraints,
+        candidates,
+      )
+      const response = await callXaiRecommendation(apiKey!, model, promptPayload)
 
-        expect(response.recommendations.length).toBeGreaterThan(0)
-        expect(response.recommendations.length).toBeLessThanOrEqual(8)
+      expect(response.recommendations.length).toBeGreaterThan(0)
+      expect(response.recommendations.length).toBeLessThanOrEqual(8)
 
-        logScenarioSummary({
-          name: scenario.name,
-          filters,
-          activeFilters,
-          relaxedConstraints,
-          total,
-          candidates,
-          promptPayload,
-          response,
-          model,
-        })
-      }
-    },
-    180_000,
-  )
+      logScenarioSummary({
+        name: scenario.name,
+        filters,
+        activeFilters,
+        relaxedConstraints,
+        total,
+        candidates,
+        promptPayload,
+        response,
+        model,
+      })
+    }
+  }, 180_000)
 })

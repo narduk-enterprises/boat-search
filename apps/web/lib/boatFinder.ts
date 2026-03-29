@@ -474,7 +474,9 @@ function normalizeQuestionStates(value: unknown): Record<string, BuyerQuestionSt
 function normalizeLegacyBuyerAnswers(raw: Record<string, unknown>): BuyerAnswersDraft {
   return {
     facts: {
-      primaryUses: raw.primaryUse ? normalizeOptionList([raw.primaryUse], PRIMARY_USE_OPTIONS, 3) : [],
+      primaryUses: raw.primaryUse
+        ? normalizeOptionList([raw.primaryUse], PRIMARY_USE_OPTIONS, 3)
+        : [],
       targetWatersOrRegion:
         typeof raw.targetWatersOrRegion === 'string' ? raw.targetWatersOrRegion.trim() : '',
       travelRadius: '',
@@ -779,19 +781,28 @@ function diffQuestionStates(
   ) as Record<string, BuyerQuestionState>
 }
 
-export function diffBuyerAnswers(base: BuyerAnswersDraft, next: BuyerAnswersDraft): BuyerAnswerOverrides {
+export function diffBuyerAnswers(
+  base: BuyerAnswersDraft,
+  next: BuyerAnswersDraft,
+): BuyerAnswerOverrides {
   const normalizedBase = normalizeBuyerAnswersDraft(base)
   const normalizedNext = normalizeBuyerAnswersDraft(next)
 
   return {
     facts: diffGroup(normalizedBase.facts, normalizedNext.facts),
     preferences: diffGroup(normalizedBase.preferences, normalizedNext.preferences),
-    reflectiveAnswers: diffGroup(normalizedBase.reflectiveAnswers, normalizedNext.reflectiveAnswers),
+    reflectiveAnswers: diffGroup(
+      normalizedBase.reflectiveAnswers,
+      normalizedNext.reflectiveAnswers,
+    ),
     openContextNote:
       normalizedBase.openContextNote === normalizedNext.openContextNote
         ? undefined
         : normalizedNext.openContextNote,
-    questionStates: diffQuestionStates(normalizedBase.questionStates, normalizedNext.questionStates),
+    questionStates: diffQuestionStates(
+      normalizedBase.questionStates,
+      normalizedNext.questionStates,
+    ),
   }
 }
 
@@ -862,9 +873,7 @@ export function buildBuyerContext(input: unknown): BuyerContext {
     answers.reflectiveAnswers.timePressure &&
       `Time pressure: ${answers.reflectiveAnswers.timePressure}`,
     ...answers.reflectiveAnswers.familyFrictionPoints.map((item) => `Family friction: ${item}`),
-    ...answers.reflectiveAnswers.ownershipStressors.map(
-      (item) => `Ownership stressor: ${item}`,
-    ),
+    ...answers.reflectiveAnswers.ownershipStressors.map((item) => `Ownership stressor: ${item}`),
     answers.reflectiveAnswers.dreamVsPractical &&
       `Purchase mindset: ${answers.reflectiveAnswers.dreamVsPractical}`,
     answers.openContextNote && `Open note: ${answers.openContextNote}`,
@@ -936,7 +945,8 @@ export function normalizeBuyerProfile(input: unknown): BuyerProfile {
   const normalized = normalizeBuyerProfileDraft(input)
   return {
     ...normalized,
-    normalizedContext: normalized.normalizedContext ?? buildBuyerContext(getEffectiveBuyerAnswers(normalized)),
+    normalizedContext:
+      normalized.normalizedContext ?? buildBuyerContext(getEffectiveBuyerAnswers(normalized)),
   }
 }
 

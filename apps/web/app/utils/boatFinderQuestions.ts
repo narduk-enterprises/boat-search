@@ -443,7 +443,8 @@ export const BOAT_FINDER_QUESTIONS: BoatFinderQuestion[] = [
     path: 'openContextNote',
     section: 'reflective',
     label: 'Anything else you need the AI to understand? Lay your heart out if you want.',
-    description: 'Optional. This is where nuance, fear, family context, and real priorities belong.',
+    description:
+      'Optional. This is where nuance, fear, family context, and real priorities belong.',
     kind: 'long_text_optional',
     allowsSkip: true,
     contextRole: 'reflective',
@@ -457,6 +458,7 @@ export function getVisibleBoatFinderQuestions(
   section: Exclude<BoatFinderSectionId, 'review'>,
 ) {
   return BOAT_FINDER_QUESTIONS.filter(
-    (question) => question.section === section && (!question.visibleWhen || question.visibleWhen(answers)),
+    (question) =>
+      question.section === section && (!question.visibleWhen || question.visibleWhen(answers)),
   )
 }

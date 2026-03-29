@@ -40,7 +40,11 @@ const PRIMARY_USE_KEYWORDS: Record<string, string[]> = {
   'Mixed-use sandbar and cruising': ['sandbar', 'lounger', 'family', 'comfortable'],
 }
 
-const SOFT_RELAXATION_ORDER: Array<keyof RecommendationFilters> = ['location', 'lengthMax', 'lengthMin']
+const SOFT_RELAXATION_ORDER: Array<keyof RecommendationFilters> = [
+  'location',
+  'lengthMax',
+  'lengthMin',
+]
 
 function clampScore(value: number) {
   return Math.max(0, Math.min(100, Math.round(value)))
@@ -229,7 +233,8 @@ function scoreBoatAgainstProfile(
   }
 
   if (
-    answers.reflectiveAnswers.partnerAlignment === 'This will create tension if the boat is wrong' &&
+    answers.reflectiveAnswers.partnerAlignment ===
+      'This will create tension if the boat is wrong' &&
     !['cabin', 'head', 'comfortable', 'seating'].some((keyword) => text.includes(keyword))
   ) {
     score -= 4
@@ -317,7 +322,10 @@ function buildFallbackSummary(
         selectionSource: 'not-used',
         contextSummaries: {
           hardConstraints: relaxedConstraints.length
-            ? [...context.filterSummary.hardConstraintSummary, `Relaxed: ${relaxedConstraints.join(', ')}`]
+            ? [
+                ...context.filterSummary.hardConstraintSummary,
+                `Relaxed: ${relaxedConstraints.join(', ')}`,
+              ]
             : context.filterSummary.hardConstraintSummary,
           softPreferences: context.filterSummary.softPreferenceSummary,
           reflectiveContext: context.filterSummary.reflectiveSummary,
@@ -357,7 +365,10 @@ function buildFallbackSummary(
       selectionSource: 'not-used',
       contextSummaries: {
         hardConstraints: relaxedConstraints.length
-          ? [...context.filterSummary.hardConstraintSummary, `Relaxed: ${relaxedConstraints.join(', ')}`]
+          ? [
+              ...context.filterSummary.hardConstraintSummary,
+              `Relaxed: ${relaxedConstraints.join(', ')}`,
+            ]
           : context.filterSummary.hardConstraintSummary,
         softPreferences: context.filterSummary.softPreferenceSummary,
         reflectiveContext: context.filterSummary.reflectiveSummary,
@@ -518,7 +529,10 @@ async function requestAiRecommendationSummary(
       selectionSource: response.selectionSource,
       contextSummaries: {
         hardConstraints: relaxedConstraints.length
-          ? [...context.filterSummary.hardConstraintSummary, `Relaxed: ${relaxedConstraints.join(', ')}`]
+          ? [
+              ...context.filterSummary.hardConstraintSummary,
+              `Relaxed: ${relaxedConstraints.join(', ')}`,
+            ]
           : context.filterSummary.hardConstraintSummary,
         softPreferences: context.filterSummary.softPreferenceSummary,
         reflectiveContext: context.filterSummary.reflectiveSummary,
@@ -527,10 +541,7 @@ async function requestAiRecommendationSummary(
   } satisfies RecommendationSummary
 }
 
-async function fetchCandidatesWithRelaxations(
-  db: AppDb,
-  filters: RecommendationFilters,
-) {
+async function fetchCandidatesWithRelaxations(db: AppDb, filters: RecommendationFilters) {
   let activeFilters = { ...filters }
   let relaxedConstraints: string[] = []
   let candidates = await selectRecommendationCandidates(db, activeFilters, { limit: 120 })
@@ -630,7 +641,8 @@ function buildFallbackFitSummary(
   context: BuyerContext,
   recommendation?: RecommendationEntry,
 ): BoatFitSummary {
-  const score = recommendation?.score ?? scoreBoatAgainstProfile(boat, answers, filters, context).score
+  const score =
+    recommendation?.score ?? scoreBoatAgainstProfile(boat, answers, filters, context).score
   const rating = recommendation?.rating ?? ratingFromScore(score)
   const verdict =
     rating === 'best-fit' ? 'strong-fit' : rating === 'strong-fit' ? 'mixed-fit' : 'weak-fit'
@@ -723,13 +735,7 @@ export function buildFitSummaryPromptPayload(
   boat: InventoryBoat,
   recommendation?: RecommendationEntry,
 ) {
-  return buildFitSummaryPromptPayloadInternal(
-    answers,
-    filters,
-    context,
-    boat,
-    recommendation,
-  )
+  return buildFitSummaryPromptPayloadInternal(answers, filters, context, boat, recommendation)
 }
 
 async function requestAiFitSummary(
@@ -801,8 +807,7 @@ export async function buildBoatFitSummaryResult(
         filters,
         context,
         recommendation,
-      )) ??
-      fallback
+      )) ?? fallback
     )
   } catch {
     return fallback

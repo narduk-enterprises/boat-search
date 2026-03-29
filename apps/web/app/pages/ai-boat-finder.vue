@@ -169,7 +169,9 @@ const backPath = computed(() => {
           </UCard>
 
           <UCard class="card-base border-default" :ui="{ body: 'p-4 space-y-3' }">
-            <h2 class="text-lg font-semibold text-default">Need to edit the saved default later?</h2>
+            <h2 class="text-lg font-semibold text-default">
+              Need to edit the saved default later?
+            </h2>
             <p class="text-sm text-muted">
               The finder can run with one-off overrides, or you can lock changes into your core
               buyer profile.

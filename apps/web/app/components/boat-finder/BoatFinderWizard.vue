@@ -55,11 +55,7 @@ function hasValue(question: BoatFinderQuestion) {
     const [maxGroup, maxKey] = question.maxPath.split('.')
     if (!maxKey) return false
 
-    if (
-      maxGroup === 'facts' ||
-      maxGroup === 'preferences' ||
-      maxGroup === 'reflectiveAnswers'
-    ) {
+    if (maxGroup === 'facts' || maxGroup === 'preferences' || maxGroup === 'reflectiveAnswers') {
       return Boolean(getValueFromGroup(maxGroup, maxKey))
     }
 
@@ -186,7 +182,9 @@ function goBack() {
       @update:save-overrides="emit('update:saveOverrides', $event)"
     />
 
-    <div class="sticky bottom-3 z-10 rounded-[1.6rem] border border-default bg-default/95 p-4 shadow-card">
+    <div
+      class="sticky bottom-3 z-10 rounded-[1.6rem] border border-default bg-default/95 p-4 shadow-card"
+    >
       <div class="flex flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-between">
         <UButton
           label="Back"

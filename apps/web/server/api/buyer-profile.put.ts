@@ -4,7 +4,9 @@ import { buyerAnswersSchema, normalizeBuyerAnswersDraft } from '~~/lib/boatFinde
 import { upsertBuyerProfile } from '~~/server/utils/boatFinderStore'
 
 const bodySchema = z.object({
-  profile: z.unknown().transform((value) => buyerAnswersSchema.parse(normalizeBuyerAnswersDraft(value))),
+  profile: z
+    .unknown()
+    .transform((value) => buyerAnswersSchema.parse(normalizeBuyerAnswersDraft(value))),
 })
 
 export default defineUserMutation(

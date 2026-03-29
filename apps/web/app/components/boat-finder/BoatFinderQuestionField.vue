@@ -1,13 +1,6 @@
 <script setup lang="ts">
-import {
-  listToTextarea,
-  textareaToList,
-  type BuyerAnswersDraft,
-} from '~~/lib/boatFinder'
-import type {
-  BoatFinderQuestion,
-  BoatFinderSectionId,
-} from '~~/app/utils/boatFinderQuestions'
+import { listToTextarea, textareaToList, type BuyerAnswersDraft } from '~~/lib/boatFinder'
+import type { BoatFinderQuestion, BoatFinderSectionId } from '~~/app/utils/boatFinderQuestions'
 
 const props = defineProps<{
   question: BoatFinderQuestion
@@ -112,7 +105,8 @@ function toggleMultiValue(value: string) {
   const current = Array.isArray(getFieldValue(props.question.path))
     ? ([...(getFieldValue(props.question.path) as string[])] as string[])
     : []
-  const selectionLimit = 'maxSelections' in props.question ? props.question.maxSelections : undefined
+  const selectionLimit =
+    'maxSelections' in props.question ? props.question.maxSelections : undefined
 
   const next = current.includes(value)
     ? current.filter((entry) => entry !== value)
@@ -129,12 +123,14 @@ function toggleMultiValue(value: string) {
 
 const currentState = computed(() => answers.value.questionStates[props.question.id])
 const maxSelections = computed(() =>
-  'maxSelections' in props.question ? props.question.maxSelections ?? Infinity : Infinity,
+  'maxSelections' in props.question ? (props.question.maxSelections ?? Infinity) : Infinity,
 )
 const questionPlaceholder = computed(() =>
   'placeholder' in props.question ? props.question.placeholder : undefined,
 )
-const questionHelpText = computed(() => ('helpText' in props.question ? props.question.helpText : ''))
+const questionHelpText = computed(() =>
+  'helpText' in props.question ? props.question.helpText : '',
+)
 const textValue = computed({
   get: () => {
     if (props.question.id === 'mustHaves' || props.question.id === 'dealBreakers') {
@@ -161,7 +157,8 @@ const textValue = computed({
 
 const rangeMinValue = computed({
   get: () => {
-    const value = props.question.kind === 'number_range' ? getFieldValue(props.question.minPath) : null
+    const value =
+      props.question.kind === 'number_range' ? getFieldValue(props.question.minPath) : null
     return typeof value === 'number' ? value : undefined
   },
   set: (value: number | undefined) => {
@@ -178,7 +175,8 @@ const rangeMinValue = computed({
 
 const rangeMaxValue = computed({
   get: () => {
-    const value = props.question.kind === 'number_range' ? getFieldValue(props.question.maxPath) : null
+    const value =
+      props.question.kind === 'number_range' ? getFieldValue(props.question.maxPath) : null
     return typeof value === 'number' ? value : undefined
   },
   set: (value: number | undefined) => {
@@ -261,11 +259,11 @@ function stateLabel(state?: string) {
         v-for="option in props.question.options"
         :key="option.value"
         :label="option.label"
-          :color="selectedValues.includes(option.value) ? 'primary' : 'neutral'"
-          :variant="selectedValues.includes(option.value) ? 'solid' : 'soft'"
-          :disabled="!selectedValues.includes(option.value) && maxSelections <= selectedValues.length"
-          @click="toggleMultiValue(option.value)"
-        />
+        :color="selectedValues.includes(option.value) ? 'primary' : 'neutral'"
+        :variant="selectedValues.includes(option.value) ? 'solid' : 'soft'"
+        :disabled="!selectedValues.includes(option.value) && maxSelections <= selectedValues.length"
+        @click="toggleMultiValue(option.value)"
+      />
     </div>
 
     <div v-else-if="props.question.kind === 'number_range'" class="grid gap-4 md:grid-cols-2">

@@ -31,7 +31,8 @@ export default defineUserMutation(
     const db = useAppDatabase(event)
     const storedProfile = await getBuyerProfile(event, user.id)
     const overrides = normalizeBuyerAnswerOverrides(body.overrides)
-    const hasOverrides = JSON.stringify(overrides) !== JSON.stringify(createEmptyBuyerAnswerOverrides())
+    const hasOverrides =
+      JSON.stringify(overrides) !== JSON.stringify(createEmptyBuyerAnswerOverrides())
 
     const baseProfile = storedProfile.profile ?? createEmptyBuyerProfile()
     const effectiveAnswers = hasOverrides

@@ -124,7 +124,10 @@ async function resolveGrokModel(
   const override = await kvGet<{ value?: string }>(event, 'admin:chatModel')
   const availableModels = await loadAvailableModels(event, apiKey)
 
-  if (override?.value && (availableModels.length === 0 || availableModels.includes(override.value))) {
+  if (
+    override?.value &&
+    (availableModels.length === 0 || availableModels.includes(override.value))
+  ) {
     return {
       model: override.value,
       source: 'admin-override',
@@ -189,7 +192,12 @@ export async function callXAI(
     maxTokens?: number
     reasoningEffort?: 'low' | 'high'
   },
-): Promise<{ content: string; tokensUsed: number; model: string; selectionSource: ModelSelectionSource }> {
+): Promise<{
+  content: string
+  tokensUsed: number
+  model: string
+  selectionSource: ModelSelectionSource
+}> {
   const resolved = await resolveGrokModel(event, apiKey, options.task)
 
   const body: Record<string, unknown> = {
