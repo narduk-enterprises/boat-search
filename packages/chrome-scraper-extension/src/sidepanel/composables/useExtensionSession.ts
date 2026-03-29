@@ -32,6 +32,7 @@ import type {
   DetailPageExtractResponse,
   ExtensionAuthStatusResponse,
   ExtensionRunCompleteResponse,
+  ExtensionRunProgressResponse,
   ExtensionRunRecordResponse,
   ExtensionRunStartResponse,
   FieldPreviewResult,
@@ -61,10 +62,12 @@ type FieldPreviewState = FieldPreviewResult & {
 
 type ItemSelectorTrainingState = PickerProgress | null
 
-type ItemSelectorPreviewState = (FieldPreviewResult & {
-  active: boolean
-  error: string
-}) | null
+type ItemSelectorPreviewState =
+  | (FieldPreviewResult & {
+      active: boolean
+      error: string
+    })
+  | null
 
 type RemoteRunSummary = {
   pagesVisited: number
@@ -110,7 +113,9 @@ function isWebPageUrl(url: string | undefined) {
 function isAllowedDomainUrl(url: string, allowedDomains: string[]) {
   try {
     const hostname = new URL(url).hostname.toLowerCase()
-    const normalizedDomains = allowedDomains.map((domain) => domain.trim().toLowerCase()).filter(Boolean)
+    const normalizedDomains = allowedDomains
+      .map((domain) => domain.trim().toLowerCase())
+      .filter(Boolean)
 
     return normalizedDomains.some(
       (domain) => hostname === domain || hostname.endsWith(`.${domain}`),
@@ -164,8 +169,8 @@ function createBoatSearchHeaders(sessionValue: ExtensionSession, extraHeaders: H
   }
 
   return {
-    'Accept': 'application/json',
-    'Authorization': `Bearer ${apiKey}`,
+    Accept: 'application/json',
+    Authorization: `Bearer ${apiKey}`,
     'X-Requested-With': 'XMLHttpRequest',
     ...extraHeaders,
   }
@@ -277,18 +282,20 @@ function normalizePresetState(
       typeof raw.matchedPresetLabel === 'string'
         ? raw.matchedPresetLabel
         : getSitePresetLabel(matchedPresetId),
-    matchedContext: raw.matchedContext === 'detail' || raw.matchedContext === 'search'
-      ? raw.matchedContext
-      : null,
+    matchedContext:
+      raw.matchedContext === 'detail' || raw.matchedContext === 'search'
+        ? raw.matchedContext
+        : null,
     appliedPresetId,
     appliedPresetLabel:
       typeof raw.appliedPresetLabel === 'string'
         ? raw.appliedPresetLabel
         : getSitePresetLabel(appliedPresetId),
     appliedForUrl: typeof raw.appliedForUrl === 'string' ? raw.appliedForUrl : null,
-    applicationMode: raw.applicationMode === 'auto' || raw.applicationMode === 'manual'
-      ? raw.applicationMode
-      : null,
+    applicationMode:
+      raw.applicationMode === 'auto' || raw.applicationMode === 'manual'
+        ? raw.applicationMode
+        : null,
     appliedDraftFingerprint:
       typeof raw.appliedDraftFingerprint === 'string' ? raw.appliedDraftFingerprint : null,
     isDraftDirty: typeof raw.isDraftDirty === 'boolean' ? raw.isDraftDirty : false,
@@ -344,8 +351,7 @@ function normalizeSession(value: unknown, fallback: ExtensionSession): Extension
         ? {
             ...raw.lastAnalysis,
             pageType:
-              raw.lastAnalysis.pageType === 'detail' ||
-              raw.lastAnalysis.pageType === 'unknown'
+              raw.lastAnalysis.pageType === 'detail' || raw.lastAnalysis.pageType === 'unknown'
                 ? raw.lastAnalysis.pageType
                 : 'search',
             pageState:
@@ -377,9 +383,24 @@ function normalizeSession(value: unknown, fallback: ExtensionSession): Extension
             stats:
               raw.lastAnalysis.stats && typeof raw.lastAnalysis.stats === 'object'
                 ? {
-                    detailLinkCount: toBoundedInteger(raw.lastAnalysis.stats.detailLinkCount, 0, 0, 10_000),
-                    listingCardCount: toBoundedInteger(raw.lastAnalysis.stats.listingCardCount, 0, 0, 10_000),
-                    distinctImageCount: toBoundedInteger(raw.lastAnalysis.stats.distinctImageCount, 0, 0, 10_000),
+                    detailLinkCount: toBoundedInteger(
+                      raw.lastAnalysis.stats.detailLinkCount,
+                      0,
+                      0,
+                      10_000,
+                    ),
+                    listingCardCount: toBoundedInteger(
+                      raw.lastAnalysis.stats.listingCardCount,
+                      0,
+                      0,
+                      10_000,
+                    ),
+                    distinctImageCount: toBoundedInteger(
+                      raw.lastAnalysis.stats.distinctImageCount,
+                      0,
+                      0,
+                      10_000,
+                    ),
                   }
                 : {
                     detailLinkCount: 0,
@@ -388,7 +409,10 @@ function normalizeSession(value: unknown, fallback: ExtensionSession): Extension
                   },
             fields: Array.isArray(raw.lastAnalysis.fields)
               ? raw.lastAnalysis.fields.map((field, index) =>
-                  normalizeField(field, fallback.draft.config.fields[index] ?? fallback.draft.config.fields[0]),
+                  normalizeField(
+                    field,
+                    fallback.draft.config.fields[index] ?? fallback.draft.config.fields[0],
+                  ),
                 )
               : [],
           }
@@ -431,7 +455,9 @@ export function useExtensionSession() {
       statusMessage: statusMessage.value,
       errorMessage: errorMessage.value,
       currentTabUrl: session.value.currentTabUrl,
-      analysis: session.value.lastAnalysis ? cloneSerializableValue(session.value.lastAnalysis) : null,
+      analysis: session.value.lastAnalysis
+        ? cloneSerializableValue(session.value.lastAnalysis)
+        : null,
       preset: cloneSerializableValue(session.value.preset),
       connection: {
         apiKeySource: session.value.connection.apiKeySource,
@@ -439,9 +465,7 @@ export function useExtensionSession() {
         verifiedEmail: session.value.connection.verifiedEmail,
         imageUploadEnabled: session.value.connection.imageUploadEnabled,
       },
-      sampleDetailRun: sampleDetailRun.value
-        ? cloneSerializableValue(sampleDetailRun.value)
-        : null,
+      sampleDetailRun: sampleDetailRun.value ? cloneSerializableValue(sampleDetailRun.value) : null,
       browserRunProgress: browserRunProgress.value
         ? cloneSerializableValue(browserRunProgress.value)
         : null,
@@ -490,7 +514,15 @@ export function useExtensionSession() {
   )
 
   watch(
-    [session, statusMessage, errorMessage, sampleDetailRun, browserRunProgress, remoteRun, debugEvents],
+    [
+      session,
+      statusMessage,
+      errorMessage,
+      sampleDetailRun,
+      browserRunProgress,
+      remoteRun,
+      debugEvents,
+    ],
     () => {
       syncDebugSurface()
     },
@@ -505,9 +537,9 @@ export function useExtensionSession() {
 
       session.value.preset.isDraftDirty = Boolean(
         appliedPresetId &&
-          appliedDraftFingerprint &&
-          buildPresetDraftFingerprint(cloneSerializableValue(session.value.draft)) !==
-            appliedDraftFingerprint,
+        appliedDraftFingerprint &&
+        buildPresetDraftFingerprint(cloneSerializableValue(session.value.draft)) !==
+          appliedDraftFingerprint,
       )
     },
     { deep: true, immediate: true },
@@ -604,7 +636,10 @@ export function useExtensionSession() {
     session.value.preset.matchedPresetId
       ? {
           id: session.value.preset.matchedPresetId,
-          label: session.value.preset.matchedPresetLabel || getSitePresetLabel(session.value.preset.matchedPresetId) || 'Preset',
+          label:
+            session.value.preset.matchedPresetLabel ||
+            getSitePresetLabel(session.value.preset.matchedPresetId) ||
+            'Preset',
           context: session.value.preset.matchedContext,
         }
       : null,
@@ -615,12 +650,10 @@ export function useExtensionSession() {
   const shouldOfferMatchedPresetLoad = computed(() =>
     Boolean(
       matchedPreset.value?.id &&
-        matchedPreset.value.context === 'search' &&
-        (
-          session.value.preset.appliedPresetId !== matchedPreset.value.id ||
-          session.value.preset.isDraftDirty ||
-          !session.value.preset.appliedDraftFingerprint
-        ),
+      matchedPreset.value.context === 'search' &&
+      (session.value.preset.appliedPresetId !== matchedPreset.value.id ||
+        session.value.preset.isDraftDirty ||
+        !session.value.preset.appliedDraftFingerprint),
     ),
   )
 
@@ -636,16 +669,28 @@ export function useExtensionSession() {
       fieldCount: analysis.fields.length,
     })
 
-    if (analysis.pageType === 'search' && analysis.pageState === 'ok' && analysis.nextPageSelector) {
-      recordDebugEvent('pagination-autofilled', `Auto-filled the next-page selector ${analysis.nextPageSelector}.`, {
-        nextPageSelector: analysis.nextPageSelector,
-      })
+    if (
+      analysis.pageType === 'search' &&
+      analysis.pageState === 'ok' &&
+      analysis.nextPageSelector
+    ) {
+      recordDebugEvent(
+        'pagination-autofilled',
+        `Auto-filled the next-page selector ${analysis.nextPageSelector}.`,
+        {
+          nextPageSelector: analysis.nextPageSelector,
+        },
+      )
     }
 
     if (analysis.pageType === 'search' && analysis.pageState === 'ok' && analysis.sampleDetailUrl) {
-      recordDebugEvent('sample-detail-discovered', 'Captured a sample detail URL from the search page.', {
-        sampleDetailUrl: analysis.sampleDetailUrl,
-      })
+      recordDebugEvent(
+        'sample-detail-discovered',
+        'Captured a sample detail URL from the search page.',
+        {
+          sampleDetailUrl: analysis.sampleDetailUrl,
+        },
+      )
     }
   }
 
@@ -679,7 +724,9 @@ export function useExtensionSession() {
     } catch (error: unknown) {
       recordDebugEvent(
         'auto-analyze-failed',
-        error instanceof Error ? error.message : 'Could not analyze the active tab while loading a preset.',
+        error instanceof Error
+          ? error.message
+          : 'Could not analyze the active tab while loading a preset.',
       )
       return null
     }
@@ -744,16 +791,11 @@ export function useExtensionSession() {
     }
 
     statusMessage.value =
-      mode === 'auto'
-        ? `Loading ${match.label} automatically...`
-        : `Loading ${match.label}...`
+      mode === 'auto' ? `Loading ${match.label} automatically...` : `Loading ${match.label}...`
     errorMessage.value = ''
 
     const tab = await refreshActiveTab()
-    const analysis =
-      tab && isWebPageUrl(tab.url)
-        ? await analyzeTabForPreset(tab)
-        : null
+    const analysis = tab && isWebPageUrl(tab.url) ? await analyzeTabForPreset(tab) : null
 
     commitPresetDraft(match.id, mode, pageUrl, analysis)
     return match
@@ -765,7 +807,8 @@ export function useExtensionSession() {
       const tab = await refreshActiveTab()
 
       if (!tab?.url || !isWebPageUrl(tab.url)) {
-        statusMessage.value = 'Open a YachtWorld results page or another site to begin configuring a scrape.'
+        statusMessage.value =
+          'Open a YachtWorld results page or another site to begin configuring a scrape.'
         return
       }
 
@@ -814,6 +857,20 @@ export function useExtensionSession() {
     return sendToTab<T>(tab, message)
   }
 
+  async function getVisibleCrawlTab(startUrl: string) {
+    const tab = await refreshActiveTab()
+    if (tab?.id && isWebPageUrl(tab.url)) {
+      return tab
+    }
+
+    const nextTab = await chrome.tabs.create({ url: startUrl, active: true })
+    if (!nextTab.id) {
+      throw new Error('Could not open a scraper tab in this browser window.')
+    }
+
+    return nextTab
+  }
+
   async function analyzeCurrentPage() {
     errorMessage.value = ''
     clearFieldPreviewState()
@@ -828,9 +885,7 @@ export function useExtensionSession() {
       statusMessage.value = buildAnalysisStatusMessage(analysis)
     } catch (error: unknown) {
       const message =
-        error instanceof Error
-          ? error.message
-          : 'The helper could not connect to the current page.'
+        error instanceof Error ? error.message : 'The helper could not connect to the current page.'
       errorMessage.value = message
       statusMessage.value = 'Analysis failed'
       recordDebugEvent('analysis-failed', message)
@@ -866,8 +921,7 @@ export function useExtensionSession() {
       })
     } catch (error: unknown) {
       pendingPicker.value = null
-      const message =
-        error instanceof Error ? error.message : 'Could not start the element picker.'
+      const message = error instanceof Error ? error.message : 'Could not start the element picker.'
       errorMessage.value = message
       statusMessage.value = 'Picker failed'
     }
@@ -938,7 +992,11 @@ export function useExtensionSession() {
     void refreshActiveTab()
   }
 
-  const updatedListener = (tabId: number, changeInfo: chrome.tabs.OnUpdatedInfo, tab: chrome.tabs.Tab) => {
+  const updatedListener = (
+    tabId: number,
+    changeInfo: chrome.tabs.OnUpdatedInfo,
+    tab: chrome.tabs.Tab,
+  ) => {
     if (!activeTab.value?.id || activeTab.value.id !== tabId) {
       return
     }
@@ -1011,7 +1069,8 @@ export function useExtensionSession() {
       statusMessage.value = 'Sample detail page opened.'
       sampleDetailRun.value = createSampleDetailRunState('opened', {
         url: targetUrl,
-        message: 'The sample detail page opened. Return here after it settles, then re-scan if needed.',
+        message:
+          'The sample detail page opened. Return here after it settles, then re-scan if needed.',
       })
       recordDebugEvent('sample-detail-opened', 'Opened the sample detail page.', {
         url: targetUrl,
@@ -1020,14 +1079,27 @@ export function useExtensionSession() {
     }
 
     try {
-      const readyTab = await waitForTabComplete(tab.id)
+      const readyTab = await waitForTabComplete(tab.id, {
+        timeoutMs: 5_000,
+        allowPartialLoad: true,
+      })
       sampleDetailRun.value = createSampleDetailRunState('opened', {
         url: readyTab.url || targetUrl,
-        message: 'The sample detail page is open. Running the automatic detail scan now.',
+        message:
+          readyTab.status === 'complete'
+            ? 'The sample detail page is open. Running the automatic detail scan now.'
+            : 'The sample detail page is still settling after 5 seconds. Running the automatic detail scan now.',
       })
-      recordDebugEvent('sample-detail-opened', 'The sample detail page finished loading.', {
-        url: readyTab.url || targetUrl,
-      })
+      recordDebugEvent(
+        'sample-detail-opened',
+        readyTab.status === 'complete'
+          ? 'The sample detail page finished loading.'
+          : 'The sample detail page was still loading after 5 seconds, so the helper started scanning anyway.',
+        {
+          url: readyTab.url || targetUrl,
+          tabStatus: readyTab.status || 'unknown',
+        },
+      )
       const detailAnalysis = await sendToTab<AutoDetectedAnalysis>(readyTab, {
         type: 'EXTENSION_ANALYZE_PAGE',
       })
@@ -1074,15 +1146,17 @@ export function useExtensionSession() {
         message:
           error instanceof Error ? error.message : 'Could not auto-scan the sample detail page.',
       })
-      recordDebugEvent(
-        'sample-detail-scan-failed',
-        sampleDetailRun.value.message,
-        { url: targetUrl },
-      )
+      recordDebugEvent('sample-detail-scan-failed', sampleDetailRun.value.message, {
+        url: targetUrl,
+      })
     }
   }
 
-  async function waitForTabComplete(tabId: number, timeoutMs = 20_000) {
+  async function waitForTabComplete(
+    tabId: number,
+    options: { timeoutMs?: number; allowPartialLoad?: boolean } = {},
+  ) {
+    const { timeoutMs = 20_000, allowPartialLoad = false } = options
     const currentTab = await chrome.tabs.get(tabId)
     if (currentTab.status === 'complete') {
       return currentTab
@@ -1091,7 +1165,17 @@ export function useExtensionSession() {
     return await new Promise<chrome.tabs.Tab>((resolve, reject) => {
       const timeout = window.setTimeout(() => {
         chrome.tabs.onUpdated.removeListener(updatedListener)
-        reject(new Error('The detail page took too long to finish loading.'))
+        if (!allowPartialLoad) {
+          reject(new Error('The detail page took too long to finish loading.'))
+          return
+        }
+
+        chrome.tabs
+          .get(tabId)
+          .then(resolve)
+          .catch(() =>
+            reject(new Error('The detail page closed before the helper could parse it.')),
+          )
       }, timeoutMs)
 
       const updatedListener = (
@@ -1195,16 +1279,23 @@ export function useExtensionSession() {
     }
   }
 
-  async function navigateTab(tabId: number, url: string, timeoutMs = 30_000) {
-    const nextTab = await chrome.tabs.update(tabId, { url, active: false })
+  async function navigateTab(
+    tabId: number,
+    url: string,
+    options: { timeoutMs?: number; allowPartialLoad?: boolean } = {},
+  ) {
+    const nextTab = await chrome.tabs.update(tabId, { url })
     if (!nextTab || !nextTab.id) {
       throw new Error('Could not reuse the scraper tab.')
     }
 
-    return await waitForTabComplete(nextTab.id, timeoutMs)
+    return await waitForTabComplete(nextTab.id, options)
   }
 
-  function mergeBrowserRecord(baseRecord: BrowserScrapeRecord, detailPatch: Partial<BrowserScrapeRecord>) {
+  function mergeBrowserRecord(
+    baseRecord: BrowserScrapeRecord,
+    detailPatch: Partial<BrowserScrapeRecord>,
+  ) {
     const nextRecord: BrowserScrapeRecord = {
       ...baseRecord,
       rawFields: {
@@ -1344,13 +1435,12 @@ export function useExtensionSession() {
     const formData = new FormData()
     formData.append('file', blob, inferUploadFileName(imageUrl, contentType))
 
-    const uploadResult = await fetchBoatSearchJson<{ key: string; url: string } | Array<{ key: string; url: string }>>(
-      '/api/upload',
-      {
-        method: 'POST',
-        body: formData,
-      },
-    )
+    const uploadResult = await fetchBoatSearchJson<
+      { key: string; url: string } | Array<{ key: string; url: string }>
+    >('/api/upload', {
+      method: 'POST',
+      body: formData,
+    })
     const uploaded = Array.isArray(uploadResult) ? uploadResult[0] : uploadResult
     if (!uploaded?.url) {
       throw new Error(`Boat Search did not return an image URL for ${imageUrl}.`)
@@ -1363,8 +1453,9 @@ export function useExtensionSession() {
   async function storeRecordImagesInR2(
     record: BrowserScrapeRecord,
     uploadCache: Map<string, string>,
+    imageUploadEnabled: boolean,
   ) {
-    if (!record.images.length) {
+    if (!imageUploadEnabled || !record.images.length) {
       return {
         record,
         uploadedCount: 0,
@@ -1418,11 +1509,58 @@ export function useExtensionSession() {
     )
   }
 
+  async function persistBrowserRunProgressToBoatSearch(
+    run: ExtensionRunStartResponse,
+    summary: BrowserScrapeSummary,
+    progress: BrowserScrapeProgress,
+    runState: {
+      inserted: number
+      updated: number
+      recordsPersisted: number
+      imagesUploaded: number
+    },
+  ) {
+    return await fetchBoatSearchJson<ExtensionRunProgressResponse>(
+      '/api/admin/scraper-extension/run/progress',
+      {
+        method: 'POST',
+        body: JSON.stringify({
+          pipelineId: run.pipelineId,
+          jobId: run.jobId,
+          summary,
+          inserted: runState.inserted,
+          updated: runState.updated,
+          progress,
+        }),
+      },
+    )
+  }
+
+  function buildBrowserScrapeSummarySnapshot(
+    searchWarnings: string[],
+    searchRecords: BrowserScrapeRecord[],
+    visitedUrls: string[],
+    pagesVisited: number,
+    itemsSeen: number,
+  ) {
+    return {
+      pagesVisited,
+      itemsSeen,
+      itemsExtracted: searchRecords.length,
+      visitedUrls: [...visitedUrls],
+      warnings: uniqueStrings([
+        ...searchWarnings,
+        ...searchRecords.flatMap((record) => record.warnings),
+      ]),
+    } satisfies BrowserScrapeSummary
+  }
+
   async function crawlDraftInBrowser(
     draft: ScraperPipelineDraft,
     presetId: SitePresetId | null,
     runState: { recordsPersisted: number; imagesUploaded: number },
     onRecord: (record: BrowserScrapeRecord) => Promise<void>,
+    onProgress: (summary: BrowserScrapeSummary, progress: BrowserScrapeProgress) => Promise<void>,
   ) {
     if (!draft.config.startUrls.length) {
       throw new Error('Add at least one start URL before starting a browser scrape.')
@@ -1444,200 +1582,282 @@ export function useExtensionSession() {
     const seenSearchUrls = new Set<string>()
     let pagesVisited = 0
     let itemsSeen = 0
-    let crawlTab: chrome.tabs.Tab | null = null
+    const crawlTab = await getVisibleCrawlTab(draft.config.startUrls[0]!)
+    if (!crawlTab.id) {
+      throw new Error('Could not open the active scraper tab.')
+    }
 
-    try {
-      crawlTab = await chrome.tabs.create({ url: draft.config.startUrls[0], active: false })
-      if (!crawlTab.id) {
-        throw new Error('Could not create a background scraper tab.')
-      }
+    for (const startUrl of draft.config.startUrls) {
+      let currentUrl: string | null = startUrl
+      let pageIndex = 0
 
-      for (const startUrl of draft.config.startUrls) {
-        let currentUrl: string | null = startUrl
-        let pageIndex = 0
+      while (
+        currentUrl &&
+        pageIndex < draft.config.maxPages &&
+        searchRecords.length < draft.config.maxItemsPerRun
+      ) {
+        if (!isAllowedDomainUrl(currentUrl, allowedDomains)) {
+          searchWarnings.push(`Blocked cross-domain page during browser scrape: ${currentUrl}`)
+          break
+        }
 
-        while (
-          currentUrl &&
-          pageIndex < draft.config.maxPages &&
-          searchRecords.length < draft.config.maxItemsPerRun
-        ) {
-          if (!isAllowedDomainUrl(currentUrl, allowedDomains)) {
-            searchWarnings.push(`Blocked cross-domain page during browser scrape: ${currentUrl}`)
-            break
-          }
+        if (seenSearchUrls.has(currentUrl)) {
+          searchWarnings.push(`Stopped pagination loop at ${currentUrl}`)
+          break
+        }
 
-          if (seenSearchUrls.has(currentUrl)) {
-            searchWarnings.push(`Stopped pagination loop at ${currentUrl}`)
-            break
-          }
+        browserRunProgress.value = {
+          stage: 'search',
+          currentUrl,
+          pagesVisited,
+          itemsSeen,
+          itemsExtracted: searchRecords.length,
+          detailPagesCompleted: 0,
+          detailPagesTotal: 0,
+          recordsPersisted: runState.recordsPersisted,
+          imagesUploaded: runState.imagesUploaded,
+        }
+        statusMessage.value = `Scraping search results in the active browser tab: ${currentUrl}`
 
-          browserRunProgress.value = {
-            stage: 'search',
-            currentUrl,
-            pagesVisited,
-            itemsSeen,
-            itemsExtracted: searchRecords.length,
-            detailPagesCompleted: 0,
-            detailPagesTotal: 0,
-            recordsPersisted: runState.recordsPersisted,
-            imagesUploaded: runState.imagesUploaded,
-          }
-          statusMessage.value = `Scraping search results in the browser: ${currentUrl}`
+        const readyTab = await navigateTab(crawlTab.id, currentUrl)
+        const pageResult = await sendToTab<SearchPageExtractResponse>(readyTab, {
+          type: 'EXTENSION_EXTRACT_SEARCH_PAGE',
+          request: { draft, presetId },
+        })
 
-          const readyTab = await navigateTab(crawlTab.id, currentUrl)
-          const pageResult = await sendToTab<SearchPageExtractResponse>(readyTab, {
-            type: 'EXTENSION_EXTRACT_SEARCH_PAGE',
-            request: { draft, presetId },
-          })
-
-          recordDebugEvent('browser-scrape-search-page', 'Scraped a search page in the browser run.', {
+        recordDebugEvent(
+          'browser-scrape-search-page',
+          'Scraped a search page in the browser run.',
+          {
             url: pageResult.pageUrl,
             pageState: pageResult.analysis.pageState,
             itemCount: pageResult.itemCount,
             extractedRecords: pageResult.records.length,
             nextPageUrl: pageResult.nextPageUrl,
-          })
+          },
+        )
 
-          if (pageResult.analysis.pageState === 'challenge') {
-            throw new Error(
-              pageResult.analysis.stateMessage ||
-                `The browser scrape hit a challenge page on ${pageResult.pageUrl}.`,
-            )
-          }
+        if (pageResult.analysis.pageState === 'challenge') {
+          throw new Error(
+            pageResult.analysis.stateMessage ||
+              `The browser scrape hit a challenge page on ${pageResult.pageUrl}.`,
+          )
+        }
 
-          seenSearchUrls.add(pageResult.pageUrl)
-          visitedUrls.push(pageResult.pageUrl)
-          pagesVisited += 1
-          pageIndex += 1
-          itemsSeen += pageResult.itemCount
-          searchWarnings.push(...pageResult.warnings)
+        seenSearchUrls.add(pageResult.pageUrl)
+        visitedUrls.push(pageResult.pageUrl)
+        pagesVisited += 1
+        pageIndex += 1
+        itemsSeen += pageResult.itemCount
+        searchWarnings.push(...pageResult.warnings)
 
-          recordDebugEvent('browser-scrape-listing-cards', 'Counted listing cards on the search page.', {
+        recordDebugEvent(
+          'browser-scrape-listing-cards',
+          'Counted listing cards on the search page.',
+          {
             url: pageResult.pageUrl,
             itemCount: pageResult.itemCount,
             listingCardCount: pageResult.analysis.stats.listingCardCount,
-          })
+          },
+        )
 
-          for (const record of pageResult.records) {
-            if (searchRecords.length >= draft.config.maxItemsPerRun) {
-              break
-            }
-
-            searchRecords.push(record)
-            recordDebugEvent('browser-scrape-listing-url', 'Extracted a listing URL during the browser run.', {
-              url: record.url,
-            })
-
-            if (!draft.config.fetchDetailPages) {
-              await onRecord(record)
-            }
+        for (const record of pageResult.records) {
+          if (searchRecords.length >= draft.config.maxItemsPerRun) {
+            break
           }
 
-          currentUrl = pageResult.nextPageUrl
+          searchRecords.push(record)
+          recordDebugEvent(
+            'browser-scrape-listing-url',
+            'Extracted a listing URL during the browser run.',
+            {
+              url: record.url,
+            },
+          )
+
+          if (!draft.config.fetchDetailPages) {
+            await onRecord(record)
+            if (browserRunProgress.value) {
+              await onProgress(
+                buildBrowserScrapeSummarySnapshot(
+                  searchWarnings,
+                  searchRecords,
+                  visitedUrls,
+                  pagesVisited,
+                  itemsSeen,
+                ),
+                cloneSerializableValue(browserRunProgress.value),
+              )
+            }
+          }
         }
+
+        if (browserRunProgress.value) {
+          await onProgress(
+            buildBrowserScrapeSummarySnapshot(
+              searchWarnings,
+              searchRecords,
+              visitedUrls,
+              pagesVisited,
+              itemsSeen,
+            ),
+            cloneSerializableValue(browserRunProgress.value),
+          )
+        }
+
+        currentUrl = pageResult.nextPageUrl
+      }
+    }
+
+    const detailRecords = draft.config.fetchDetailPages
+      ? searchRecords.filter((record) => Boolean(record.url))
+      : []
+
+    if (itemsSeen === 0) {
+      throw new Error(
+        `The browser scrape found zero listing cards across ${pagesVisited || 1} page${pagesVisited === 1 ? '' : 's'}. Re-scan the search page and confirm the listing-card selector matches live results.`,
+      )
+    }
+
+    if (!searchRecords.length) {
+      throw new Error(
+        'The browser scrape found listing cards but could not extract any listing URLs. Re-scan the title and URL mappings on the search page before running again.',
+      )
+    }
+
+    for (let index = 0; index < detailRecords.length; index += 1) {
+      const record = detailRecords[index]
+      if (!record) {
+        continue
       }
 
-      const detailRecords = draft.config.fetchDetailPages
-        ? searchRecords.filter((record) => Boolean(record.url))
-        : []
-
-      if (itemsSeen === 0) {
-        throw new Error(
-          `The browser scrape found zero listing cards across ${pagesVisited || 1} page${pagesVisited === 1 ? '' : 's'}. Re-scan the search page and confirm the listing-card selector matches live results.`,
-        )
+      if (!record.url) {
+        await onRecord(record)
+        if (browserRunProgress.value) {
+          await onProgress(
+            buildBrowserScrapeSummarySnapshot(
+              searchWarnings,
+              searchRecords,
+              visitedUrls,
+              pagesVisited,
+              itemsSeen,
+            ),
+            cloneSerializableValue(browserRunProgress.value),
+          )
+        }
+        continue
       }
 
-      if (!searchRecords.length) {
-        throw new Error(
-          'The browser scrape found listing cards but could not extract any listing URLs. Re-scan the title and URL mappings on the search page before running again.',
-        )
+      if (!isAllowedDomainUrl(record.url, allowedDomains)) {
+        searchWarnings.push(`Blocked cross-domain detail page during browser scrape: ${record.url}`)
+        await onRecord(record)
+        if (browserRunProgress.value) {
+          await onProgress(
+            buildBrowserScrapeSummarySnapshot(
+              searchWarnings,
+              searchRecords,
+              visitedUrls,
+              pagesVisited,
+              itemsSeen,
+            ),
+            cloneSerializableValue(browserRunProgress.value),
+          )
+        }
+        continue
       }
 
-      for (let index = 0; index < detailRecords.length; index += 1) {
-        const record = detailRecords[index]
-        if (!record) {
-          continue
-        }
+      browserRunProgress.value = {
+        stage: 'detail',
+        currentUrl: record.url,
+        pagesVisited,
+        itemsSeen,
+        itemsExtracted: searchRecords.length,
+        detailPagesCompleted: index,
+        detailPagesTotal: detailRecords.length,
+        recordsPersisted: runState.recordsPersisted,
+        imagesUploaded: runState.imagesUploaded,
+      }
+      statusMessage.value = `Scraping detail page ${index + 1} of ${detailRecords.length} in the active tab: ${record.url}`
 
-        if (!record.url) {
-          await onRecord(record)
-          continue
-        }
+      try {
+        const readyTab = await navigateTab(crawlTab.id, record.url, {
+          timeoutMs: 5_000,
+          allowPartialLoad: true,
+        })
+        const detailResult = await sendToTab<DetailPageExtractResponse>(readyTab, {
+          type: 'EXTENSION_EXTRACT_DETAIL_PAGE',
+          request: { draft, presetId },
+        })
 
-        if (!isAllowedDomainUrl(record.url, allowedDomains)) {
-          searchWarnings.push(`Blocked cross-domain detail page during browser scrape: ${record.url}`)
-          await onRecord(record)
-          continue
-        }
-
-        browserRunProgress.value = {
-          stage: 'detail',
-          currentUrl: record.url,
-          pagesVisited,
-          itemsSeen,
-          itemsExtracted: searchRecords.length,
-          detailPagesCompleted: index,
-          detailPagesTotal: detailRecords.length,
-          recordsPersisted: runState.recordsPersisted,
-          imagesUploaded: runState.imagesUploaded,
-        }
-        statusMessage.value = `Scraping detail page ${index + 1} of ${detailRecords.length}: ${record.url}`
-
-        try {
-          const readyTab = await navigateTab(crawlTab.id, record.url)
-          const detailResult = await sendToTab<DetailPageExtractResponse>(readyTab, {
-            type: 'EXTENSION_EXTRACT_DETAIL_PAGE',
-            request: { draft, presetId },
-          })
-
-          recordDebugEvent('browser-scrape-detail-page', 'Scraped a detail page in the browser run.', {
+        recordDebugEvent(
+          'browser-scrape-detail-page',
+          'Scraped a detail page in the browser run.',
+          {
             url: detailResult.pageUrl,
             pageState: detailResult.analysis.pageState,
             imageCount: detailResult.analysis.stats.distinctImageCount,
             fieldCount: detailResult.analysis.fields.length,
-          })
+          },
+        )
 
-          if (detailResult.analysis.pageState === 'challenge') {
-            throw new Error(
-              detailResult.analysis.stateMessage ||
-                `The browser scrape hit a challenge page while opening ${record.url}.`,
+        if (detailResult.analysis.pageState === 'challenge') {
+          throw new Error(
+            detailResult.analysis.stateMessage ||
+              `The browser scrape hit a challenge page while opening ${record.url}.`,
+          )
+        }
+
+        const recordIndex = searchRecords.findIndex((entry) => entry.url === record.url)
+        if (recordIndex >= 0) {
+          const mergedRecord = mergeBrowserRecord(searchRecords[recordIndex]!, detailResult.record)
+          searchRecords.splice(recordIndex, 1, mergedRecord)
+          await onRecord(mergedRecord)
+          searchWarnings.push(...detailResult.warnings)
+          if (browserRunProgress.value) {
+            await onProgress(
+              buildBrowserScrapeSummarySnapshot(
+                searchWarnings,
+                searchRecords,
+                visitedUrls,
+                pagesVisited,
+                itemsSeen,
+              ),
+              cloneSerializableValue(browserRunProgress.value),
             )
           }
-
-          const recordIndex = searchRecords.findIndex((entry) => entry.url === record.url)
-          if (recordIndex >= 0) {
-            const mergedRecord = mergeBrowserRecord(searchRecords[recordIndex]!, detailResult.record)
-            searchRecords.splice(recordIndex, 1, mergedRecord)
-            await onRecord(mergedRecord)
-          }
-
+        } else {
           searchWarnings.push(...detailResult.warnings)
-        } catch (error: unknown) {
-          searchWarnings.push(
-            error instanceof Error
-              ? error.message
-              : `Could not scrape the detail page for ${record.url}.`,
+        }
+      } catch (error: unknown) {
+        searchWarnings.push(
+          error instanceof Error
+            ? error.message
+            : `Could not scrape the detail page for ${record.url}.`,
+        )
+        await onRecord(record)
+        if (browserRunProgress.value) {
+          await onProgress(
+            buildBrowserScrapeSummarySnapshot(
+              searchWarnings,
+              searchRecords,
+              visitedUrls,
+              pagesVisited,
+              itemsSeen,
+            ),
+            cloneSerializableValue(browserRunProgress.value),
           )
-          await onRecord(record)
         }
       }
+    }
 
-      return {
-        summary: {
-          pagesVisited,
-          itemsSeen,
-          itemsExtracted: searchRecords.length,
-          visitedUrls,
-          warnings: uniqueStrings([
-            ...searchWarnings,
-            ...searchRecords.flatMap((record) => record.warnings),
-          ]),
-        } satisfies BrowserScrapeSummary,
-      }
-    } finally {
-      if (crawlTab?.id) {
-        await chrome.tabs.remove(crawlTab.id).catch(() => {})
-      }
+    return {
+      summary: buildBrowserScrapeSummarySnapshot(
+        searchWarnings,
+        searchRecords,
+        visitedUrls,
+        pagesVisited,
+        itemsSeen,
+      ),
     }
   }
 
@@ -1704,9 +1924,7 @@ export function useExtensionSession() {
       }
 
       const authStatus = await verifyBoatSearchConnection(true)
-      if (!authStatus?.imageUploadEnabled) {
-        throw new Error('Boat Search image upload is not enabled yet because no R2 bucket is bound.')
-      }
+      const imageUploadEnabled = Boolean(authStatus?.imageUploadEnabled)
 
       const draft = cloneSerializableValue(session.value.draft)
       activeDraft = draft
@@ -1720,32 +1938,67 @@ export function useExtensionSession() {
       activeRun = run
       const activePresetId = session.value.preset.appliedPresetId
       const uploadedImageCache = new Map<string, string>()
-      statusMessage.value = 'Scraping the site in a real browser tab...'
-      const browserRun = await crawlDraftInBrowser(draft, activePresetId, runState, async (record) => {
-        const imageResult = await storeRecordImagesInR2(record, uploadedImageCache)
-        runState.imagesUploaded += imageResult.uploadedCount
-        const persisted = await persistBrowserRecordToBoatSearch(run, draft, imageResult.record)
-        runState.inserted += persisted.inserted
-        runState.updated += persisted.updated
-        runState.recordsPersisted += 1
-        browserRunProgress.value = browserRunProgress.value
-          ? {
-              ...browserRunProgress.value,
-              recordsPersisted: runState.recordsPersisted,
-              imagesUploaded: runState.imagesUploaded,
-            }
-          : null
-      })
+      if (!imageUploadEnabled) {
+        recordDebugEvent(
+          'browser-scrape-images-preserved',
+          'Boat Search image upload is unavailable here, so the scrape will keep source image URLs.',
+        )
+      }
+      statusMessage.value = 'Scraping the site in the active browser tab...'
+      const browserRun = await crawlDraftInBrowser(
+        draft,
+        activePresetId,
+        runState,
+        async (record) => {
+          const imageResult = await storeRecordImagesInR2(
+            record,
+            uploadedImageCache,
+            imageUploadEnabled,
+          )
+          runState.imagesUploaded += imageResult.uploadedCount
+          const persisted = await persistBrowserRecordToBoatSearch(run, draft, imageResult.record)
+          runState.inserted += persisted.inserted
+          runState.updated += persisted.updated
+          runState.recordsPersisted += 1
+          browserRunProgress.value = browserRunProgress.value
+            ? {
+                ...browserRunProgress.value,
+                recordsPersisted: runState.recordsPersisted,
+                imagesUploaded: runState.imagesUploaded,
+              }
+            : null
+        },
+        async (summary, progress) => {
+          await persistBrowserRunProgressToBoatSearch(run, summary, progress, runState)
+        },
+      )
+      const summary = {
+        ...browserRun.summary,
+        warnings: imageUploadEnabled
+          ? browserRun.summary.warnings
+          : uniqueStrings([
+              ...browserRun.summary.warnings,
+              'Boat Search image upload is unavailable in this environment, so the scrape kept the source image URLs.',
+            ]),
+      } satisfies BrowserScrapeSummary
       browserRunProgress.value = {
         stage: 'upload',
         currentUrl: null,
-        pagesVisited: browserRun.summary.pagesVisited,
-        itemsSeen: browserRun.summary.itemsSeen,
-        itemsExtracted: browserRun.summary.itemsExtracted,
+        pagesVisited: summary.pagesVisited,
+        itemsSeen: summary.itemsSeen,
+        itemsExtracted: summary.itemsExtracted,
         detailPagesCompleted: draft.config.fetchDetailPages ? runState.recordsPersisted : 0,
-        detailPagesTotal: draft.config.fetchDetailPages ? browserRun.summary.itemsExtracted : 0,
+        detailPagesTotal: draft.config.fetchDetailPages ? summary.itemsExtracted : 0,
         recordsPersisted: runState.recordsPersisted,
         imagesUploaded: runState.imagesUploaded,
+      }
+      if (browserRunProgress.value) {
+        await persistBrowserRunProgressToBoatSearch(
+          run,
+          summary,
+          cloneSerializableValue(browserRunProgress.value),
+          runState,
+        )
       }
       statusMessage.value = 'Finalizing the browser scrape in Boat Search...'
 
@@ -1757,7 +2010,7 @@ export function useExtensionSession() {
             pipelineId: run.pipelineId,
             jobId: run.jobId,
             draft,
-            summary: browserRun.summary,
+            summary,
             inserted: runState.inserted,
             updated: runState.updated,
           }),
@@ -1770,15 +2023,19 @@ export function useExtensionSession() {
       }
       browserRunProgress.value = null
       statusMessage.value = `Browser scrape complete. Inserted ${response.summary.inserted} and updated ${response.summary.updated} boats.`
-      recordDebugEvent('browser-scrape-complete', 'Completed the browser scrape and Boat Search finalization.', {
-        pipelineId: run.pipelineId,
-        jobId: response.jobId,
-        pagesVisited: response.summary.pagesVisited,
-        itemsSeen: response.summary.itemsSeen,
-        itemsExtracted: response.summary.itemsExtracted,
-        inserted: response.summary.inserted,
-        updated: response.summary.updated,
-      })
+      recordDebugEvent(
+        'browser-scrape-complete',
+        'Completed the browser scrape and Boat Search finalization.',
+        {
+          pipelineId: run.pipelineId,
+          jobId: response.jobId,
+          pagesVisited: response.summary.pagesVisited,
+          itemsSeen: response.summary.itemsSeen,
+          itemsExtracted: response.summary.itemsExtracted,
+          inserted: response.summary.inserted,
+          updated: response.summary.updated,
+        },
+      )
       return
     } catch (error: unknown) {
       if (browserRunProgress.value && activeRun && activeDraft) {
@@ -1880,9 +2137,7 @@ export function useExtensionSession() {
       itemSelectorPreview.value = {
         ...preview,
         active: true,
-        error: preview.matchCount
-          ? ''
-          : 'No listing cards matched on the current page.',
+        error: preview.matchCount ? '' : 'No listing cards matched on the current page.',
       }
       statusMessage.value =
         preview.highlightedCount < preview.matchCount

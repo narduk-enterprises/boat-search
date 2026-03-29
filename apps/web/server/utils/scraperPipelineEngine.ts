@@ -2,6 +2,7 @@ import { desc, eq, inArray } from 'drizzle-orm'
 import type { H3Event } from 'h3'
 import { load, type CheerioAPI } from 'cheerio'
 import type {
+  ScraperBrowserRunProgress,
   ScraperBrowserRunRecord,
   ScraperBrowserRunSummary,
   ScraperFieldRule,
@@ -614,6 +615,17 @@ export async function createRunningCrawlJob(
   },
 ) {
   const db = useAppDatabase(event)
+  const initialSummary = {
+    pagesVisited: 0,
+    itemsSeen: 0,
+    itemsExtracted: 0,
+    inserted: 0,
+    updated: 0,
+    visitedUrls: [],
+    warnings: [],
+    records: [],
+  } satisfies ScraperRunSummary
+
   await db
     .insert(crawlJobs)
     .values({
@@ -628,7 +640,7 @@ export async function createRunningCrawlJob(
       startedAt: params.startedAt,
       completedAt: null,
       error: null,
-      resultJson: null,
+      resultJson: JSON.stringify(initialSummary),
     })
     .run()
 
@@ -684,6 +696,42 @@ export async function completeScraperPipelineJob(
   return {
     jobId: params.jobId,
     summary: finalSummary,
+  }
+}
+
+export async function storeRunningScraperPipelineJobProgress(
+  event: H3Event,
+  params: {
+    jobId: number
+    summary: ScraperBrowserRunSummary
+    progress: ScraperBrowserRunProgress
+    inserted: number
+    updated: number
+  },
+) {
+  const db = useAppDatabase(event)
+  const partialSummary = toFinalRunSummary(params.summary, [], params.inserted, params.updated)
+
+  await db
+    .update(crawlJobs)
+    .set({
+      status: 'running',
+      boatsFound: partialSummary.itemsSeen,
+      boatsScraped: params.progress.recordsPersisted,
+      pagesVisited: partialSummary.pagesVisited,
+      completedAt: null,
+      error: null,
+      resultJson: JSON.stringify({
+        ...partialSummary,
+        progress: params.progress,
+      }),
+    })
+    .where(eq(crawlJobs.id, params.jobId))
+    .run()
+
+  return {
+    jobId: params.jobId,
+    summary: partialSummary,
   }
 }
 

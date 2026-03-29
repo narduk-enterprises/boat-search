@@ -216,16 +216,14 @@ export interface ExtensionDebugSnapshot {
   }
   sampleDetailRun: SampleDetailRunState | null
   browserRunProgress: BrowserScrapeProgress | null
-  remoteRun:
-    | {
-        pipelineId: number
-        jobId: number | null
-        summary: BrowserScrapeSummary & {
-          inserted: number
-          updated: number
-        }
-      }
-    | null
+  remoteRun: {
+    pipelineId: number
+    jobId: number | null
+    summary: BrowserScrapeSummary & {
+      inserted: number
+      updated: number
+    }
+  } | null
   draft: ScraperPipelineDraft
   events: ExtensionDebugEvent[]
 }
@@ -272,6 +270,19 @@ export interface ExtensionRunRecordResponse {
   inserted: number
   updated: number
   warnings: string[]
+}
+
+export interface ExtensionRunProgressResponse {
+  jobId: number
+  summary: {
+    pagesVisited: number
+    itemsSeen: number
+    itemsExtracted: number
+    inserted: number
+    updated: number
+    visitedUrls: string[]
+    warnings: string[]
+  }
 }
 
 export interface ExtensionRunCompleteResponse {

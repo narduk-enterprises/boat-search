@@ -61,7 +61,10 @@ const usingDefaultAppBaseUrl = computed(
   () => extension.session.value.appBaseUrlSource === 'local-default',
 )
 const appliedPresetLabel = computed(
-  () => extension.session.value.preset.appliedPresetLabel || matchedPreset.value?.label || 'Trusted preset',
+  () =>
+    extension.session.value.preset.appliedPresetLabel ||
+    matchedPreset.value?.label ||
+    'Trusted preset',
 )
 
 const startUrlsText = computed({
@@ -138,9 +141,9 @@ const paginationAutoDetected = computed(() => {
   const detectedSelector = analysis.value?.nextPageSelector?.trim()
   return Boolean(
     analysis.value?.pageType === 'search' &&
-      analysis.value.pageState === 'ok' &&
-      detectedSelector &&
-      draft.value.config.nextPageSelector.trim() === detectedSelector,
+    analysis.value.pageState === 'ok' &&
+    detectedSelector &&
+    draft.value.config.nextPageSelector.trim() === detectedSelector,
   )
 })
 const analysisStateLabel = computed(() => {
@@ -170,7 +173,9 @@ const searchScanStatus = computed(() => {
   }
 
   return `${analysis.value.stats.listingCardCount || 0} listing cards detected, ${analysis.value.stats.detailLinkCount} detail links found, and ${
-    analysis.value.nextPageSelector ? 'pagination was auto-filled.' : 'pagination still needs review.'
+    analysis.value.nextPageSelector
+      ? 'pagination was auto-filled.'
+      : 'pagination still needs review.'
   }`
 })
 
@@ -215,9 +220,9 @@ const workflowSteps = computed<WorkflowStep[]>(() => {
           ? analysis.value.stateMessage || 'The page scan needs review before locking selectors.'
           : trustedPresetActive.value
             ? `${appliedPresetLabel.value} is active and already filled the search + detail workflow.`
-          : hasSearchAnalysis.value
-            ? `Detected ${analysis.value?.pageType ?? 'search'} page on ${analysis.value?.siteName ?? 'this site'}.`
-            : 'Start on a YachtWorld results page and read the DOM before editing selectors.',
+            : hasSearchAnalysis.value
+              ? `Detected ${analysis.value?.pageType ?? 'search'} page on ${analysis.value?.siteName ?? 'this site'}.`
+              : 'Start on a YachtWorld results page and read the DOM before editing selectors.',
     },
     {
       id: 'listing-card',
@@ -268,8 +273,9 @@ const workflowSteps = computed<WorkflowStep[]>(() => {
         (presetValidationOptional.value && !hasDetailAnalysis.value
           ? `${appliedPresetLabel.value} detail rules are already loaded. Open a sample detail page only if you want to validate the live DOM.`
           : hasDetailAnalysis.value
-          ? analysis.value?.pageUrl || 'Detail page scanned.'
-          : extension.session.value.sampleDetailUrl || 'Open one sample listing and scan it again.'),
+            ? analysis.value?.pageUrl || 'Detail page scanned.'
+            : extension.session.value.sampleDetailUrl ||
+              'Open one sample listing and scan it again.'),
     },
     {
       id: 'detail-fields-export',
@@ -277,7 +283,7 @@ const workflowSteps = computed<WorkflowStep[]>(() => {
       title: 'Review detail fields',
       status: !detailWorkflowReady.value ? 'upcoming' : exportReady.value ? 'ready' : 'active',
       note: exportReady.value
-        ? 'The draft is ready for a browser scrape or handoff.'
+        ? 'The draft is ready for an active-tab browser scrape or handoff.'
         : exportGaps.value.length
           ? `Still needed: ${exportGaps.value.join(', ')}.`
           : 'Finalize the pipeline details and send the draft into Boat Search.',
@@ -297,7 +303,7 @@ const nextAction = computed(() => {
   }
 
   if (exportReady.value) {
-    return 'Start the browser scrape or open the builder'
+    return 'Start the active-tab browser scrape or open the builder'
   }
 
   return 'Review the captured selectors and tighten the mappings'
@@ -576,14 +582,16 @@ onMounted(async () => {
             data-testid="api-key-input"
             type="password"
             placeholder="nk_..."
-            @input="extension.updateConnectionApiKey(String(($event.target as HTMLInputElement).value))"
+            @input="
+              extension.updateConnectionApiKey(String(($event.target as HTMLInputElement).value))
+            "
           >
         </label>
       </div>
 
       <p class="context-note">
-        Create this key in Boat Search account settings. The extension stores it locally, uses it
-        to upload images into R2, and streams boats into the database while the scrape runs.
+        Create this key in Boat Search account settings. The extension stores it locally, uses it to
+        upload images into R2, and streams boats into the database while the scrape runs.
       </p>
       <p
         v-if="usingDefaultApiKey || usingDefaultAppBaseUrl"
@@ -906,7 +914,8 @@ onMounted(async () => {
         class="detail-review-banner"
         data-testid="sample-detail-status"
         :class="{
-          'detail-review-banner--warning': sampleDetailRun.status === 'opening' || sampleDetailRun.status === 'opened',
+          'detail-review-banner--warning':
+            sampleDetailRun.status === 'opening' || sampleDetailRun.status === 'opened',
           'detail-review-banner--error': sampleDetailRun.status === 'error',
         }"
       >
@@ -955,7 +964,7 @@ onMounted(async () => {
     <WorkflowStepCard
       :step="6"
       title="Review detail fields and export"
-      subtitle="Preview the detail mappings, then launch the browser scrape or hand off the draft."
+      subtitle="Preview the detail mappings, then launch the browser scrape in the active tab or hand off the draft."
       :status="workflowSteps[5]?.status ?? 'upcoming'"
       :note="workflowSteps[5]?.note"
       :open="openStepId === 'detail-fields-export'"
@@ -1018,7 +1027,9 @@ onMounted(async () => {
 
       <div
         class="detail-review-banner"
-        :class="{ 'detail-review-banner--warning': !detailContextReady && !presetValidationOptional }"
+        :class="{
+          'detail-review-banner--warning': !detailContextReady && !presetValidationOptional,
+        }"
       >
         <strong>{{
           detailContextReady

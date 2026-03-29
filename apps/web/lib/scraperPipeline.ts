@@ -153,6 +153,18 @@ export const scraperBrowserRunSummarySchema = z.object({
   warnings: z.array(z.string()).default([]),
 })
 
+export const scraperBrowserRunProgressSchema = z.object({
+  stage: z.enum(['search', 'detail', 'upload']),
+  currentUrl: z.string().url().nullable(),
+  pagesVisited: z.number().int().min(0),
+  itemsSeen: z.number().int().min(0),
+  itemsExtracted: z.number().int().min(0),
+  detailPagesCompleted: z.number().int().min(0),
+  detailPagesTotal: z.number().int().min(0),
+  recordsPersisted: z.number().int().min(0),
+  imagesUploaded: z.number().int().min(0),
+})
+
 export const scraperPipelineBrowserRunSchema = z.object({
   draft: scraperPipelineDraftSchema,
   records: z.array(scraperBrowserRunRecordSchema),
@@ -168,6 +180,15 @@ export const scraperPipelineStreamRecordSchema = z.object({
   jobId: z.number().int().positive(),
   draft: scraperPipelineDraftSchema,
   record: scraperBrowserRunRecordSchema,
+})
+
+export const scraperPipelineStreamProgressSchema = z.object({
+  pipelineId: z.number().int().positive(),
+  jobId: z.number().int().positive(),
+  summary: scraperBrowserRunSummarySchema,
+  inserted: z.number().int().min(0),
+  updated: z.number().int().min(0),
+  progress: scraperBrowserRunProgressSchema,
 })
 
 export const scraperPipelineStreamCompleteSchema = z.object({
@@ -194,8 +215,10 @@ export type ScraperPipelineConfig = z.infer<typeof scraperPipelineConfigSchema>
 export type ScraperPipelineDraft = z.infer<typeof scraperPipelineDraftSchema>
 export type ScraperBrowserRunRecord = z.infer<typeof scraperBrowserRunRecordSchema>
 export type ScraperBrowserRunSummary = z.infer<typeof scraperBrowserRunSummarySchema>
+export type ScraperBrowserRunProgress = z.infer<typeof scraperBrowserRunProgressSchema>
 export type ScraperPipelineStreamStart = z.infer<typeof scraperPipelineStreamStartSchema>
 export type ScraperPipelineStreamRecord = z.infer<typeof scraperPipelineStreamRecordSchema>
+export type ScraperPipelineStreamProgress = z.infer<typeof scraperPipelineStreamProgressSchema>
 export type ScraperPipelineStreamComplete = z.infer<typeof scraperPipelineStreamCompleteSchema>
 export type ScraperPipelineStreamFail = z.infer<typeof scraperPipelineStreamFailSchema>
 
