@@ -169,6 +169,8 @@ describe('boat recommendation prompt packaging', () => {
     expect(uncertaintySection).toContain('Not sure: Propulsion preference')
     expect(uncertaintySection).toContain('Skipped: Dream vs practical')
     expect(payload.userPrompt).toContain('Relaxed constraints to keep inventory viable')
+    expect(payload.systemPrompt).toContain('"boatsToAvoid"')
+    expect(payload.systemPrompt).toContain('Use boatsToAvoid for listings that are weak fits')
     expect(payload.scoredCandidates).toHaveLength(1)
   })
 

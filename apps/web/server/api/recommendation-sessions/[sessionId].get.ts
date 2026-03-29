@@ -19,6 +19,11 @@ export default defineEventHandler(async (event) => {
 
   return {
     session,
-    boats: await selectBoatsByIds(db, session.rankedBoatIds),
+    boats: await selectBoatsByIds(db, [
+      ...new Set([
+        ...session.rankedBoatIds,
+        ...session.resultSummary.boatsToAvoid.map((item) => item.boatId),
+      ]),
+    ]),
   }
 })

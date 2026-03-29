@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import {
   ratingFromScore,
+  type RecommendationAvoidEntry,
   type RecommendationEntry,
   type RecommendationSession,
 } from '~~/lib/boatFinder'
@@ -45,15 +46,18 @@ function syntheticEntriesForRankedIds(session: RecommendationSession): Recommend
           ? 'Top of this shortlist run'
           : rating === 'strong-fit'
             ? 'Shortlist match'
-            : 'Ranked option — review trade-offs',
+            : 'Ranked option with visible trade-offs',
       whyItFits:
-        session.resultSummary.overallAdvice.slice(0, 300).trim() ||
-        'This listing appeared in your latest shortlist run.',
-      tradeoffs: 'Verify engine hours, maintenance, and survey details on the source listing.',
+        session.resultSummary.overallAdvice.slice(0, 600).trim() ||
+        'This listing appeared in your latest shortlist run and held up better than the rest of the active candidate pool.',
+      tradeoffs:
+        'Verify engine hours, maintenance history, survey details, and exact equipment on the source listing before you treat it as a finalist.',
       score,
     }
   })
 }
+
+const boatMap = computed(() => new Map(props.boats.map((boat) => [boat.id, boat])))
 
 const recommendationMap = computed(() => {
   const session = props.session
@@ -67,18 +71,32 @@ const recommendationMap = computed(() => {
   return new Map(entries.map((entry) => [entry.boatId, entry]))
 })
 
+const avoidanceMap = computed(() => {
+  const session = props.session
+  if (!session) return new Map<number, RecommendationAvoidEntry>()
+  return new Map(session.resultSummary.boatsToAvoid.map((entry) => [entry.boatId, entry]))
+})
+
 const orderedBoats = computed(() => {
   const session = props.session
   if (!session) return []
 
-  const byId = new Map(props.boats.map((boat) => [boat.id, boat]))
   const orderIds =
     session.resultSummary.recommendations.length > 0
-      ? session.resultSummary.recommendations.map((e) => e.boatId)
+      ? session.resultSummary.recommendations.map((entry) => entry.boatId)
       : session.rankedBoatIds
 
   return orderIds
-    .map((id) => byId.get(id))
+    .map((id) => boatMap.value.get(id))
+    .filter((boat): boat is RecommendationBoat => Boolean(boat))
+})
+
+const avoidBoats = computed(() => {
+  const session = props.session
+  if (!session) return []
+
+  return session.resultSummary.boatsToAvoid
+    .map((entry) => boatMap.value.get(entry.boatId))
     .filter((boat): boat is RecommendationBoat => Boolean(boat))
 })
 
@@ -88,6 +106,15 @@ const topPickLabel = computed(() => {
   const boat = props.boats.find((candidate) => candidate.id === topPickBoatId)
   if (!boat) return null
   return `${boat.year || ''} ${boat.make || ''} ${boat.model || ''}`.trim() || 'Top pick'
+})
+
+const topPickRoute = computed(() => {
+  const topPickBoatId = props.session?.resultSummary.topPickBoatId
+  if (!topPickBoatId) return null
+  return {
+    path: `/boats/${topPickBoatId}`,
+    query: props.session?.id ? { sessionId: String(props.session.id) } : undefined,
+  }
 })
 
 const currencyFormatter = new Intl.NumberFormat('en-US', {
@@ -114,19 +141,19 @@ const activeFilters = computed(() => {
     ...filters.keywords,
   ]
 
-  return filterTags.filter((value): value is string => Boolean(value)).slice(0, 6)
+  return filterTags.filter((value): value is string => Boolean(value)).slice(0, 8)
 })
 </script>
 
 <template>
-  <div class="space-y-4">
+  <div class="space-y-6">
     <UCard
       v-if="props.session"
       class="brand-surface border-default/80 shadow-card"
-      :ui="{ body: 'p-4 sm:p-5' }"
+      :ui="{ body: 'p-4 sm:p-5 space-y-5' }"
     >
-      <div class="grid gap-4 lg:grid-cols-[1.25fr_0.75fr] lg:items-start">
-        <div class="space-y-3">
+      <div class="grid gap-5 xl:grid-cols-[1.15fr_0.85fr] xl:items-start">
+        <div class="space-y-4">
           <div class="flex flex-wrap items-center gap-2">
             <UBadge
               label="Latest AI shortlist"
@@ -135,20 +162,23 @@ const activeFilters = computed(() => {
               icon="i-lucide-sparkles"
             />
             <UBadge
-              :label="`${orderedBoats.length} ranked boat${orderedBoats.length === 1 ? '' : 's'}`"
+              :label="`${orderedBoats.length} pursue / ${avoidBoats.length} pass`"
               color="neutral"
               variant="subtle"
             />
           </div>
-          <h2 class="text-xl font-semibold text-default">
-            {{ props.session.resultSummary.querySummary }}
-          </h2>
-          <p class="max-w-3xl text-sm text-muted line-clamp-3">
-            {{ props.session.resultSummary.overallAdvice }}
-          </p>
-          <p v-if="props.session.resultSummary.lifeFitNote" class="max-w-3xl text-sm text-default">
-            {{ props.session.resultSummary.lifeFitNote }}
-          </p>
+
+          <div class="space-y-3">
+            <h2 class="text-xl font-semibold text-default sm:text-2xl">
+              {{ props.session.resultSummary.querySummary }}
+            </h2>
+            <p class="text-sm leading-7 text-default sm:text-base">
+              {{ props.session.resultSummary.overallAdvice }}
+            </p>
+            <p v-if="props.session.resultSummary.lifeFitNote" class="text-sm leading-7 text-muted">
+              {{ props.session.resultSummary.lifeFitNote }}
+            </p>
+          </div>
 
           <div v-if="activeFilters.length" class="flex flex-wrap gap-2">
             <UBadge
@@ -161,20 +191,49 @@ const activeFilters = computed(() => {
           </div>
         </div>
 
-        <div class="brand-surface-soft rounded-[1.4rem] px-4 py-4 text-sm text-default">
-          <p class="brand-caption">Top pick</p>
-          <p class="mt-2 text-lg font-semibold text-highlighted">
-            {{ topPickLabel || 'No top pick yet' }}
-          </p>
-          <p class="mt-2 text-xs text-muted">
-            Review the card notes below for fit score, trade-offs, and source details.
-          </p>
-          <p
-            v-if="props.session.resultSummary.meta.resolvedModel"
-            class="mt-3 text-[0.7rem] font-semibold uppercase tracking-[0.18em] text-dimmed"
-          >
-            {{ props.session.resultSummary.meta.resolvedModel }}
-          </p>
+        <div class="space-y-4">
+          <div class="brand-surface-soft rounded-[1.4rem] px-4 py-4 text-sm text-default">
+            <p class="brand-caption">Top pick</p>
+            <p class="mt-2 text-lg font-semibold text-highlighted">
+              {{ topPickLabel || 'No top pick yet' }}
+            </p>
+            <p class="mt-2 text-xs leading-6 text-muted">
+              Start here, then work down the pursue list before giving time to the weaker or avoid
+              listings.
+            </p>
+            <div class="mt-4 flex flex-wrap gap-2">
+              <UButton
+                v-if="topPickRoute"
+                :to="topPickRoute"
+                label="Open top pick"
+                color="primary"
+                icon="i-lucide-ship-wheel"
+              />
+            </div>
+            <p
+              v-if="props.session.resultSummary.meta.resolvedModel"
+              class="mt-3 text-[0.7rem] font-semibold uppercase tracking-[0.18em] text-dimmed"
+            >
+              {{ props.session.resultSummary.meta.resolvedModel }}
+            </p>
+          </div>
+
+          <div class="grid gap-3 sm:grid-cols-3 xl:grid-cols-1">
+            <div class="brand-surface-soft rounded-[1.4rem] p-4">
+              <p class="brand-caption">Pursue first</p>
+              <p class="mt-2 text-lg font-semibold text-default">{{ orderedBoats.length }}</p>
+            </div>
+            <div class="brand-surface-soft rounded-[1.4rem] p-4">
+              <p class="brand-caption">Pass first</p>
+              <p class="mt-2 text-lg font-semibold text-default">{{ avoidBoats.length }}</p>
+            </div>
+            <div class="brand-surface-soft rounded-[1.4rem] p-4">
+              <p class="brand-caption">Ranking mode</p>
+              <p class="mt-2 text-lg font-semibold text-primary">
+                {{ props.session.resultSummary.generatedBy === 'ai' ? 'AI-ranked' : 'Fallback' }}
+              </p>
+            </div>
+          </div>
         </div>
       </div>
     </UCard>
@@ -185,7 +244,7 @@ const activeFilters = computed(() => {
     >
       <UIcon name="i-lucide-ship-wheel" class="mx-auto text-4xl text-dimmed" />
       <h3 class="mt-4 text-xl font-semibold text-default">No strong matches yet</h3>
-      <p class="mt-2 text-muted max-w-2xl mx-auto">
+      <p class="mx-auto mt-2 max-w-2xl text-muted">
         The current fishing inventory does not cleanly satisfy this brief. Adjust the region,
         budget, or size range and rerun the finder.
       </p>
@@ -197,14 +256,63 @@ const activeFilters = computed(() => {
       />
     </div>
 
-    <div v-else class="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-      <BoatListingCard
-        v-for="boat in orderedBoats"
-        :key="boat.id"
-        :boat="boat"
-        :recommendation="recommendationMap.get(boat.id)"
-        :session-id="props.session?.id ?? null"
-      />
+    <div v-else class="space-y-8">
+      <section class="space-y-4">
+        <div class="space-y-2">
+          <div class="flex flex-wrap items-center gap-2">
+            <UBadge label="Pursue first" color="primary" variant="subtle" />
+            <UBadge
+              :label="`${orderedBoats.length} shortlist boat${orderedBoats.length === 1 ? '' : 's'}`"
+              color="neutral"
+              variant="soft"
+            />
+          </div>
+          <p class="text-sm text-muted">
+            These are the listings worth opening first. Each card links to the internal boat page
+            and the original source listing so you can move directly into diligence.
+          </p>
+        </div>
+
+        <div class="space-y-4">
+          <BoatListingCard
+            v-for="boat in orderedBoats"
+            :key="boat.id"
+            :boat="boat"
+            :recommendation="recommendationMap.get(boat.id)"
+            :session-id="props.session?.id ?? null"
+            presentation="recommendation"
+          />
+        </div>
+      </section>
+
+      <section v-if="avoidBoats.length" class="space-y-4">
+        <div class="space-y-2">
+          <div class="flex flex-wrap items-center gap-2">
+            <UBadge label="Boats to avoid first" color="error" variant="subtle" />
+            <UBadge
+              :label="`${avoidBoats.length} weak-fit boat${avoidBoats.length === 1 ? '' : 's'}`"
+              color="neutral"
+              variant="soft"
+            />
+          </div>
+          <p class="text-sm text-muted">
+            These are the boats the current brief says to skip or deprioritize. They are still
+            linked so you can inspect them, but the point is to save your time, not create more
+            tabs.
+          </p>
+        </div>
+
+        <div class="space-y-4">
+          <BoatListingCard
+            v-for="boat in avoidBoats"
+            :key="boat.id"
+            :boat="boat"
+            :avoid-reason="avoidanceMap.get(boat.id)"
+            :session-id="props.session?.id ?? null"
+            presentation="recommendation"
+          />
+        </div>
+      </section>
     </div>
   </div>
 </template>

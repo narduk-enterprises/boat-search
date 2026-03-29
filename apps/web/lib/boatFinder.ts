@@ -339,9 +339,17 @@ export const buyerProfileRecordSchema = z.object({
 export const recommendationEntrySchema = z.object({
   boatId: z.number().int().positive(),
   rating: z.enum(RECOMMENDATION_RATINGS),
-  headline: z.string().trim().min(1).max(120),
-  whyItFits: z.string().trim().min(1).max(320),
-  tradeoffs: z.string().trim().min(1).max(240),
+  headline: z.string().trim().min(1).max(160),
+  whyItFits: z.string().trim().min(1).max(720),
+  tradeoffs: z.string().trim().min(1).max(420),
+  score: z.number().int().min(0).max(100),
+})
+
+export const recommendationAvoidEntrySchema = z.object({
+  boatId: z.number().int().positive(),
+  headline: z.string().trim().min(1).max(160),
+  whyToAvoid: z.string().trim().min(1).max(720),
+  watchouts: z.array(z.string().trim().min(1).max(200)).min(1).max(4).default([]),
   score: z.number().int().min(0).max(100),
 })
 
@@ -365,11 +373,12 @@ const recommendationMetaSchema = z.object({
 
 export const recommendationSummarySchema = z.object({
   generatedBy: z.enum(['ai', 'fallback']),
-  querySummary: z.string().trim().min(1).max(240),
-  overallAdvice: z.string().trim().min(1).max(900),
+  querySummary: z.string().trim().min(1).max(320),
+  overallAdvice: z.string().trim().min(1).max(1800),
   topPickBoatId: z.number().int().positive().nullable(),
   recommendations: z.array(recommendationEntrySchema).max(12),
-  lifeFitNote: z.string().trim().max(280).default(''),
+  boatsToAvoid: z.array(recommendationAvoidEntrySchema).max(6).default([]),
+  lifeFitNote: z.string().trim().max(480).default(''),
   meta: recommendationMetaSchema.default({
     resolvedModel: null,
     selectionSource: 'not-used',
@@ -397,11 +406,11 @@ export const recommendationSessionListItemSchema = recommendationSessionSchema.e
 export const boatFitSummarySchema = z.object({
   generatedBy: z.enum(['ai', 'fallback']),
   verdict: z.enum(FIT_SUMMARY_VERDICTS),
-  headline: z.string().trim().min(1).max(120),
-  summary: z.string().trim().min(1).max(500),
+  headline: z.string().trim().min(1).max(160),
+  summary: z.string().trim().min(1).max(900),
   pros: z.array(z.string().trim().min(1).max(160)).min(1).max(4),
   cons: z.array(z.string().trim().min(1).max(160)).min(1).max(4),
-  lifeFitNote: z.string().trim().max(220).default(''),
+  lifeFitNote: z.string().trim().max(320).default(''),
 })
 
 export type BuyerAnswersDraft = z.infer<typeof buyerAnswersDraftSchema>
@@ -412,6 +421,7 @@ export type BuyerProfile = BuyerProfileDraft
 export type BuyerContext = z.infer<typeof buyerContextSchema>
 export type RecommendationFilters = z.infer<typeof recommendationFiltersSchema>
 export type RecommendationEntry = z.infer<typeof recommendationEntrySchema>
+export type RecommendationAvoidEntry = z.infer<typeof recommendationAvoidEntrySchema>
 export type RecommendationSummary = z.infer<typeof recommendationSummarySchema>
 export type RecommendationSession = z.infer<typeof recommendationSessionSchema>
 export type RecommendationSessionListItem = z.infer<typeof recommendationSessionListItemSchema>

@@ -14,6 +14,7 @@ import {
   type BuyerAnswers,
   type BuyerContext,
   type RecommendationEntry,
+  type RecommendationAvoidEntry,
   type RecommendationFilters,
   type RecommendationSession,
   type RecommendationSummary,
@@ -298,7 +299,97 @@ function buildLifeFitNote(answers: BuyerAnswers) {
   ]
     .filter(Boolean)
     .join(' ')
-    .slice(0, 280)
+    .slice(0, 480)
+}
+
+function uniqueNotes(items: string[], limit: number) {
+  return [...new Set(items.filter(Boolean))].slice(0, limit)
+}
+
+function joinSentenceBlock(items: string[], fallback: string, limit = 2) {
+  const notes = uniqueNotes(items, limit)
+  return notes.length ? notes.join(' ') : fallback
+}
+
+function buildRecommendationNarrative(
+  boat: InventoryBoat,
+  match: ReturnType<typeof scoreBoatAgainstProfile>,
+) {
+  return joinSentenceBlock(
+    [
+      ...match.reasons,
+      boat.location
+        ? `It is currently listed in ${boat.location}, so the geography is easy to inspect further.`
+        : '',
+    ],
+    'This listing stays closest to the mission, budget, and ownership reality described in the brief.',
+  )
+}
+
+function buildRecommendationTradeoffNarrative(
+  boat: InventoryBoat,
+  match: ReturnType<typeof scoreBoatAgainstProfile>,
+) {
+  return joinSentenceBlock(
+    [
+      ...match.tradeoffs,
+      boat.description
+        ? 'You should still verify engine hours, service history, and survey findings from the source listing before treating it as a true finalist.'
+        : 'The listing itself is thin enough that engine, condition, and equipment verification matters more than usual.',
+    ],
+    'Engine hours, maintenance history, and survey details still need to be verified before this becomes a committed pursuit.',
+  )
+}
+
+function buildAvoidHeadline(score: number) {
+  if (score <= 44) return 'Poor use of your time for this brief'
+  if (score <= 58) return 'Lower-priority listing to pass on first'
+  return 'Only worth revisiting if the better fits fall through'
+}
+
+function buildAvoidNarrative(
+  boat: InventoryBoat,
+  match: ReturnType<typeof scoreBoatAgainstProfile>,
+) {
+  return joinSentenceBlock(
+    [
+      ...match.tradeoffs,
+      ...match.reasons.slice(2),
+      boat.description
+        ? 'Relative to the stronger candidates, this listing asks you to swallow more compromises without giving enough back.'
+        : 'Because the listing is sparse, it asks for more diligence work while already trailing the stronger fits.',
+    ],
+    'Relative to the stronger candidates in this run, this boat demands more compromises than it justifies.',
+  )
+}
+
+function buildFallbackAvoidEntries(
+  scoredCandidates: Array<{
+    boat: InventoryBoat
+    match: ReturnType<typeof scoreBoatAgainstProfile>
+  }>,
+  recommendedBoatIds: Set<number>,
+) {
+  return scoredCandidates
+    .slice()
+    .reverse()
+    .filter(({ boat }) => !recommendedBoatIds.has(boat.id))
+    .slice(0, 3)
+    .map(({ boat, match }) => ({
+      boatId: boat.id,
+      headline: buildAvoidHeadline(match.score),
+      whyToAvoid: buildAvoidNarrative(boat, match),
+      watchouts: uniqueNotes(
+        [
+          ...match.tradeoffs,
+          boat.description
+            ? 'Verify survey, engine hours, and service records before spending serious time on this listing.'
+            : 'Sparse listing detail raises the diligence burden immediately.',
+        ],
+        3,
+      ),
+      score: match.score,
+    })) satisfies RecommendationAvoidEntry[]
 }
 
 function buildFallbackSummary(
@@ -313,9 +404,10 @@ function buildFallbackSummary(
       generatedBy: 'fallback',
       querySummary: `We searched ${summarizeFilters(filters)} and did not find clean matches in the current fishing inventory.`,
       overallAdvice:
-        'Try widening the region, expanding the budget ceiling, or relaxing the target size band. The current inventory is still constrained enough that a broader query should surface more viable boats.',
+        'The current live inventory does not give you a clean shortlist at these settings. Widen the region first, then consider easing the size band or budget ceiling if the mission still feels right. The goal here is to preserve your real guardrails while getting enough viable boats into the pool to compare honestly.',
       topPickBoatId: null,
       recommendations: [],
+      boatsToAvoid: [],
       lifeFitNote: buildLifeFitNote(answers),
       meta: {
         resolvedModel: null,
@@ -334,31 +426,32 @@ function buildFallbackSummary(
     }
   }
 
-  const ranked = candidates
+  const scoredCandidates = candidates
     .map((boat) => ({
       boat,
       match: scoreBoatAgainstProfile(boat, answers, filters, context),
     }))
     .sort((left, right) => right.match.score - left.match.score)
-    .slice(0, 8)
+
+  const ranked = scoredCandidates.slice(0, 8)
+
+  const recommendedBoatIds = new Set(ranked.map(({ boat }) => boat.id))
 
   return {
     generatedBy: 'fallback',
     querySummary: `We searched ${summarizeFilters(filters)} for ${answers.facts.primaryUses.join(', ').toLowerCase()} and ranked the closest matches.`,
     overallAdvice:
-      'These results are ranked by fit against your hard guardrails, softer preferences, and the ownership reality you described. Tighten or loosen the intake if the shortlist feels too broad or too thin.',
+      'These results are ranked against the hard guardrails first, then the softer fishability and ownership preferences, and finally the family and life-fit reality you described. Start with the best-fit listings before spending time on the lower-ranked options, because the weaker boats usually fail on several fronts at once rather than one small detail. Use the source links to verify condition, service history, and equipment before you let any listing become emotionally real.',
     topPickBoatId: ranked[0]?.boat.id ?? null,
     recommendations: ranked.map(({ boat, match }) => ({
       boatId: boat.id,
       rating: ratingFromScore(match.score),
       headline: buildRecommendationHeadline(boat, ratingFromScore(match.score)),
-      whyItFits:
-        match.reasons[0] ??
-        'This boat lands closest to your budget, size, mission, and practical ownership profile.',
-      tradeoffs:
-        match.tradeoffs[0] ?? 'Review engine, condition, and survey details on the source listing.',
+      whyItFits: buildRecommendationNarrative(boat, match),
+      tradeoffs: buildRecommendationTradeoffNarrative(boat, match),
       score: match.score,
     })),
+    boatsToAvoid: buildFallbackAvoidEntries(scoredCandidates, recommendedBoatIds),
     lifeFitNote: buildLifeFitNote(answers),
     meta: {
       resolvedModel: null,
@@ -420,7 +513,7 @@ Return valid JSON only with this shape:
 {
   "generatedBy": "ai",
   "querySummary": "one short sentence",
-  "overallAdvice": "2-4 sentences of practical buyer guidance",
+  "overallAdvice": "3-6 sentences of practical buyer guidance",
   "topPickBoatId": 123,
   "lifeFitNote": "optional short note about the buyer's real-life fit",
   "recommendations": [
@@ -428,8 +521,17 @@ Return valid JSON only with this shape:
       "boatId": 123,
       "rating": "best-fit|strong-fit|stretch",
       "headline": "short verdict",
-      "whyItFits": "1-2 sentences tied to the profile",
-      "tradeoffs": "1 sentence about the main compromise",
+      "whyItFits": "2-4 sentences tied to the profile",
+      "tradeoffs": "1-2 sentences about the main compromises and diligence needed",
+      "score": 0
+    }
+  ],
+  "boatsToAvoid": [
+    {
+      "boatId": 456,
+      "headline": "short verdict",
+      "whyToAvoid": "2-4 sentences explaining why this is a poor use of time for this buyer",
+      "watchouts": ["...", "..."],
       "score": 0
     }
   ]
@@ -437,12 +539,14 @@ Return valid JSON only with this shape:
 
 Rules:
 - Return at most 8 recommendations.
+- Return at most 3 boatsToAvoid.
 - Use only boat IDs from the provided candidates.
-- Keep "whyItFits" and "tradeoffs" concise and concrete.
+- Keep the writing concrete, specific, and useful enough that the buyer can decide where to click next.
 - Use reflective context for tone and life-fit framing, not to invent hard constraints.
 - Treat anything in "Uncertainties" as unresolved context, not as an implied preference.
 - If listing details are sparse or noisy, say what needs verification instead of inventing specifics.
 - Do not recommend a propulsion, maintenance, or comfort strategy unless the buyer profile or listing details support it.
+- Use boatsToAvoid for listings that are weak fits, bad tradeoffs, or simply poor uses of this buyer's time relative to stronger candidates.
 - Scores must be integers between 0 and 100.
 - If the inventory is weak, say so in overallAdvice.
 - Never include markdown fences or extra commentary.`
@@ -514,7 +618,7 @@ async function requestAiRecommendationSummary(
       { role: 'system', content: systemPrompt },
       { role: 'user', content: userPrompt },
     ],
-    { task: 'recommendation', temperature: 0.2, maxTokens: 5000, reasoningEffort: 'high' },
+    { task: 'recommendation', temperature: 0.2, maxTokens: 6500, reasoningEffort: 'high' },
   )
 
   const parsed = parseAiJson(response.content, (value) => recommendationSummarySchema.parse(value))
@@ -603,6 +707,12 @@ export async function buildRecommendationSessionResult(
             topPickBoatId: summary.topPickBoatId ?? fallbackSummary.topPickBoatId,
           }
         }
+        if (summary.boatsToAvoid.length === 0 && fallbackSummary.boatsToAvoid.length > 0) {
+          summary = {
+            ...summary,
+            boatsToAvoid: fallbackSummary.boatsToAvoid,
+          }
+        }
       }
     } catch {
       summary = fallbackSummary
@@ -629,7 +739,9 @@ export async function buildRecommendationSessionResult(
     filters,
     summary,
     rankedBoatIds,
-    boats: await selectBoatsByIds(db, rankedBoatIds),
+    boats: await selectBoatsByIds(db, [
+      ...new Set([...rankedBoatIds, ...summary.boatsToAvoid.map((item) => item.boatId)]),
+    ]),
     candidateCount: candidates.length,
   }
 }
@@ -659,7 +771,7 @@ function buildFallbackFitSummary(
           : 'This boat looks off-brief for your current goals.',
     summary:
       recommendation?.whyItFits ??
-      `Based on your buyer brief, this listing scores ${score}/100 against budget, size, mission, and ownership reality.`,
+      `Based on your buyer brief, this listing scores ${score}/100 against budget, size, mission, ownership reality, and the trade-offs you called out.`,
     pros:
       match.reasons.length > 0
         ? match.reasons
@@ -686,14 +798,14 @@ Return valid JSON only:
   "generatedBy": "ai",
   "verdict": "strong-fit|mixed-fit|weak-fit",
   "headline": "short verdict",
-  "summary": "2-3 sentences tailored to the buyer",
+  "summary": "3-5 sentences tailored to the buyer",
   "pros": ["...", "..."],
   "cons": ["...", "..."],
   "lifeFitNote": "optional short note about family, time, or ownership reality"
 }
 
 Rules:
-- Keep it concise.
+- Keep it detailed but readable.
 - Tie the explanation to the buyer's stated profile and reflective context.
 - Treat skipped or not-sure answers as open questions to verify, not as assumed preferences.
 - If listing details are sparse or noisy, call out what should be verified instead of inventing specifics.

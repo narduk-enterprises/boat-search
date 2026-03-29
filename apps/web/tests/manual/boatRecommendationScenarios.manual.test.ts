@@ -149,7 +149,7 @@ async function callXaiRecommendation(
         { role: 'system', content: payload.systemPrompt },
         { role: 'user', content: payload.userPrompt },
       ],
-      max_output_tokens: 2400,
+      max_output_tokens: 4200,
       temperature: 0.2,
       store: false,
     }),
@@ -203,6 +203,11 @@ function logScenarioSummary(options: {
     rating: item.rating,
     headline: item.headline,
   }))
+  const avoidRecommendations = options.response.boatsToAvoid.slice(0, 3).map((item) => ({
+    boatId: item.boatId,
+    headline: item.headline,
+    score: item.score,
+  }))
 
   console.log(`\n=== ${options.name} ===`)
   console.log('Model:', options.model)
@@ -215,6 +220,7 @@ function logScenarioSummary(options: {
   console.log('AI overall advice:', options.response.overallAdvice)
   console.log('AI life-fit note:', options.response.lifeFitNote || '(none)')
   console.log('Top recommendations:', topRecommendations)
+  console.log('Avoid first:', avoidRecommendations)
 }
 
 const scenarios: Scenario[] = [

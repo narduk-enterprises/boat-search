@@ -110,7 +110,8 @@ const shortlistMetrics = computed(() => {
             </h1>
             <p class="max-w-3xl text-base text-muted sm:text-lg">
               Boat Search keeps your saved fishing brief, ranking logic, and live-market candidates
-              in one board so you can inspect the right listings faster.
+              in one board so you can inspect the right listings faster, open the source boats
+              directly, and skip the ones that are not worth your time.
             </p>
           </div>
 

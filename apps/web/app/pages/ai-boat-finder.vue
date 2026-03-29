@@ -2,8 +2,6 @@
 import {
   buyerAnswersSchema,
   createEmptyBuyerAnswers,
-  createEmptyBuyerAnswerOverrides,
-  diffBuyerAnswers,
   normalizeBuyerAnswersDraft,
   type BuyerAnswersDraft,
 } from '~~/lib/boatFinder'
@@ -27,37 +25,158 @@ useWebPageSchema({
 
 const toast = useToast()
 const route = useRoute()
-const { coreAnswers, effectiveAnswers, status, isComplete } = useBuyerProfile()
+const { coreAnswers, updatedAt, saveProfile, status } = useBuyerProfile()
 const { createSession } = useRecommendationSessions()
 
 const draftAnswers = ref<BuyerAnswersDraft>(createEmptyBuyerAnswers())
-const saveOverrides = shallowRef(false)
 const submitting = shallowRef(false)
 const submitError = shallowRef<string | null>(null)
-const saveToggleTouched = shallowRef(false)
+const autosaveState = shallowRef<'idle' | 'saving' | 'saved' | 'error'>('idle')
+const autosaveError = shallowRef<string | null>(null)
+const profileHydrated = shallowRef(false)
+const suppressAutosave = shallowRef(true)
+const persistedSignature = shallowRef(JSON.stringify(createEmptyBuyerAnswers()))
+const activeSaveSignature = shallowRef<string | null>(null)
+
+let autosaveTimer: ReturnType<typeof setTimeout> | null = null
+let pendingSave: Promise<boolean> | null = null
+
+function currentDraftSignature() {
+  return JSON.stringify(normalizeBuyerAnswersDraft(draftAnswers.value))
+}
+
+function syncDraftFromProfile(nextAnswers: BuyerAnswersDraft) {
+  suppressAutosave.value = true
+  draftAnswers.value = normalizeBuyerAnswersDraft(nextAnswers)
+  persistedSignature.value = currentDraftSignature()
+  profileHydrated.value = true
+
+  queueMicrotask(() => {
+    suppressAutosave.value = false
+  })
+}
 
 watch(
-  effectiveAnswers,
+  coreAnswers,
   (nextAnswers) => {
-    draftAnswers.value = normalizeBuyerAnswersDraft(nextAnswers)
-    if (!saveToggleTouched.value) {
-      saveOverrides.value = !isComplete.value
+    const normalized = normalizeBuyerAnswersDraft(nextAnswers)
+    const nextSignature = JSON.stringify(normalized)
+    const localSignature = currentDraftSignature()
+
+    if (
+      !profileHydrated.value ||
+      localSignature === persistedSignature.value ||
+      localSignature === nextSignature
+    ) {
+      syncDraftFromProfile(normalized)
+      return
     }
+
+    persistedSignature.value = nextSignature
   },
   { immediate: true },
 )
 
-function updateSaveOverrides(value: boolean) {
-  saveToggleTouched.value = true
-  saveOverrides.value = value
+async function persistDraft(options: { force?: boolean } = {}) {
+  const normalized = normalizeBuyerAnswersDraft(draftAnswers.value)
+  const signature = JSON.stringify(normalized)
+
+  if (!options.force && signature === persistedSignature.value) {
+    autosaveState.value = profileHydrated.value ? 'saved' : 'idle'
+    autosaveError.value = null
+    return true
+  }
+
+  if (pendingSave && activeSaveSignature.value === signature) {
+    return pendingSave
+  }
+
+  autosaveState.value = 'saving'
+  autosaveError.value = null
+  activeSaveSignature.value = signature
+
+  pendingSave = saveProfile(normalized)
+    .then(() => {
+      persistedSignature.value = signature
+      autosaveState.value = 'saved'
+      return true
+    })
+    .catch((error: unknown) => {
+      const err = error as { data?: { statusMessage?: string }; message?: string }
+      autosaveState.value = 'error'
+      autosaveError.value =
+        err.data?.statusMessage || err.message || 'Could not save your buyer brief.'
+      return false
+    })
+    .finally(() => {
+      pendingSave = null
+      activeSaveSignature.value = null
+    })
+
+  return pendingSave
 }
+
+/* vue-official allow-deep-watch -- Autosave needs to observe nested draft answer changes. */
+watch(
+  draftAnswers,
+  () => {
+    if (import.meta.server || !profileHydrated.value || suppressAutosave.value) {
+      return
+    }
+
+    const signature = currentDraftSignature()
+    if (signature === persistedSignature.value) {
+      if (autosaveState.value !== 'saving') {
+        autosaveState.value = 'saved'
+      }
+      autosaveError.value = null
+      return
+    }
+
+    autosaveState.value = 'idle'
+
+    if (autosaveTimer) {
+      clearTimeout(autosaveTimer)
+    }
+
+    autosaveTimer = setTimeout(() => {
+      void persistDraft()
+    }, 900)
+  },
+  { deep: true },
+)
+
+onBeforeUnmount(() => {
+  if (autosaveTimer) {
+    clearTimeout(autosaveTimer)
+  }
+})
+
+const autosaveMessage = computed(() => {
+  if (autosaveState.value === 'saving') {
+    return 'Saving your buyer brief...'
+  }
+
+  if (autosaveState.value === 'error') {
+    return autosaveError.value ?? 'Could not save your buyer brief.'
+  }
+
+  if (autosaveState.value === 'saved' && updatedAt.value) {
+    const formatted = new Intl.DateTimeFormat('en-US', {
+      dateStyle: 'medium',
+      timeStyle: 'short',
+    }).format(new Date(updatedAt.value))
+    return `Saved to your buyer profile at ${formatted}.`
+  }
+
+  return 'Changes save into your buyer profile automatically as you answer.'
+})
 
 async function handleSubmit() {
   submitError.value = null
 
-  let parsedAnswers
   try {
-    parsedAnswers = buyerAnswersSchema.parse(draftAnswers.value)
+    buyerAnswersSchema.parse(draftAnswers.value)
   } catch (error: unknown) {
     const message =
       error instanceof Error ? error.message : 'Complete the required answers before continuing.'
@@ -65,16 +184,20 @@ async function handleSubmit() {
     return
   }
 
-  const overrides = diffBuyerAnswers(coreAnswers.value, parsedAnswers)
-  const hasOverrides =
-    JSON.stringify(overrides) !== JSON.stringify(createEmptyBuyerAnswerOverrides())
+  if (autosaveTimer) {
+    clearTimeout(autosaveTimer)
+    autosaveTimer = null
+  }
+
+  const saved = await persistDraft()
+  if (!saved) {
+    submitError.value = autosaveError.value ?? 'Could not save the latest buyer brief.'
+    return
+  }
 
   submitting.value = true
   try {
-    const response = await createSession({
-      overrides: hasOverrides ? overrides : undefined,
-      saveOverrides: saveOverrides.value,
-    })
+    const response = await createSession()
     toast.add({
       title: 'Shortlist ready',
       description: 'Your buyer brief has been matched against the current inventory.',
@@ -118,8 +241,8 @@ const backPath = computed(() => {
               Tell us the mission, the guardrails, and the real-life baggage.
             </h1>
             <p class="max-w-3xl text-base text-muted sm:text-lg">
-              Build one honest buyer brief, pressure-test it before you run, and let AI rank the
-              boats that actually make sense.
+              Build one honest buyer brief on a single page, let it autosave while you work, and
+              then have AI rank the boats that actually deserve your time.
             </p>
           </div>
 
@@ -136,9 +259,9 @@ const backPath = computed(() => {
             v-model="draftAnswers"
             :submitting="submitting"
             :error="submitError"
-            :save-overrides="saveOverrides"
+            :autosave-state="autosaveState"
+            :autosave-message="autosaveMessage"
             submit-label="Generate shortlist"
-            @update:save-overrides="updateSaveOverrides"
             @submit="handleSubmit"
           />
         </div>
@@ -149,32 +272,30 @@ const backPath = computed(() => {
               <div class="space-y-1">
                 <h2 class="text-lg font-semibold text-default">Workflow summary</h2>
                 <p class="text-sm text-muted">
-                  One adaptive intake. One shortlist. Optional core-profile updates.
+                  One page. Autosaved profile. One shortlist grounded in the current market.
                 </p>
               </div>
-              <UBadge label="6 steps" color="primary" variant="soft" icon="i-lucide-list-checks" />
+              <UBadge label="Autosaved" color="primary" variant="soft" icon="i-lucide-save" />
             </div>
 
             <div class="grid gap-2 text-sm text-muted">
               <div class="rounded-xl bg-muted px-3 py-2">
-                1. Define the mission and geography honestly.
+                1. Answer everything on one page without losing your place.
               </div>
               <div class="rounded-xl bg-muted px-3 py-2">
-                2. Set budget and size guardrails that hold up in real life.
+                2. Save the buyer brief automatically while you work.
               </div>
               <div class="rounded-xl bg-muted px-3 py-2">
-                3. Add fishing, ownership, and family reality checks before reranking.
+                3. Generate a linked shortlist with real boats to pursue and avoid.
               </div>
             </div>
           </UCard>
 
           <UCard class="card-base border-default" :ui="{ body: 'p-4 space-y-3' }">
-            <h2 class="text-lg font-semibold text-default">
-              Need to edit the saved default later?
-            </h2>
+            <h2 class="text-lg font-semibold text-default">Your saved profile stays current</h2>
             <p class="text-sm text-muted">
-              The finder can run with one-off overrides, or you can lock changes into your core
-              buyer profile.
+              This page edits the core buyer profile directly, so the next shortlist starts from the
+              latest answers you already worked through.
             </p>
             <div class="flex flex-wrap gap-2">
               <UButton

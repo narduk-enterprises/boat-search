@@ -2,13 +2,12 @@ import type { H3Event } from 'h3'
 import { eq } from 'drizzle-orm'
 import {
   buildBuyerContext,
-  buyerAnswersSchema,
+  buyerAnswersDraftSchema,
   createEmptyBuyerProfile,
   getEffectiveBuyerAnswers,
   isBuyerAnswersComplete,
   normalizeBuyerAnswersDraft,
   normalizeBuyerProfileDraft,
-  type BuyerAnswers,
   type BuyerAnswersDraft,
   type BuyerProfileDraft,
 } from '~~/lib/boatFinder'
@@ -59,7 +58,7 @@ export async function getBuyerProfile(
 
 export async function upsertBuyerProfile(event: H3Event, userId: string, answersInput: unknown) {
   const db = useAppDatabase(event)
-  const coreAnswers = buyerAnswersSchema.parse(normalizeBuyerAnswersDraft(answersInput))
+  const coreAnswers = buyerAnswersDraftSchema.parse(normalizeBuyerAnswersDraft(answersInput))
   const now = new Date().toISOString()
   const profile = {
     version: 2 as const,
@@ -93,5 +92,11 @@ export async function upsertBuyerProfile(event: H3Event, userId: string, answers
     profile,
     effectiveAnswers: coreAnswers,
     updatedAt: now,
-  } satisfies { profile: BuyerProfileDraft; effectiveAnswers: BuyerAnswers; updatedAt: string }
+    isComplete: isBuyerAnswersComplete(coreAnswers),
+  } satisfies {
+    profile: BuyerProfileDraft
+    effectiveAnswers: BuyerAnswersDraft
+    updatedAt: string
+    isComplete: boolean
+  }
 }

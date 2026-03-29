@@ -1,9 +1,12 @@
-import type { BuyerAnswers, BuyerAnswersDraft, BuyerProfileDraft } from '~~/lib/boatFinder'
+import type { BuyerAnswersDraft, BuyerProfileDraft } from '~~/lib/boatFinder'
 import {
+  buildBuyerContext,
   createEmptyBuyerAnswers,
+  createEmptyBuyerAnswerOverrides,
   createEmptyBuyerProfile,
   getEffectiveBuyerAnswers,
   isBuyerAnswersComplete,
+  normalizeBuyerAnswersDraft,
   normalizeBuyerProfileDraft,
 } from '~~/lib/boatFinder'
 
@@ -27,14 +30,28 @@ export function useBuyerProfile() {
     () => data.value?.effectiveAnswers ?? getEffectiveBuyerAnswers(profile.value),
   )
   const updatedAt = computed(() => data.value?.updatedAt ?? null)
-  const isComplete = computed(() => isBuyerAnswersComplete(coreAnswers.value))
+  const isComplete = computed(
+    () => data.value?.isComplete ?? isBuyerAnswersComplete(coreAnswers.value),
+  )
 
-  async function saveProfile(nextProfile: BuyerAnswers) {
-    await appFetch('/api/buyer-profile', {
+  async function saveProfile(nextProfile: BuyerAnswersDraft) {
+    const normalized = normalizeBuyerAnswersDraft(nextProfile)
+    const response = await appFetch<BuyerProfileResponse>('/api/buyer-profile', {
       method: 'PUT',
-      body: { profile: nextProfile },
+      body: { profile: normalized },
     })
-    await refresh()
+    data.value = response ?? {
+      profile: {
+        version: 2,
+        coreAnswers: normalized,
+        sessionOverrides: createEmptyBuyerAnswerOverrides(),
+        normalizedContext: buildBuyerContext(normalized),
+      },
+      effectiveAnswers: normalized,
+      updatedAt: updatedAt.value ?? undefined,
+      isComplete: isBuyerAnswersComplete(normalized),
+    }
+    return response
   }
 
   return {

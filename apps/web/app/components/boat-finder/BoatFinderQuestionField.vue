@@ -250,6 +250,8 @@ function stateLabel(state?: string) {
         :label="option.label"
         :color="selectedValue === option.value ? 'primary' : 'neutral'"
         :variant="selectedValue === option.value ? 'solid' : 'soft'"
+        size="lg"
+        class="min-h-11"
         @click="selectSingleValue(option.value)"
       />
     </div>
@@ -262,6 +264,8 @@ function stateLabel(state?: string) {
         :color="selectedValues.includes(option.value) ? 'primary' : 'neutral'"
         :variant="selectedValues.includes(option.value) ? 'solid' : 'soft'"
         :disabled="!selectedValues.includes(option.value) && maxSelections <= selectedValues.length"
+        size="lg"
+        class="min-h-11"
         @click="toggleMultiValue(option.value)"
       />
     </div>
@@ -314,7 +318,7 @@ function stateLabel(state?: string) {
         label="Skip for now"
         color="neutral"
         variant="ghost"
-        size="sm"
+        size="md"
         icon="i-lucide-forward"
         @click="applySpecialState('skipped')"
       />
@@ -323,7 +327,7 @@ function stateLabel(state?: string) {
         label="Not sure"
         color="neutral"
         variant="ghost"
-        size="sm"
+        size="md"
         icon="i-lucide-circle-help"
         @click="applySpecialState('not_sure')"
       />
@@ -332,7 +336,7 @@ function stateLabel(state?: string) {
         label="Answer instead"
         color="primary"
         variant="ghost"
-        size="sm"
+        size="md"
         icon="i-lucide-rotate-ccw"
         @click="clearQuestionState"
       />

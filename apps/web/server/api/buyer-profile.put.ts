@@ -1,12 +1,12 @@
 import { z } from 'zod'
 import { defineUserMutation, withValidatedBody } from '#layer/server/utils/mutation'
-import { buyerAnswersSchema, normalizeBuyerAnswersDraft } from '~~/lib/boatFinder'
+import { buyerAnswersDraftSchema, normalizeBuyerAnswersDraft } from '~~/lib/boatFinder'
 import { upsertBuyerProfile } from '~~/server/utils/boatFinderStore'
 
 const bodySchema = z.object({
   profile: z
     .unknown()
-    .transform((value) => buyerAnswersSchema.parse(normalizeBuyerAnswersDraft(value))),
+    .transform((value) => buyerAnswersDraftSchema.parse(normalizeBuyerAnswersDraft(value))),
 })
 
 export default defineUserMutation(
@@ -15,7 +15,6 @@ export default defineUserMutation(
     parseBody: withValidatedBody(bodySchema.parse),
   },
   async ({ event, body, user }) => {
-    const { updatedAt } = await upsertBuyerProfile(event, user.id, body.profile)
-    return { ok: true, updatedAt }
+    return upsertBuyerProfile(event, user.id, body.profile)
   },
 )

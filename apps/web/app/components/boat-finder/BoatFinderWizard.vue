@@ -4,38 +4,39 @@ import {
   BOAT_FINDER_SECTIONS,
   getVisibleBoatFinderQuestions,
   type BoatFinderQuestion,
+  type BoatFinderSectionId,
 } from '~~/app/utils/boatFinderQuestions'
 
 const props = withDefaults(
   defineProps<{
     submitting?: boolean
     error?: string | null
-    saveOverrides?: boolean
     submitLabel?: string
+    autosaveState?: 'idle' | 'saving' | 'saved' | 'error'
+    autosaveMessage?: string | null
   }>(),
   {
     submitting: false,
     error: null,
-    saveOverrides: false,
     submitLabel: 'Find matching boats',
+    autosaveState: 'idle',
+    autosaveMessage: null,
   },
 )
 
 const emit = defineEmits<{
   submit: []
-  'update:saveOverrides': [value: boolean]
 }>()
 
 const answers = defineModel<BuyerAnswersDraft>({ required: true })
-const step = shallowRef(0)
-const sections = BOAT_FINDER_SECTIONS
-const currentSection = computed(() => sections[step.value] ?? sections[0]!)
-const visibleQuestions = computed(() =>
-  currentSection.value.id === 'review'
-    ? []
-    : getVisibleBoatFinderQuestions(answers.value, currentSection.value.id),
+const sections = BOAT_FINDER_SECTIONS.filter(
+  (
+    section,
+  ): section is (typeof BOAT_FINDER_SECTIONS)[number] & {
+    id: Exclude<BoatFinderSectionId, 'review'>
+  } => section.id !== 'review',
 )
-const progressPercent = computed(() => ((step.value + 1) / sections.length) * 100)
+
 const reviewContext = computed(() => buildBuyerContext(answers.value))
 
 function getValueFromGroup(group: 'facts' | 'preferences' | 'reflectiveAnswers', key: string) {
@@ -52,23 +53,25 @@ function getValueFromGroup(group: 'facts' | 'preferences' | 'reflectiveAnswers',
 
 function hasValue(question: BoatFinderQuestion) {
   if (question.kind === 'number_range') {
+    const [minGroup, minKey] = question.minPath.split('.')
     const [maxGroup, maxKey] = question.maxPath.split('.')
-    if (!maxKey) return false
-
-    if (maxGroup === 'facts' || maxGroup === 'preferences' || maxGroup === 'reflectiveAnswers') {
-      return Boolean(getValueFromGroup(maxGroup, maxKey))
+    if (!minKey || !maxKey) return false
+    if (
+      (minGroup !== 'facts' && minGroup !== 'preferences' && minGroup !== 'reflectiveAnswers') ||
+      (maxGroup !== 'facts' && maxGroup !== 'preferences' && maxGroup !== 'reflectiveAnswers')
+    ) {
+      return false
     }
 
-    return false
+    return Boolean(getValueFromGroup(minGroup, minKey) ?? getValueFromGroup(maxGroup, maxKey))
   }
 
-  const [group, key] = question.path.split('.')
   if (question.path === 'openContextNote') {
     return Boolean(answers.value.openContextNote.trim())
   }
 
+  const [group, key] = question.path.split('.')
   if (!key) return false
-
   if (group !== 'facts' && group !== 'preferences' && group !== 'reflectiveAnswers') {
     return false
   }
@@ -79,82 +82,119 @@ function hasValue(question: BoatFinderQuestion) {
   return value != null
 }
 
-function sectionIsComplete(sectionId: string) {
-  if (sectionId === 'mission') {
-    return (
-      answers.value.facts.primaryUses.length > 0 &&
-      Boolean(
-        answers.value.facts.targetWatersOrRegion.trim() || answers.value.facts.travelRadius.trim(),
-      )
-    )
+const sectionSummaries = computed(() =>
+  sections.map((section) => {
+    const questions = getVisibleBoatFinderQuestions(answers.value, section.id)
+    return {
+      ...section,
+      questions,
+      answeredCount: questions.filter(hasValue).length,
+      requiredRemaining: questions.filter((question) => question.required && !hasValue(question)),
+    }
+  }),
+)
+
+const totalVisibleQuestions = computed(() =>
+  sectionSummaries.value.reduce((total, section) => total + section.questions.length, 0),
+)
+
+const answeredQuestions = computed(() =>
+  sectionSummaries.value.reduce((total, section) => total + section.answeredCount, 0),
+)
+
+const blockerMessages = computed(() => {
+  const blockers: string[] = []
+
+  if (answers.value.facts.primaryUses.length === 0) {
+    blockers.push('Choose at least one mission.')
   }
 
-  if (sectionId === 'guardrails') {
-    return answers.value.facts.budgetMax != null
+  if (answers.value.facts.budgetMax == null) {
+    blockers.push('Set a budget ceiling.')
   }
 
-  const requiredQuestions = getVisibleBoatFinderQuestions(
-    answers.value,
-    sectionId as Exclude<(typeof sections)[number]['id'], 'review'>,
-  ).filter((question) => question.required)
+  if (!answers.value.facts.targetWatersOrRegion.trim() && !answers.value.facts.travelRadius) {
+    blockers.push('Add a target region or travel radius.')
+  }
 
-  return requiredQuestions.every(hasValue)
-}
-
-const canMoveNext = computed(() => {
-  if (currentSection.value.id === 'review') return true
-  return sectionIsComplete(currentSection.value.id)
+  return blockers
 })
 
-function goNext() {
-  if (!canMoveNext.value || step.value >= sections.length - 1) return
-  step.value += 1
-}
+const canSubmit = computed(() => blockerMessages.value.length === 0)
 
-function goBack() {
-  if (step.value === 0) return
-  step.value -= 1
-}
+const autosaveBadge = computed(() => {
+  if (props.autosaveState === 'saving') {
+    return { label: 'Autosaving', color: 'neutral' as const, icon: 'i-lucide-loader-2' }
+  }
+
+  if (props.autosaveState === 'saved') {
+    return { label: 'Saved', color: 'success' as const, icon: 'i-lucide-check' }
+  }
+
+  if (props.autosaveState === 'error') {
+    return { label: 'Save issue', color: 'warning' as const, icon: 'i-lucide-triangle-alert' }
+  }
+
+  return { label: 'Draft ready', color: 'neutral' as const, icon: 'i-lucide-file-text' }
+})
 </script>
 
 <template>
   <div class="space-y-5">
-    <UCard class="card-base border-default" :ui="{ body: 'p-4 sm:p-5 space-y-5' }">
-      <div class="space-y-3">
-        <div class="flex items-center justify-between gap-3">
-          <div>
-            <p class="text-xs font-semibold uppercase tracking-wide text-dimmed">
-              Step {{ step + 1 }} of {{ sections.length }}
-            </p>
-            <h2 class="text-lg font-semibold text-default">
-              {{ currentSection.label }}
-            </h2>
-          </div>
-          <UBadge :label="currentSection.description" color="neutral" variant="subtle" size="sm" />
-        </div>
-
-        <div class="grid grid-cols-6 gap-2">
-          <div
-            v-for="(item, index) in sections"
-            :key="item.id"
-            class="h-2 rounded-full transition-colors"
-            :class="index <= step ? 'bg-primary' : 'bg-muted'"
-          />
-        </div>
-
-        <div class="flex items-center justify-between gap-3 text-sm text-muted">
-          <span>{{ Math.round(progressPercent) }}% complete</span>
-          <div class="flex flex-wrap gap-2">
+    <UCard class="card-base border-default" :ui="{ body: 'p-4 sm:p-5 space-y-4' }">
+      <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+        <div class="space-y-2">
+          <div class="flex flex-wrap items-center gap-2">
             <UBadge
-              v-for="(item, index) in sections"
-              :key="item.id"
-              :label="`${index + 1}. ${item.label}`"
-              :color="index === step ? 'primary' : 'neutral'"
-              :variant="index === step ? 'solid' : 'subtle'"
-              size="sm"
+              label="One-page intake"
+              color="primary"
+              variant="subtle"
+              icon="i-lucide-layout-dashboard"
+            />
+            <UBadge
+              :label="autosaveBadge.label"
+              :color="autosaveBadge.color"
+              variant="soft"
+              :icon="autosaveBadge.icon"
+              :class="props.autosaveState === 'saving' ? 'animate-pulse' : ''"
             />
           </div>
+          <h2 class="text-xl font-semibold text-default sm:text-2xl">
+            Answer everything in one pass. We save the draft as you go.
+          </h2>
+          <p class="max-w-3xl text-sm text-muted sm:text-base">
+            Every section stays on the page. The sidebar keeps a live summary of the hard
+            guardrails, softer signals, and reflective context that will shape the shortlist.
+          </p>
         </div>
+
+        <div class="grid min-w-[16rem] gap-3 sm:grid-cols-2 lg:grid-cols-1">
+          <div class="rounded-2xl bg-muted px-4 py-3">
+            <p class="text-xs font-semibold uppercase tracking-[0.18em] text-dimmed">Progress</p>
+            <p class="mt-2 text-xl font-semibold text-default">
+              {{ answeredQuestions }} / {{ totalVisibleQuestions }}
+            </p>
+            <p class="mt-1 text-sm text-muted">Visible questions with an answer.</p>
+          </div>
+          <div class="rounded-2xl bg-muted px-4 py-3">
+            <p class="text-xs font-semibold uppercase tracking-[0.18em] text-dimmed">
+              Blocking items
+            </p>
+            <p class="mt-2 text-xl font-semibold text-default">
+              {{ blockerMessages.length === 0 ? 'Ready' : blockerMessages.length }}
+            </p>
+            <p class="mt-1 text-sm text-muted">
+              Mission, budget ceiling, and geography are the only required shortlist gates.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <div
+        v-if="props.autosaveMessage"
+        class="rounded-xl border border-default bg-default px-4 py-3 text-sm text-default"
+      >
+        {{ props.autosaveMessage }}
       </div>
 
       <div
@@ -165,55 +205,105 @@ function goBack() {
       </div>
     </UCard>
 
-    <div v-if="currentSection.id !== 'review'" class="space-y-4">
-      <BoatFinderQuestionField
-        v-for="question in visibleQuestions"
-        :key="question.id"
-        v-model="answers"
-        :question="question"
-        :section="currentSection.id"
-      />
-    </div>
+    <div class="grid gap-6 xl:grid-cols-[minmax(0,1fr)_22rem]">
+      <div class="space-y-4">
+        <UCard
+          v-for="section in sectionSummaries"
+          :key="section.id"
+          class="card-base border-default"
+          :ui="{ body: 'p-4 sm:p-5 space-y-4' }"
+        >
+          <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <div class="space-y-1">
+              <div class="flex flex-wrap items-center gap-2">
+                <UBadge
+                  :label="section.label"
+                  color="primary"
+                  variant="subtle"
+                  icon="i-lucide-list-checks"
+                />
+                <UBadge
+                  :label="`${section.answeredCount}/${section.questions.length} answered`"
+                  color="neutral"
+                  variant="soft"
+                />
+              </div>
+              <h3 class="text-lg font-semibold text-default">{{ section.label }}</h3>
+              <p class="text-sm text-muted">{{ section.description }}</p>
+            </div>
 
-    <BoatFinderReviewCard
-      v-else
-      :context="reviewContext"
-      :save-overrides="props.saveOverrides"
-      @update:save-overrides="emit('update:saveOverrides', $event)"
-    />
+            <p
+              class="text-sm"
+              :class="section.requiredRemaining.length === 0 ? 'text-success' : 'text-muted'"
+            >
+              {{
+                section.requiredRemaining.length === 0
+                  ? 'Section ready'
+                  : `${section.requiredRemaining.length} required follow-up`
+              }}
+            </p>
+          </div>
 
-    <div
-      class="sticky bottom-3 z-10 rounded-[1.6rem] border border-default bg-default/95 p-4 shadow-card"
-    >
-      <div class="flex flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <UButton
-          label="Back"
-          color="neutral"
-          variant="soft"
-          icon="i-lucide-arrow-left"
-          :disabled="step === 0 || props.submitting"
-          @click="goBack"
-        />
-
-        <div class="flex flex-col gap-3 sm:flex-row">
-          <UButton
-            v-if="step < sections.length - 1"
-            label="Continue"
-            color="primary"
-            icon="i-lucide-arrow-right"
-            trailing
-            :disabled="!canMoveNext || props.submitting"
-            @click="goNext"
+          <BoatFinderQuestionField
+            v-for="question in section.questions"
+            :key="question.id"
+            v-model="answers"
+            :question="question"
+            :section="section.id"
           />
+        </UCard>
+      </div>
+
+      <div class="space-y-4 xl:sticky xl:top-24">
+        <BoatFinderReviewCard :context="reviewContext" :allow-save-toggle="false" />
+
+        <UCard class="card-base border-default" :ui="{ body: 'p-4 sm:p-5 space-y-4' }">
+          <div class="space-y-2">
+            <div class="flex flex-wrap items-center gap-2">
+              <UBadge
+                label="Ready to rank"
+                color="primary"
+                variant="subtle"
+                icon="i-lucide-sparkles"
+              />
+              <UBadge
+                :label="canSubmit ? 'Can generate now' : 'Needs a few answers'"
+                :color="canSubmit ? 'success' : 'neutral'"
+                variant="soft"
+              />
+            </div>
+            <p class="text-sm text-muted">
+              Generate a shortlist once the core guardrails are present. Everything else sharpens
+              the ranking and the advice.
+            </p>
+          </div>
+
+          <div v-if="blockerMessages.length" class="space-y-2">
+            <p class="text-xs font-semibold uppercase tracking-[0.18em] text-dimmed">
+              Finish these first
+            </p>
+            <div class="space-y-2">
+              <div
+                v-for="message in blockerMessages"
+                :key="message"
+                class="rounded-xl bg-muted px-3 py-2 text-sm text-default"
+              >
+                {{ message }}
+              </div>
+            </div>
+          </div>
+
           <UButton
-            v-else
+            block
             :label="props.submitLabel"
             color="primary"
+            size="xl"
             icon="i-lucide-sparkles"
             :loading="props.submitting"
+            :disabled="!canSubmit"
             @click="emit('submit')"
           />
-        </div>
+        </UCard>
       </div>
     </div>
   </div>
