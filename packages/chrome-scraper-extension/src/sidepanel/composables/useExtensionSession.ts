@@ -1473,6 +1473,9 @@ export function useExtensionSession() {
         if (key === 'url' && baseRecord.url) {
           continue
         }
+        if (key === 'listingType' && baseRecord.listingType) {
+          continue
+        }
         nextRecord[key] = nextValue as never
       }
     }

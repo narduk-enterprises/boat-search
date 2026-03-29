@@ -199,6 +199,59 @@ describe('site presets', () => {
     ])
   })
 
+  it('preserves used listing type from the search URL and falls back to non-matching gallery photos when needed', () => {
+    const record: BrowserScrapeRecord = {
+      source: 'YachtWorld',
+      url: 'https://www.yachtworld.com/yacht/2021-sportsman-open-282-center-console-9973024/',
+      listingId: '9973024',
+      title: '2021 Sportsman Open 282 Center Console | 28ft',
+      make: null,
+      model: null,
+      year: 2021,
+      length: null,
+      price: '165000',
+      currency: null,
+      location: 'Port Aransas, Texas',
+      city: null,
+      state: null,
+      country: null,
+      description:
+        "Super nice 28' Sportsman with low time 300HP Yamahas 93 Hours New hull side paint May 2024",
+      sellerType: null,
+      listingType: null,
+      images: [
+        'https://images.boatsgroup.com/resize/1/41/87/2021-sportsman-open-282-center-console-power-10094187-20260101010101010-1.jpg?w=1028&format=webp',
+        'https://images.boatsgroup.com/resize/1/upload/dealer-logo.png?w=122&format=webp',
+        'data:image/svg+xml,%3Csvg%20xmlns%3D%22http://www.w3.org/2000/svg%22/%3E',
+      ],
+      fullText:
+        "Boat Details Description Super nice 28' Sportsman with low time 300HP Yamahas 93 Hours New hull side paint May 2024",
+      rawFields: {},
+      warnings: [],
+    }
+
+    const normalizedSearch = normalizePresetRecord('yachtworld-search', record, {
+      context: 'search',
+      pageUrl:
+        'https://www.yachtworld.com/boats-for-sale/condition-used/type-power/class-power-saltwater-fishing/',
+    })
+
+    expect(normalizedSearch.listingType).toBe('used')
+    expect(normalizedSearch.images).toEqual([
+      'https://images.boatsgroup.com/resize/1/41/87/2021-sportsman-open-282-center-console-power-10094187-20260101010101010-1.jpg?w=1028&format=webp',
+    ])
+
+    const normalizedDetail = normalizePresetRecord('yachtworld-search', normalizedSearch, {
+      context: 'detail',
+      pageUrl: record.url!,
+    })
+
+    expect(normalizedDetail.listingType).toBe('used')
+    expect(normalizedDetail.images).toEqual([
+      'https://images.boatsgroup.com/resize/1/41/87/2021-sportsman-open-282-center-console-power-10094187-20260101010101010-1.jpg?w=1028&format=webp',
+    ])
+  })
+
   it('builds a runtime preset draft that preserves crawl settings but replaces stale selectors', () => {
     const draft = createEmptyDraft()
     draft.name = 'Manual YachtWorld draft'

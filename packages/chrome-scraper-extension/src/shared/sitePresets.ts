@@ -316,7 +316,50 @@ function normalizeYachtWorldImages(images: string[], listingId: string | null | 
     }
   }
 
+  if (!deduped.size) {
+    for (const image of images) {
+      try {
+        const parsed = new URL(image)
+        const hostname = parsed.hostname.toLowerCase()
+        const pathname = parsed.pathname.toLowerCase()
+
+        if (
+          !/^https?:$/i.test(parsed.protocol) ||
+          (hostname !== 'images.yachtworld.com' &&
+            !hostname.endsWith('boatsgroup.com') &&
+            hostname !== 'imt.boatwizard.com') ||
+          pathname.includes('/upload/') ||
+          pathname.includes('/profiles/') ||
+          /(?:^|\/)(?:sprite|icon|logo|avatar|placeholder|blank|tracking|pixel|spinner)/i.test(
+            pathname,
+          )
+        ) {
+          continue
+        }
+
+        const identity = normalizeImageIdentity(image)
+        if (!deduped.has(identity)) {
+          deduped.set(identity, image)
+        }
+      } catch {
+        continue
+      }
+    }
+  }
+
   return [...deduped.values()]
+}
+
+function inferYachtWorldListingTypeFromPageUrl(pageUrl: string | null | undefined) {
+  const normalized = normalizeTitle(pageUrl).toLowerCase()
+  if (!normalized) {
+    return null
+  }
+
+  if (normalized.includes('/condition-used/')) return 'used'
+  if (normalized.includes('/condition-new/')) return 'new'
+
+  return null
 }
 
 function createYachtWorldPipelineName(pageUrl: string) {
@@ -599,7 +642,11 @@ function normalizeYachtWorldRecord(
 
   nextRecord.images = normalizeYachtWorldImages(nextRecord.images, nextRecord.listingId)
   nextRecord.sellerType = inferSellerType(nextRecord.sellerType || fullText) || nextRecord.sellerType
-  nextRecord.listingType = normalizeListingType(nextRecord.listingType || fullText) || 'sale'
+  nextRecord.listingType =
+    nextRecord.listingType ||
+    inferYachtWorldListingTypeFromPageUrl(context === 'search' ? pageUrl : null) ||
+    normalizeListingType(fullText) ||
+    'sale'
 
   if (!nextRecord.fullText && fullText) {
     nextRecord.fullText = fullText
