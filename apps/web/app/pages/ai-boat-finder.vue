@@ -1,9 +1,11 @@
 <script setup lang="ts">
 import {
-  buyerProfileSchema,
-  createEmptyBuyerProfile,
-  normalizeBuyerProfileDraft,
-  type BuyerProfileDraft,
+  buyerAnswersSchema,
+  createEmptyBuyerAnswers,
+  createEmptyBuyerAnswerOverrides,
+  diffBuyerAnswers,
+  normalizeBuyerAnswersDraft,
+  type BuyerAnswersDraft,
 } from '~~/lib/boatFinder'
 
 definePageMeta({ middleware: ['auth'] })
@@ -11,54 +13,71 @@ definePageMeta({ middleware: ['auth'] })
 useSeo({
   title: 'AI Fishing Boat Finder',
   description:
-    'Answer a short fishing questionnaire and get an AI-ranked shortlist from the current offshore inventory.',
+    'Answer a richer fishing questionnaire and get an AI-ranked shortlist grounded in the current offshore inventory.',
   ogImage: {
     title: 'AI Fishing Boat Finder',
-    description: 'Guided buyer questionnaire plus AI-ranked fishing boat matches.',
+    description: 'Adaptive buyer questionnaire plus AI-ranked fishing boat matches.',
     icon: '⛵',
   },
 })
 useWebPageSchema({
   name: 'AI Fishing Boat Finder',
-  description: 'Guided questionnaire that turns a fishing brief into an AI-ranked shortlist.',
+  description: 'Adaptive questionnaire that turns a fishing brief into an AI-ranked shortlist.',
 })
 
 const toast = useToast()
 const route = useRoute()
-const { profile, status } = useBuyerProfile()
+const { coreAnswers, effectiveAnswers, status, isComplete } = useBuyerProfile()
 const { createSession } = useRecommendationSessions()
 
-const draftProfile = ref<BuyerProfileDraft>(createEmptyBuyerProfile())
+const draftAnswers = ref<BuyerAnswersDraft>(createEmptyBuyerAnswers())
+const saveOverrides = shallowRef(false)
 const submitting = shallowRef(false)
 const submitError = shallowRef<string | null>(null)
+const saveToggleTouched = shallowRef(false)
 
 watch(
-  profile,
-  (nextProfile) => {
-    draftProfile.value = normalizeBuyerProfileDraft(nextProfile)
+  effectiveAnswers,
+  (nextAnswers) => {
+    draftAnswers.value = normalizeBuyerAnswersDraft(nextAnswers)
+    if (!saveToggleTouched.value) {
+      saveOverrides.value = !isComplete.value
+    }
   },
   { immediate: true },
 )
 
+function updateSaveOverrides(value: boolean) {
+  saveToggleTouched.value = true
+  saveOverrides.value = value
+}
+
 async function handleSubmit() {
   submitError.value = null
 
-  let parsedProfile
+  let parsedAnswers
   try {
-    parsedProfile = buyerProfileSchema.parse(draftProfile.value)
+    parsedAnswers = buyerAnswersSchema.parse(draftAnswers.value)
   } catch (error: unknown) {
     const message =
-      error instanceof Error ? error.message : 'Complete each required field before continuing.'
+      error instanceof Error ? error.message : 'Complete the required answers before continuing.'
     submitError.value = message
     return
   }
 
+  const overrides = diffBuyerAnswers(coreAnswers.value, parsedAnswers)
+  const hasOverrides =
+    JSON.stringify(overrides) !== JSON.stringify(createEmptyBuyerAnswerOverrides())
+
   submitting.value = true
   try {
-    const response = await createSession(parsedProfile)
+    const response = await createSession({
+      overrides: hasOverrides ? overrides : undefined,
+      saveOverrides: saveOverrides.value,
+    })
     toast.add({
       title: 'Shortlist ready',
-      description: 'Your fishing brief has been matched against the current inventory.',
+      description: 'Your buyer brief has been matched against the current inventory.',
       color: 'success',
     })
     await navigateTo({
@@ -96,11 +115,11 @@ const backPath = computed(() => {
               icon="i-lucide-sparkles"
             />
             <h1 class="text-3xl font-bold text-default sm:text-4xl">
-              Tell us the mission. We will rank the right boats.
+              Tell us the mission, the guardrails, and the real-life baggage.
             </h1>
             <p class="max-w-3xl text-base text-muted sm:text-lg">
-              Save one buyer brief, filter the live inventory, and get AI-ranked matches with
-              concise fit commentary.
+              Build one honest buyer brief, pressure-test it before you run, and let AI rank the
+              boats that actually make sense.
             </p>
           </div>
 
@@ -114,9 +133,12 @@ const backPath = computed(() => {
 
           <BoatFinderWizard
             v-else
-            v-model="draftProfile"
+            v-model="draftAnswers"
             :submitting="submitting"
             :error="submitError"
+            :save-overrides="saveOverrides"
+            submit-label="Generate shortlist"
+            @update:save-overrides="updateSaveOverrides"
             @submit="handleSubmit"
           />
         </div>
@@ -126,29 +148,31 @@ const backPath = computed(() => {
             <div class="flex items-start justify-between gap-3">
               <div class="space-y-1">
                 <h2 class="text-lg font-semibold text-default">Workflow summary</h2>
-                <p class="text-sm text-muted">One brief. One shortlist. Reusable profile.</p>
+                <p class="text-sm text-muted">
+                  One adaptive intake. One shortlist. Optional core-profile updates.
+                </p>
               </div>
-              <UBadge label="3 steps" color="primary" variant="soft" icon="i-lucide-list-checks" />
+              <UBadge label="6 steps" color="primary" variant="soft" icon="i-lucide-list-checks" />
             </div>
 
             <div class="grid gap-2 text-sm text-muted">
               <div class="rounded-xl bg-muted px-3 py-2">
-                1. Save the mission and ownership limits.
+                1. Define the mission and geography honestly.
               </div>
               <div class="rounded-xl bg-muted px-3 py-2">
-                2. Filter the live inventory before reranking.
+                2. Set budget and size guardrails that hold up in real life.
               </div>
               <div class="rounded-xl bg-muted px-3 py-2">
-                3. Review why each boat fits or misses.
+                3. Add fishing, ownership, and family reality checks before reranking.
               </div>
             </div>
           </UCard>
 
           <UCard class="card-base border-default" :ui="{ body: 'p-4 space-y-3' }">
-            <h2 class="text-lg font-semibold text-default">Need to adjust later?</h2>
+            <h2 class="text-lg font-semibold text-default">Need to edit the saved default later?</h2>
             <p class="text-sm text-muted">
-              Your answers become the saved buyer profile that future runs and boat detail notes
-              reference.
+              The finder can run with one-off overrides, or you can lock changes into your core
+              buyer profile.
             </p>
             <div class="flex flex-wrap gap-2">
               <UButton

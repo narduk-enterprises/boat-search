@@ -120,7 +120,7 @@ export default definePublicMutation(
     })
 
     // Call xAI analysis with optional user context
-    const result = await analyzeBoats(apiKey, enrichedBoats, category, userContext)
+    const result = await analyzeBoats(event, apiKey, enrichedBoats, category, userContext)
 
     // Store analysis in D1
     const boatIds = boatList.map((boat: BoatListRow) => boat.id)
@@ -130,7 +130,7 @@ export default definePublicMutation(
         ? `${userContext} — Analyze ${boatList.length} ${category || 'all'} boats`
         : `Analyze ${boatList.length} ${category || 'all'} boats`,
       response: result.content,
-      model: 'grok-3-mini-reasoning-high',
+      model: result.model,
       category,
       tokensUsed: result.tokensUsed,
       createdAt: new Date().toISOString(),

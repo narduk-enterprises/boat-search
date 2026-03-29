@@ -73,6 +73,9 @@ const verdictTone = computed(() => {
         <p class="mt-2 text-sm text-muted">
           {{ props.summary.summary }}
         </p>
+        <p v-if="props.summary.lifeFitNote" class="mt-2 text-sm text-default">
+          {{ props.summary.lifeFitNote }}
+        </p>
       </div>
 
       <div class="grid gap-4 md:grid-cols-2">

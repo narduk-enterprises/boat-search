@@ -26,16 +26,21 @@ export default defineUserMutation(
 
     const db = useAppDatabase(event)
     const storedProfile = await getBuyerProfile(event, user.id)
-    if (!storedProfile.isComplete) {
+
+    const session = body.sessionId
+      ? await getRecommendationSessionForUser(db, user.id, body.sessionId)
+      : await getLatestRecommendationSessionForUser(db, user.id)
+
+    const profileInput = session?.profileSnapshot ?? storedProfile.profile
+    const canScoreWithSavedProfile = storedProfile.isComplete || session != null
+
+    if (!canScoreWithSavedProfile) {
       throw createError({
         statusCode: 400,
         statusMessage: 'Complete the guided questionnaire before requesting fit commentary.',
       })
     }
 
-    const session = body.sessionId
-      ? await getRecommendationSessionForUser(db, user.id, body.sessionId)
-      : await getLatestRecommendationSessionForUser(db, user.id)
     const cached = await getCachedBoatFitSummary(db, {
       userId: user.id,
       boatId,
@@ -47,9 +52,9 @@ export default defineUserMutation(
     }
 
     const config = useRuntimeConfig(event)
-    const summary = await buildBoatFitSummaryResult(db, {
+    const summary = await buildBoatFitSummaryResult(event, db, {
       boatId,
-      profileInput: storedProfile.profile,
+      profileInput,
       session,
       apiKey: config.xaiApiKey || undefined,
     })

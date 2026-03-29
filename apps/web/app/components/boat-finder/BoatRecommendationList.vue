@@ -146,6 +146,9 @@ const activeFilters = computed(() => {
           <p class="max-w-3xl text-sm text-muted line-clamp-3">
             {{ props.session.resultSummary.overallAdvice }}
           </p>
+          <p v-if="props.session.resultSummary.lifeFitNote" class="max-w-3xl text-sm text-default">
+            {{ props.session.resultSummary.lifeFitNote }}
+          </p>
 
           <div v-if="activeFilters.length" class="flex flex-wrap gap-2">
             <UBadge
@@ -165,6 +168,12 @@ const activeFilters = computed(() => {
           </p>
           <p class="mt-2 text-xs text-muted">
             Review the card notes below for fit score, trade-offs, and source details.
+          </p>
+          <p
+            v-if="props.session.resultSummary.meta.resolvedModel"
+            class="mt-3 text-[0.7rem] font-semibold uppercase tracking-[0.18em] text-dimmed"
+          >
+            {{ props.session.resultSummary.meta.resolvedModel }}
           </p>
         </div>
       </div>

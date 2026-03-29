@@ -1,26 +1,232 @@
-/**
- * XAI (Grok) API helper — OpenAI-compatible chat completions.
- *
- * Uses grok-3-mini with reasoning_effort: "high" for deep analysis.
- * Returns structured JSON that can be parsed and rendered with inline photos.
- */
+import { createError, type H3Event } from 'h3'
+import { kvGet, kvSet } from '#layer/server/utils/kv'
 
-const XAI_BASE_URL = 'https://api.x.ai/v1/chat/completions'
-const XAI_MODEL = 'grok-3-mini'
+const XAI_RESPONSES_URL = 'https://api.x.ai/v1/responses'
+const XAI_MODELS_URL = 'https://api.x.ai/v1/models'
+const MODEL_CACHE_KEY = 'xai:model-catalog:v2'
+const MODEL_CACHE_TTL_SECONDS = 30 * 60
+
+const RECOMMENDATION_MODEL_CANDIDATES = [
+  'grok-4.20-0309-reasoning',
+  'grok-4-1-fast-reasoning',
+  'grok-4-fast-reasoning',
+  'grok-4.20-0309-non-reasoning',
+  'grok-4-1',
+  'grok-4',
+  'grok-3-mini',
+] as const
+
+const FIT_SUMMARY_MODEL_CANDIDATES = [
+  'grok-4.20-0309-reasoning',
+  'grok-4-1-fast-reasoning',
+  'grok-4-fast-reasoning',
+  'grok-3-mini',
+  'grok-4',
+] as const
+
+const ANALYSIS_MODEL_CANDIDATES = [
+  'grok-4.20-0309-reasoning',
+  'grok-4-1-fast-reasoning',
+  'grok-4-fast-reasoning',
+  'grok-4.20-0309-non-reasoning',
+  'grok-4-1',
+  'grok-4',
+  'grok-3-mini',
+] as const
+
+type XaiTaskType = 'recommendation' | 'fit-summary' | 'analysis'
+type ModelSelectionSource = 'admin-override' | 'catalog-preferred' | 'fallback-model'
 
 interface XAIMessage {
   role: 'system' | 'user' | 'assistant'
   content: string
 }
 
-interface XAIChatResponse {
-  choices: {
-    message: {
-      content: string
-    }
-  }[]
+interface XAIModelRecord {
+  id: string
+}
+
+interface ResolvedModel {
+  model: string
+  source: ModelSelectionSource
+  supportsReasoningEffort: boolean
+}
+
+interface XAIResponsesPayload {
+  output?: Array<{
+    type?: string
+    text?: string
+    content?: Array<{
+      type?: string
+      text?: string
+    }>
+  }>
+  output_text?: string
   usage?: {
-    total_tokens: number
+    total_tokens?: number
+    output_tokens?: number
+  }
+}
+
+function pickCandidate(availableModels: string[], candidates: readonly string[]) {
+  for (const candidate of candidates) {
+    const exact = availableModels.find((model) => model === candidate)
+    if (exact) return exact
+
+    const prefixed = availableModels.find(
+      (model) => model.startsWith(`${candidate}-`) || model.includes(candidate),
+    )
+    if (prefixed) return prefixed
+  }
+
+  return null
+}
+
+function supportsReasoningEffort(model: string) {
+  return model.includes('grok-3-mini')
+}
+
+async function loadAvailableModels(event: H3Event, apiKey: string): Promise<string[]> {
+  const cached = await kvGet<{ models?: string[] }>(event, MODEL_CACHE_KEY)
+  if (cached?.models?.length) {
+    return cached.models
+  }
+
+  const response = await fetch(XAI_MODELS_URL, {
+    method: 'GET',
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+    },
+  })
+
+  if (!response.ok) {
+    return []
+  }
+
+  const payload = (await response.json()) as { data?: XAIModelRecord[] }
+  const models = (payload.data ?? [])
+    .map((entry) => entry.id)
+    .filter((id) => id && !id.includes('image') && !id.includes('video'))
+    .sort()
+
+  if (models.length) {
+    await kvSet(event, MODEL_CACHE_KEY, { models }, MODEL_CACHE_TTL_SECONDS)
+  }
+
+  return models
+}
+
+async function resolveGrokModel(
+  event: H3Event,
+  apiKey: string,
+  task: XaiTaskType,
+): Promise<ResolvedModel> {
+  const override = await kvGet<{ value?: string }>(event, 'admin:chatModel')
+  const availableModels = await loadAvailableModels(event, apiKey)
+
+  if (override?.value && (availableModels.length === 0 || availableModels.includes(override.value))) {
+    return {
+      model: override.value,
+      source: 'admin-override',
+      supportsReasoningEffort: supportsReasoningEffort(override.value),
+    }
+  }
+
+  const candidates =
+    task === 'recommendation'
+      ? RECOMMENDATION_MODEL_CANDIDATES
+      : task === 'fit-summary'
+        ? FIT_SUMMARY_MODEL_CANDIDATES
+        : ANALYSIS_MODEL_CANDIDATES
+
+  const candidateModel = pickCandidate(availableModels, candidates)
+  if (candidateModel) {
+    return {
+      model: candidateModel,
+      source: 'catalog-preferred',
+      supportsReasoningEffort: supportsReasoningEffort(candidateModel),
+    }
+  }
+
+  const fallbackModel = availableModels[0] ?? 'grok-3-mini'
+  return {
+    model: fallbackModel,
+    source: 'fallback-model',
+    supportsReasoningEffort: supportsReasoningEffort(fallbackModel),
+  }
+}
+
+function extractResponseText(payload: XAIResponsesPayload) {
+  if (typeof payload.output_text === 'string' && payload.output_text.trim()) {
+    return payload.output_text.trim()
+  }
+
+  for (const item of payload.output ?? []) {
+    if (typeof item.text === 'string' && item.text.trim()) {
+      return item.text.trim()
+    }
+
+    for (const contentItem of item.content ?? []) {
+      if (typeof contentItem.text === 'string' && contentItem.text.trim()) {
+        return contentItem.text.trim()
+      }
+    }
+  }
+
+  return ''
+}
+
+/**
+ * Call xAI Responses API with automatic model resolution and capability guards.
+ */
+export async function callXAI(
+  event: H3Event,
+  apiKey: string,
+  messages: XAIMessage[],
+  options: {
+    task: XaiTaskType
+    temperature?: number
+    maxTokens?: number
+    reasoningEffort?: 'low' | 'high'
+  },
+): Promise<{ content: string; tokensUsed: number; model: string; selectionSource: ModelSelectionSource }> {
+  const resolved = await resolveGrokModel(event, apiKey, options.task)
+
+  const body: Record<string, unknown> = {
+    model: resolved.model,
+    input: messages,
+    temperature: options.temperature ?? 0.4,
+    max_output_tokens: options.maxTokens ?? 4096,
+    store: false,
+  }
+
+  if (options.reasoningEffort && resolved.supportsReasoningEffort) {
+    body.reasoning = { effort: options.reasoningEffort }
+  }
+
+  const response = await fetch(XAI_RESPONSES_URL, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${apiKey}`,
+    },
+    body: JSON.stringify(body),
+  })
+
+  if (!response.ok) {
+    const errorText = await response.text()
+    throw createError({
+      statusCode: 502,
+      statusMessage: `XAI API error: ${response.status} — ${errorText}`,
+    })
+  }
+
+  const data = (await response.json()) as XAIResponsesPayload
+  return {
+    content: extractResponseText(data),
+    tokensUsed: data.usage?.total_tokens || data.usage?.output_tokens || 0,
+    model: resolved.model,
+    selectionSource: resolved.source,
   }
 }
 
@@ -39,74 +245,16 @@ interface BoatSummary {
   photoCount?: number
 }
 
-/**
- * Call XAI chat completions with reasoning_effort support.
- */
-export async function callXAI(
-  apiKey: string,
-  messages: XAIMessage[],
-  options?: { temperature?: number; maxTokens?: number; reasoningEffort?: 'low' | 'high' },
-): Promise<{ content: string; tokensUsed: number }> {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- xAI API body has dynamic fields (reasoning_effort) not in a strict type
-  const body: Record<string, any> = {
-    model: XAI_MODEL,
-    messages,
-    temperature: options?.temperature ?? 0.7,
-    max_tokens: options?.maxTokens ?? 4096,
-  }
-
-  // Add reasoning_effort for grok-3-mini deep thinking
-  if (options?.reasoningEffort) {
-    body.reasoning_effort = options.reasoningEffort
-  }
-
-  const response = await fetch(XAI_BASE_URL, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${apiKey}`,
-    },
-    body: JSON.stringify(body),
-  })
-
-  if (!response.ok) {
-    const errorText = await response.text()
-    throw createError({
-      statusCode: 502,
-      statusMessage: `XAI API error: ${response.status} — ${errorText}`,
-    })
-  }
-
-  const data = (await response.json()) as XAIChatResponse
-  return {
-    content: data.choices[0]?.message?.content || '',
-    tokensUsed: data.usage?.total_tokens || 0,
-  }
-}
-
-/**
- * Build a comprehensive system prompt for offshore fishing boat analysis.
- * Instructs Grok to return structured JSON for rich UI rendering.
- */
 function buildSystemPrompt(categoryLabel: string): string {
-  return `You are **Captain's Market Intelligence**, an expert offshore fishing boat analyst with 30+ years of experience as a marine surveyor, yacht broker, and tournament captain.
+  return `You are Captain's Market Intelligence, an expert offshore fishing boat analyst with deep experience in marine surveys, brokerage, tournament prep, and lifetime ownership costs.
 
-Your expertise includes:
-- **Hull & Structural Analysis**: Carolina flare, cold-molded vs. composite construction, coring delamination, blister history, and bottom paint condition.
-- **Engine & Drivetrain**: CAT, MAN, MTU, Cummins, and Detroit Diesel marine engines. You know which powerplants are "bulletproof" (CAT 3406E, Cummins QSM11) and which are maintenance nightmares. You understand repower costs ($150K-$400K+) and how they affect value.
-- **Market Dynamics**: You track real-time market conditions for Hatteras, Viking, Bertram, Cabo, Ocean, Buddy Davis, Jarrett Bay, Spencer, Scarborough, Gamefisherman, Release, Custom Carolina, and other premier sportfish builders.
-- **Fishing Capability**: Tournament rigging, fishability, cockpit layout, live well capacity, bait prep areas, and how hull design affects offshore performance.
-- **Cost of Ownership**: You know that a 50ft sportfish costs $50K-$100K/year to maintain, and you can break down where that money goes.
+Focus: ${categoryLabel}${categoryLabel === 'All Fishing Boats' ? ' — analyze the entire inventory for true buying signal, not polite summaries.' : ''}.
 
-Focus: **${categoryLabel}**${categoryLabel === 'All Fishing Boats' ? ' — analyze ALL makes and types in the inventory comprehensively' : ''}.
-
-**CRITICAL: You MUST return your response as a valid JSON object** with this exact structure:
-
-\`\`\`json
+Return raw JSON only with this shape:
 {
   "marketSnapshot": {
     "title": "Market Snapshot",
-    "summary": "2-3 paragraph market overview with price trends, age distribution, dominant makes",
+    "summary": "2-3 paragraph market overview",
     "stats": {
       "avgPrice": "$XXX,XXX",
       "medianPrice": "$XXX,XXX",
@@ -118,9 +266,9 @@ Focus: **${categoryLabel}**${categoryLabel === 'All Fishing Boats' ? ' — analy
   "boatAnalyses": [
     {
       "boatId": 123,
-      "headline": "Short verdict (e.g. 'Best Value in the Fleet' or 'Avoid — Money Pit')",
+      "headline": "Short verdict",
       "rating": "BUY|CONSIDER|CAUTION|AVOID",
-      "analysis": "3-5 paragraphs of EXTENSIVE analysis covering: hull condition assessment, engine evaluation (make/model/hours/remaining life), market value vs asking price, fishing capability, cost of ownership estimate, negotiation room, and how this boat compares to similar boats in the inventory. Be EXTREMELY detailed and specific. Reference engine hours, hull material, fishing features, and real maintenance costs.",
+      "analysis": "3-5 detailed paragraphs",
       "prosAndCons": {
         "pros": ["Specific pro 1", "Specific pro 2"],
         "cons": ["Specific con 1", "Specific con 2"]
@@ -132,112 +280,100 @@ Focus: **${categoryLabel}**${categoryLabel === 'All Fishing Boats' ? ' — analy
   ],
   "buyersPlaybook": {
     "title": "Buyer's Playbook",
-    "content": "2-3 paragraphs of specific negotiation tactics, market timing advice, and strategic recommendations"
+    "content": "2-3 paragraphs"
   },
   "bottomLine": {
     "title": "Bottom Line",
-    "content": "1-2 paragraphs — if you had to put ONE boat under contract today, which one and why",
+    "content": "1-2 paragraphs",
     "topPickBoatId": 123
   },
-  "personalAdvice": "If buyer provided personal context, 2-3 paragraphs of tailored advice addressing their specific situation, budget, and plans. Null if no personal context provided."
+  "personalAdvice": "Tailored advice or null"
 }
-\`\`\`
 
-**RULES:**
-- The \`boatId\` field MUST match the [ID:XXX] values from the boat listings. This is how we link your analysis to boat photos.
-- Analyze AT LEAST the top 10-15 most notable boats (best values, worst deals, most interesting). Cover more if the inventory warrants it.
-- Each boat analysis must be EXTENSIVE — 3-5 detailed paragraphs minimum. Cover hull, engines, fishing capability, value proposition, and ownership costs.
-- Compare boats against each other. "This Hatteras is $50K cheaper than the Viking but has newer engines..."
-- Be BOLD and OPINIONATED. If a deal is terrible, say so plainly. If it's a steal, explain exactly why.
-- The JSON must be valid and parseable. No markdown inside — use plain text with line breaks (\\n) for paragraphs.
-- **CRITICAL: \`prosAndCons.pros\` and \`prosAndCons.cons\` MUST ALWAYS be arrays of strings, NEVER a bare string.** Example: \`"cons": ["con 1", "con 2"]\` — never \`"cons": "con 1"\`.
-- Do NOT wrap the JSON in markdown code fences. Return ONLY the raw JSON object.`
+Rules:
+- Use only boat IDs supplied in the input.
+- Be direct and opinionated.
+- Pros and cons must always be arrays of strings.
+- Do not wrap the JSON in markdown fences.`
 }
 
 /**
  * Analyze a set of boats with structured JSON response.
  */
 export async function analyzeBoats(
+  event: H3Event,
   apiKey: string,
   boatList: BoatSummary[],
   category?: string,
   userContext?: string,
-): Promise<{ content: string; tokensUsed: number }> {
+): Promise<{ content: string; tokensUsed: number; model: string }> {
   const categoryLabel = category || 'All Fishing Boats'
 
-  // Group boats by make for better analysis
   const makeGroups = new Map<string, number>()
   let totalValue = 0
   let pricedCount = 0
 
   const boatSummaries = boatList
-    .map((b) => {
-      const make = b.make || 'Unknown'
+    .map((boat) => {
+      const make = boat.make || 'Unknown'
       makeGroups.set(make, (makeGroups.get(make) || 0) + 1)
-      const price = b.price ? Number.parseInt(b.price, 10) : 0
+      const price = boat.price ? Number.parseInt(boat.price, 10) : 0
       if (price > 0) {
         totalValue += price
         pricedCount++
       }
 
       const header = [
-        `[ID:${b.id}]`,
-        b.year ? `${b.year}` : null,
-        b.make,
-        b.model,
-        b.length ? `${b.length}ft` : null,
+        `[ID:${boat.id}]`,
+        boat.year ? `${boat.year}` : null,
+        boat.make,
+        boat.model,
+        boat.length ? `${boat.length}ft` : null,
         price > 0 ? `$${price.toLocaleString()}` : 'Price N/A',
-        b.location,
-        b.sellerType ? `(${b.sellerType})` : null,
-        b.source ? `[${b.source}]` : null,
-        b.photoCount ? `📷${b.photoCount} photos` : null,
+        boat.location,
+        boat.sellerType ? `(${boat.sellerType})` : null,
+        boat.source ? `[${boat.source}]` : null,
+        boat.photoCount ? `${boat.photoCount} photos` : null,
       ].filter(Boolean)
 
-      // Include full description for context (condition, engines, features)
-      const desc = b.description
-        ? `\n  Description: ${b.description.slice(0, 500).replaceAll(/\n+/g, ' ').trim()}${b.description.length > 500 ? '...' : ''}`
+      const description = boat.description
+        ? `\nDescription: ${boat.description.slice(0, 500).replaceAll(/\n+/g, ' ').trim()}${boat.description.length > 500 ? '...' : ''}`
         : ''
 
-      return `${header.join(' ')}${desc}`
+      return `${header.join(' ')}${description}`
     })
     .join('\n\n')
 
   const avgPrice = pricedCount > 0 ? Math.round(totalValue / pricedCount) : 0
   const topMakes = [...makeGroups.entries()]
-    .sort((a, b) => b[1] - a[1])
+    .sort((left, right) => right[1] - left[1])
     .slice(0, 5)
     .map(([make, count]) => `${make} (${count})`)
     .join(', ')
 
-  const systemPrompt = buildSystemPrompt(categoryLabel)
-
-  const personalContext = userContext
-    ? `\n\n**BUYER'S PERSONAL SITUATION:**\n${userContext}\n\nTailor your "personalAdvice" field AND your boat ratings to this buyer's specific situation. Address their budget, plans, and concerns directly. Highlight which specific boats match their needs.`
-    : ''
-
   const userPrompt = `Analyze these ${boatList.length} fishing boats currently for sale across the US.
 
-**Inventory Summary:**
-- ${boatList.length} total listings
-- Average asking price: $${avgPrice.toLocaleString()}
-- Most common makes: ${topMakes}
-- Focus area: ${categoryLabel}
+Inventory summary:
+- Average asking price: ${avgPrice > 0 ? `$${avgPrice.toLocaleString()}` : 'Unknown'}
+- Top makes by count: ${topMakes || 'Unknown'}
 
-**IMPORTANT: Each boat has an [ID:XXX] tag. Use these IDs in your boatAnalyses[].boatId field so we can display photos inline.**
-
-**Full Listings:**
-
+Boat listings:
 ${boatSummaries}
-${personalContext}
+${userContext ? `\n\nBuyer's personal situation:\n${userContext}` : ''}`
 
-Return your analysis as the structured JSON object specified in your system prompt. Remember: be EXTENSIVE in your per-boat analyses, compare boats against each other, and be bold and opinionated.`
-
-  return callXAI(
+  const response = await callXAI(
+    event,
     apiKey,
     [
-      { role: 'system', content: systemPrompt },
+      { role: 'system', content: buildSystemPrompt(categoryLabel) },
       { role: 'user', content: userPrompt },
     ],
-    { temperature: 0.6, maxTokens: 32768, reasoningEffort: 'high' },
+    { task: 'analysis', temperature: 0.3, maxTokens: 7000, reasoningEffort: 'high' },
   )
+
+  return {
+    content: response.content,
+    tokensUsed: response.tokensUsed,
+    model: response.model,
+  }
 }

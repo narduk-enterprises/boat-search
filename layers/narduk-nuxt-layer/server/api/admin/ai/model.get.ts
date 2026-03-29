@@ -9,7 +9,7 @@ export default defineEventHandler(async (event) => {
 
   // We don't fetch from xAI immediately to avoid latency unless explicitly requested
   return {
-    currentModel: configModel?.value || 'grok-3-mini',
+    currentModel: configModel?.value || 'grok-4-1-fast-reasoning',
     // The front-end can fetch actual available models if XAI_API_KEY is configured
   }
 })

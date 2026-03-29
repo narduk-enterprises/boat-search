@@ -6,11 +6,11 @@ const _props = withDefaults(
   }>(),
   {
     availableModels: () => [
-      'grok-4-1-fast-non-reasoning',
-      'grok-3-mini',
+      'grok-4-1-fast-reasoning',
+      'grok-4-fast-reasoning',
+      'grok-4-1',
       'grok-4',
-      'grok-4.20-beta-latest-non-reasoning',
-      'grok-2-1212',
+      'grok-3-mini',
     ],
   },
 )

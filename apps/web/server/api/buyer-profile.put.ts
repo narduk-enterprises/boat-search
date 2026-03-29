@@ -1,10 +1,10 @@
 import { z } from 'zod'
 import { defineUserMutation, withValidatedBody } from '#layer/server/utils/mutation'
-import { buyerProfileSchema } from '~~/lib/boatFinder'
+import { buyerAnswersSchema, normalizeBuyerAnswersDraft } from '~~/lib/boatFinder'
 import { upsertBuyerProfile } from '~~/server/utils/boatFinderStore'
 
 const bodySchema = z.object({
-  profile: buyerProfileSchema,
+  profile: z.unknown().transform((value) => buyerAnswersSchema.parse(normalizeBuyerAnswersDraft(value))),
 })
 
 export default defineUserMutation(

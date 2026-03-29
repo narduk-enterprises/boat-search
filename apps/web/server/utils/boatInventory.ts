@@ -1,6 +1,11 @@
 import { and, desc, eq, gte, inArray, isNull, like, lte, or, sql, type SQL } from 'drizzle-orm'
 import type { DrizzleD1Database } from 'drizzle-orm/d1'
-import type { BuyerProfile, RecommendationFilters } from '~~/lib/boatFinder'
+import {
+  buildBuyerContext,
+  getEffectiveBuyerAnswers,
+  type BuyerProfile,
+  type RecommendationFilters,
+} from '~~/lib/boatFinder'
 import { boats } from '~~/server/database/schema'
 import type * as schema from '~~/server/database/schema'
 
@@ -248,17 +253,25 @@ export function hydrateBoatRow(row: BoatRow): InventoryBoat {
 }
 
 export function deriveRecommendationFilters(profile: BuyerProfile): RecommendationFilters {
-  // Only soft positive hints here. Must-haves and deal-breakers are scored separately
-  // in scoreBoatAgainstProfile; including them would double-count (+3 keyword vs +5 / −12).
-  const keywords = profile.primaryUse ? [profile.primaryUse] : []
+  const effectiveAnswers = getEffectiveBuyerAnswers(profile)
+  const context = buildBuyerContext(effectiveAnswers)
+  const keywordPool = [
+    ...effectiveAnswers.facts.primaryUses,
+    ...effectiveAnswers.preferences.targetSpecies,
+    ...effectiveAnswers.preferences.boatStyles,
+    ...effectiveAnswers.preferences.ownershipPriorities,
+    ...effectiveAnswers.preferences.mustHaves,
+  ]
 
   return {
-    budgetMin: profile.budgetMin,
-    budgetMax: profile.budgetMax,
-    lengthMin: profile.lengthMin,
-    lengthMax: profile.lengthMax,
-    location: profile.targetWatersOrRegion,
-    keywords: [...new Set(keywords.map((item) => item.trim()).filter(Boolean))].slice(0, 10),
+    budgetMin: effectiveAnswers.facts.budgetMin,
+    budgetMax: effectiveAnswers.facts.budgetMax,
+    lengthMin: effectiveAnswers.facts.lengthMin,
+    lengthMax: effectiveAnswers.facts.lengthMax,
+    location: effectiveAnswers.facts.targetWatersOrRegion || undefined,
+    keywords: [...new Set(keywordPool.map((item) => item.trim()).filter(Boolean))]
+      .concat(context.softPreferences.slice(0, 4))
+      .slice(0, 20),
   }
 }
 

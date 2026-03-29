@@ -1,10 +1,15 @@
 import type { H3Event } from 'h3'
 import { eq } from 'drizzle-orm'
 import {
-  buyerProfileSchema,
+  buildBuyerContext,
+  buyerAnswersSchema,
   createEmptyBuyerProfile,
+  getEffectiveBuyerAnswers,
+  isBuyerAnswersComplete,
+  normalizeBuyerAnswersDraft,
   normalizeBuyerProfileDraft,
-  type BuyerProfile,
+  type BuyerAnswers,
+  type BuyerAnswersDraft,
   type BuyerProfileDraft,
 } from '~~/lib/boatFinder'
 import { buyerProfiles } from '~~/server/database/schema'
@@ -14,6 +19,7 @@ export async function getBuyerProfile(
   userId: string,
 ): Promise<{
   profile: BuyerProfileDraft
+  effectiveAnswers: BuyerAnswersDraft
   updatedAt?: string
   isComplete: boolean
 }> {
@@ -21,8 +27,10 @@ export async function getBuyerProfile(
   const row = await db.select().from(buyerProfiles).where(eq(buyerProfiles.userId, userId)).get()
 
   if (!row) {
+    const emptyProfile = createEmptyBuyerProfile()
     return {
-      profile: createEmptyBuyerProfile(),
+      profile: emptyProfile,
+      effectiveAnswers: getEffectiveBuyerAnswers(emptyProfile),
       updatedAt: undefined,
       isComplete: false,
     }
@@ -35,19 +43,35 @@ export async function getBuyerProfile(
     rawProfile = {}
   }
 
-  const parsed = normalizeBuyerProfileDraft(rawProfile)
+  const profile = normalizeBuyerProfileDraft(rawProfile)
+  const effectiveAnswers = getEffectiveBuyerAnswers(profile)
 
   return {
-    profile: parsed,
+    profile: {
+      ...profile,
+      normalizedContext: profile.normalizedContext ?? buildBuyerContext(effectiveAnswers),
+    },
+    effectiveAnswers,
     updatedAt: row.updatedAt,
-    isComplete: buyerProfileSchema.safeParse(parsed).success,
+    isComplete: isBuyerAnswersComplete(profile.coreAnswers),
   }
 }
 
-export async function upsertBuyerProfile(event: H3Event, userId: string, profileInput: unknown) {
+export async function upsertBuyerProfile(event: H3Event, userId: string, answersInput: unknown) {
   const db = useAppDatabase(event)
-  const profile = buyerProfileSchema.parse(profileInput)
+  const coreAnswers = buyerAnswersSchema.parse(normalizeBuyerAnswersDraft(answersInput))
   const now = new Date().toISOString()
+  const profile = {
+    version: 2 as const,
+    coreAnswers,
+    sessionOverrides: {
+      facts: {},
+      preferences: {},
+      reflectiveAnswers: {},
+      questionStates: {},
+    },
+    normalizedContext: buildBuyerContext(coreAnswers),
+  }
   const dataJson = JSON.stringify(profile)
   const existing = await db
     .select({ userId: buyerProfiles.userId })
@@ -67,6 +91,7 @@ export async function upsertBuyerProfile(event: H3Event, userId: string, profile
 
   return {
     profile,
+    effectiveAnswers: coreAnswers,
     updatedAt: now,
-  } satisfies { profile: BuyerProfile; updatedAt: string }
+  } satisfies { profile: BuyerProfileDraft; effectiveAnswers: BuyerAnswers; updatedAt: string }
 }

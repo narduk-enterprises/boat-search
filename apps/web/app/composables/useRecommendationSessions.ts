@@ -1,5 +1,5 @@
 import type {
-  BuyerProfile,
+  BuyerAnswerOverrides,
   RecommendationSession,
   RecommendationSessionListItem,
 } from '~~/lib/boatFinder'
@@ -35,6 +35,11 @@ interface RecommendationSessionsResponse {
 interface RecommendationSessionDetailResponse {
   session: RecommendationSession
   boats: RecommendationBoat[]
+}
+
+interface CreateRecommendationSessionOptions {
+  overrides?: BuyerAnswerOverrides
+  saveOverrides?: boolean
 }
 
 interface CreateRecommendationSessionResponse extends RecommendationSessionDetailResponse {
@@ -76,12 +81,18 @@ export function useRecommendationSessions(
     },
   )
 
-  async function createSession(profile?: BuyerProfile) {
+  async function createSession(options: CreateRecommendationSessionOptions = {}) {
     const response = await appFetch<CreateRecommendationSessionResponse>(
       '/api/recommendation-sessions',
       {
         method: 'POST',
-        body: profile ? { profile } : {},
+        body:
+          options.overrides || options.saveOverrides
+            ? {
+                overrides: options.overrides,
+                saveOverrides: options.saveOverrides ?? false,
+              }
+            : {},
       },
     )
     await refreshSessions()

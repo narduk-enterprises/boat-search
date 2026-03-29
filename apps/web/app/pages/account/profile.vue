@@ -1,9 +1,9 @@
 <script setup lang="ts">
 import {
-  buyerProfileSchema,
-  createEmptyBuyerProfile,
-  normalizeBuyerProfileDraft,
-  type BuyerProfileDraft,
+  buyerAnswersSchema,
+  createEmptyBuyerAnswers,
+  normalizeBuyerAnswersDraft,
+  type BuyerAnswersDraft,
 } from '~~/lib/boatFinder'
 
 definePageMeta({ middleware: ['auth'] })
@@ -23,29 +23,29 @@ useWebPageSchema({
 })
 
 const toast = useToast()
-const { profile, status, saveProfile } = useBuyerProfile()
+const { coreAnswers, status, saveProfile } = useBuyerProfile()
 const { createSession } = useRecommendationSessions()
 
-const draftProfile = ref<BuyerProfileDraft>(createEmptyBuyerProfile())
+const draftAnswers = ref<BuyerAnswersDraft>(createEmptyBuyerAnswers())
 const saving = shallowRef(false)
 const rerunning = shallowRef(false)
 
 watch(
-  profile,
-  (nextProfile) => {
-    draftProfile.value = normalizeBuyerProfileDraft(nextProfile)
+  coreAnswers,
+  (nextAnswers) => {
+    draftAnswers.value = normalizeBuyerAnswersDraft(nextAnswers)
   },
   { immediate: true },
 )
 
-function parseDraftProfile() {
-  return buyerProfileSchema.parse(draftProfile.value)
+function parseDraftAnswers() {
+  return buyerAnswersSchema.parse(draftAnswers.value)
 }
 
 async function handleSave() {
   saving.value = true
   try {
-    await saveProfile(parseDraftProfile())
+    await saveProfile(parseDraftAnswers())
     toast.add({ title: 'Buyer profile saved', color: 'success' })
   } catch (error: unknown) {
     const err = error as { data?: { statusMessage?: string }; message?: string }
@@ -62,10 +62,11 @@ async function handleSave() {
 async function handleSaveAndRerun() {
   rerunning.value = true
   try {
-    const response = await createSession(parseDraftProfile())
+    await saveProfile(parseDraftAnswers())
+    const response = await createSession()
     toast.add({
       title: 'Shortlist refreshed',
-      description: 'Your updated fishing brief is now driving the recommendation board.',
+      description: 'Your updated buyer brief is now driving the recommendation board.',
       color: 'success',
     })
     await navigateTo({
@@ -92,8 +93,7 @@ async function handleSaveAndRerun() {
         <div>
           <h1 class="text-3xl font-bold text-default">Saved buyer profile</h1>
           <p class="mt-2 max-w-3xl text-muted">
-            This is the fishing brief used to search, rank, and explain boats everywhere else in the
-            product.
+            This is the durable brief the finder uses unless you deliberately run one-off overrides.
           </p>
         </div>
 
@@ -122,7 +122,7 @@ async function handleSaveAndRerun() {
       </div>
 
       <UCard v-else class="card-base border-default" :ui="{ body: 'p-5 sm:p-6 space-y-6' }">
-        <BoatFinderProfileFields v-model="draftProfile" />
+        <BoatFinderProfileFields v-model="draftAnswers" />
       </UCard>
     </UPageSection>
   </UPage>

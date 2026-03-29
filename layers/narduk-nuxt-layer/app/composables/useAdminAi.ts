@@ -23,7 +23,7 @@ export function useAdminAi() {
     $fetch<ModelResponse>('/api/admin/ai/model'),
   )
 
-  const currentModel = computed(() => modelData.value?.currentModel || 'grok-3-mini')
+  const currentModel = computed(() => modelData.value?.currentModel || 'grok-4-1-fast-reasoning')
   const isUpdatingModel = ref(false)
 
   async function updateActiveModel(newModel: string) {

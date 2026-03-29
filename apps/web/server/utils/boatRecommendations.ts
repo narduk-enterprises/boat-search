@@ -1,13 +1,18 @@
+import type { H3Event } from 'h3'
 import { and, desc, eq, isNull } from 'drizzle-orm'
 import type { DrizzleD1Database } from 'drizzle-orm/d1'
 import {
   boatFitSummarySchema,
-  buyerProfileSchema,
+  buildBuyerContext,
+  buyerAnswersSchema,
+  getEffectiveBuyerAnswers,
+  normalizeBuyerProfile,
   ratingFromScore,
   recommendationSessionSchema,
   recommendationSummarySchema,
   type BoatFitSummary,
-  type BuyerProfile,
+  type BuyerAnswers,
+  type BuyerContext,
   type RecommendationEntry,
   type RecommendationFilters,
   type RecommendationSession,
@@ -27,11 +32,15 @@ import { callXAI } from '~~/server/utils/xai'
 type AppDb = DrizzleD1Database<typeof schema>
 
 const PRIMARY_USE_KEYWORDS: Record<string, string[]> = {
-  'Offshore tournament fishing': ['offshore', 'tournament', 'convertible', 'sportfish', 'bridge'],
-  'Weekend offshore trips': ['offshore', 'diesel', 'convertible', 'express'],
+  'Offshore tournament fishing': ['offshore', 'tournament', 'sportfish', 'bridge', 'outriggers'],
+  'Weekend offshore trips': ['offshore', 'diesel', 'express', 'center console'],
   'Nearshore family fishing': ['family', 'console', 'cockpit', 'day boat'],
-  'Bay and inlet fishing': ['bay', 'inshore', 'shallow', 'center console'],
+  'Bay and inlet fishing': ['bay', 'inshore', 'shallow', 'polling'],
+  'Overnight canyon runs': ['overnight', 'berth', 'galley', 'diesel'],
+  'Mixed-use sandbar and cruising': ['sandbar', 'lounger', 'family', 'comfortable'],
 }
+
+const SOFT_RELAXATION_ORDER: Array<keyof RecommendationFilters> = ['location', 'lengthMax', 'lengthMin']
 
 function clampScore(value: number) {
   return Math.max(0, Math.min(100, Math.round(value)))
@@ -95,27 +104,41 @@ function boatSearchText(boat: InventoryBoat) {
     boat.description,
     boat.sellerType,
     boat.listingType,
+    boat.features,
+    boat.electronics,
+    boat.additionalEquipment,
+    boat.propulsion,
+    boat.engineMake,
+    boat.engineModel,
+    boat.fuelTypeDetail,
+    boat.hullMaterial,
+    boat.hullShape,
   ]
     .filter(Boolean)
     .join(' ')
     .toLowerCase()
 }
 
-function buildKeywordSet(profile: BuyerProfile, filters: RecommendationFilters) {
-  const useKeywords = PRIMARY_USE_KEYWORDS[profile.primaryUse] ?? []
-  return [...filters.keywords, ...useKeywords]
+function buildKeywordSet(answers: BuyerAnswers) {
+  const useKeywords = answers.facts.primaryUses.flatMap((item) => PRIMARY_USE_KEYWORDS[item] ?? [])
+
+  return [
+    ...useKeywords,
+    ...answers.preferences.targetSpecies,
+    ...answers.preferences.boatStyles,
+    ...answers.preferences.ownershipPriorities,
+    ...answers.preferences.mustHaves,
+    ...answers.preferences.propulsionPreferences,
+  ]
     .map((item) => item.trim().toLowerCase())
     .filter(Boolean)
 }
 
-function profilePhraseTokenSet(phrases: string[]) {
-  return new Set(phrases.map((p) => p.trim().toLowerCase()).filter(Boolean))
-}
-
 function scoreBoatAgainstProfile(
   boat: InventoryBoat,
-  profile: BuyerProfile,
+  answers: BuyerAnswers,
   filters: RecommendationFilters,
+  context: BuyerContext,
 ) {
   let score = 50
   const reasons: string[] = []
@@ -130,21 +153,14 @@ function scoreBoatAgainstProfile(
       reasons.push('Stays within the target budget ceiling.')
     } else {
       const overBy = boatPrice - filters.budgetMax
-      const ratio = overBy / filters.budgetMax
-      score -= ratio > 0.25 ? 20 : 10
+      score -= overBy / filters.budgetMax > 0.25 ? 24 : 12
       tradeoffs.push(`Runs about $${overBy.toLocaleString()} over the stated budget.`)
     }
   }
 
-  if (filters.budgetMin != null && boatPrice != null) {
-    if (boatPrice >= filters.budgetMin) {
-      score += 6
-    } else {
-      tradeoffs.push(
-        'Sits below the target budget floor and may indicate a trade-off or project boat.',
-      )
-      score -= 6
-    }
+  if (filters.budgetMin != null && boatPrice != null && boatPrice < filters.budgetMin) {
+    tradeoffs.push('Sits below the target budget floor and may indicate compromise or hidden work.')
+    score -= 6
   }
 
   if (filters.lengthMin != null && boatLength != null) {
@@ -152,7 +168,7 @@ function scoreBoatAgainstProfile(
       score += 8
     } else {
       score -= 10
-      tradeoffs.push(`Comes in shorter than the requested ${filters.lengthMin}ft minimum.`)
+      tradeoffs.push(`Comes in shorter than the requested ${filters.lengthMin} ft minimum.`)
     }
   }
 
@@ -162,45 +178,74 @@ function scoreBoatAgainstProfile(
       reasons.push('Fits the requested size band.')
     } else {
       score -= 10
-      tradeoffs.push(`Runs longer than the requested ${filters.lengthMax}ft cap.`)
+      tradeoffs.push(`Runs longer than the requested ${filters.lengthMax} ft cap.`)
     }
   }
 
   if (filters.location) {
-    const locationMatch = boatSearchText(boat).includes(filters.location.toLowerCase())
+    const locationMatch = text.includes(filters.location.toLowerCase())
     if (locationMatch) {
-      score += 12
-      reasons.push(`Matches the target region: ${filters.location}.`)
+      score += 10
+      reasons.push(`Matches the target waters or search region: ${filters.location}.`)
     } else {
-      tradeoffs.push(`Not obviously located in ${filters.location}.`)
       score -= 4
+      tradeoffs.push(`Not obviously located in ${filters.location}.`)
     }
   }
 
-  for (const mustHave of profile.mustHaves) {
+  for (const keyword of buildKeywordSet(answers)) {
+    if (text.includes(keyword)) {
+      score += keyword.length > 12 ? 5 : 3
+    }
+  }
+
+  for (const mustHave of answers.preferences.mustHaves) {
     if (text.includes(mustHave.toLowerCase())) {
-      score += 5
+      score += 6
       reasons.push(`Mentions must-have: ${mustHave}.`)
     }
   }
 
-  for (const dealBreaker of profile.dealBreakers) {
+  for (const dealBreaker of answers.preferences.dealBreakers) {
     if (text.includes(dealBreaker.toLowerCase())) {
-      score -= 12
+      score -= 16
       tradeoffs.push(`Includes deal-breaker signal: ${dealBreaker}.`)
     }
   }
 
-  const mustHaveTokens = profilePhraseTokenSet(profile.mustHaves)
-  const dealBreakerTokens = profilePhraseTokenSet(profile.dealBreakers)
+  if (
+    answers.preferences.propulsionPreferences.includes('Diesel inboards') &&
+    text.includes('diesel')
+  ) {
+    score += 4
+    reasons.push('Matches the stated diesel preference.')
+  }
 
-  for (const keyword of buildKeywordSet(profile, filters)) {
-    if (mustHaveTokens.has(keyword) || dealBreakerTokens.has(keyword)) {
-      continue
-    }
-    if (text.includes(keyword)) {
-      score += 3
-    }
+  if (
+    answers.preferences.overnightComfort &&
+    ['overnight', 'berth', 'cabin', 'head'].some((keyword) => text.includes(keyword))
+  ) {
+    score += 4
+  }
+
+  if (
+    answers.reflectiveAnswers.partnerAlignment === 'This will create tension if the boat is wrong' &&
+    !['cabin', 'head', 'comfortable', 'seating'].some((keyword) => text.includes(keyword))
+  ) {
+    score -= 4
+    tradeoffs.push('Looks like a harder sell for the household if non-anglers are in the picture.')
+  }
+
+  if (
+    answers.reflectiveAnswers.ownershipStressors.includes('Constant punch lists') &&
+    !boat.description
+  ) {
+    score -= 6
+    tradeoffs.push('Sparse listing detail raises the risk of punch-list surprises.')
+  }
+
+  if (context.reflectiveContext.length > 0 && answers.openContextNote) {
+    reasons.push('The broader life-fit context has been considered alongside fishability.')
   }
 
   if (!boat.description) {
@@ -217,8 +262,8 @@ function scoreBoatAgainstProfile(
 
 function buildRecommendationHeadline(boat: InventoryBoat, rating: RecommendationEntry['rating']) {
   if (rating === 'best-fit') return `Strong shortlist candidate from ${boat.source}`
-  if (rating === 'strong-fit') return `Worth a close look in the current inventory`
-  return `Interesting option with clear trade-offs`
+  if (rating === 'strong-fit') return 'Worth a close look in the current inventory'
+  return 'Interesting option with clear trade-offs'
 }
 
 function summarizeFilters(filters: RecommendationFilters) {
@@ -233,10 +278,30 @@ function summarizeFilters(filters: RecommendationFilters) {
   return parts.length ? parts.join(', ') : 'the current fishing inventory'
 }
 
+function buildLifeFitNote(answers: BuyerAnswers) {
+  if (!answers.reflectiveAnswers.partnerAlignment && !answers.reflectiveAnswers.dreamVsPractical) {
+    return ''
+  }
+
+  return [
+    answers.reflectiveAnswers.partnerAlignment
+      ? `Household alignment: ${answers.reflectiveAnswers.partnerAlignment.toLowerCase()}.`
+      : '',
+    answers.reflectiveAnswers.dreamVsPractical
+      ? `Buying posture: ${answers.reflectiveAnswers.dreamVsPractical.toLowerCase()}.`
+      : '',
+  ]
+    .filter(Boolean)
+    .join(' ')
+    .slice(0, 280)
+}
+
 function buildFallbackSummary(
-  profile: BuyerProfile,
+  answers: BuyerAnswers,
   filters: RecommendationFilters,
   candidates: InventoryBoat[],
+  context: BuyerContext,
+  relaxedConstraints: string[],
 ): RecommendationSummary {
   if (!candidates.length) {
     return {
@@ -246,22 +311,34 @@ function buildFallbackSummary(
         'Try widening the region, expanding the budget ceiling, or relaxing the target size band. The current inventory is still constrained enough that a broader query should surface more viable boats.',
       topPickBoatId: null,
       recommendations: [],
+      lifeFitNote: buildLifeFitNote(answers),
+      meta: {
+        resolvedModel: null,
+        selectionSource: 'not-used',
+        contextSummaries: {
+          hardConstraints: relaxedConstraints.length
+            ? [...context.filterSummary.hardConstraintSummary, `Relaxed: ${relaxedConstraints.join(', ')}`]
+            : context.filterSummary.hardConstraintSummary,
+          softPreferences: context.filterSummary.softPreferenceSummary,
+          reflectiveContext: context.filterSummary.reflectiveSummary,
+        },
+      },
     }
   }
 
   const ranked = candidates
     .map((boat) => ({
       boat,
-      match: scoreBoatAgainstProfile(boat, profile, filters),
+      match: scoreBoatAgainstProfile(boat, answers, filters, context),
     }))
     .sort((left, right) => right.match.score - left.match.score)
     .slice(0, 8)
 
   return {
     generatedBy: 'fallback',
-    querySummary: `We searched ${summarizeFilters(filters)} for ${profile.primaryUse.toLowerCase()} and ranked the closest matches.`,
+    querySummary: `We searched ${summarizeFilters(filters)} for ${answers.facts.primaryUses.join(', ').toLowerCase()} and ranked the closest matches.`,
     overallAdvice:
-      'These results are ranked by fit against your budget, size, region, and checklist signals. Tighten or loosen the questionnaire if the shortlist feels too broad or too thin.',
+      'These results are ranked by fit against your hard guardrails, softer preferences, and the ownership reality you described. Tighten or loosen the intake if the shortlist feels too broad or too thin.',
     topPickBoatId: ranked[0]?.boat.id ?? null,
     recommendations: ranked.map(({ boat, match }) => ({
       boatId: boat.id,
@@ -269,11 +346,23 @@ function buildFallbackSummary(
       headline: buildRecommendationHeadline(boat, ratingFromScore(match.score)),
       whyItFits:
         match.reasons[0] ??
-        'This boat lands closest to your requested budget, length, and fishing profile.',
+        'This boat lands closest to your budget, size, mission, and practical ownership profile.',
       tradeoffs:
-        match.tradeoffs[0] ?? 'Review the source listing closely for engine and condition details.',
+        match.tradeoffs[0] ?? 'Review engine, condition, and survey details on the source listing.',
       score: match.score,
     })),
+    lifeFitNote: buildLifeFitNote(answers),
+    meta: {
+      resolvedModel: null,
+      selectionSource: 'not-used',
+      contextSummaries: {
+        hardConstraints: relaxedConstraints.length
+          ? [...context.filterSummary.hardConstraintSummary, `Relaxed: ${relaxedConstraints.join(', ')}`]
+          : context.filterSummary.hardConstraintSummary,
+        softPreferences: context.filterSummary.softPreferenceSummary,
+        reflectiveContext: context.filterSummary.reflectiveSummary,
+      },
+    },
   }
 }
 
@@ -299,16 +388,17 @@ function formatBoatForPrompt(boat: InventoryBoat, score: number) {
   return `${header}\n${description}`
 }
 
-async function buildAiRecommendationSummary(
-  apiKey: string,
-  profile: BuyerProfile,
+function buildRecommendationPromptPayloadInternal(
+  answers: BuyerAnswers,
   filters: RecommendationFilters,
+  context: BuyerContext,
+  relaxedConstraints: string[],
   candidates: InventoryBoat[],
 ) {
   const scoredCandidates = candidates
     .map((boat) => ({
       boat,
-      score: scoreBoatAgainstProfile(boat, profile, filters).score,
+      score: scoreBoatAgainstProfile(boat, answers, filters, context).score,
     }))
     .sort((left, right) => right.score - left.score)
     .slice(0, 24)
@@ -321,6 +411,7 @@ Return valid JSON only with this shape:
   "querySummary": "one short sentence",
   "overallAdvice": "2-4 sentences of practical buyer guidance",
   "topPickBoatId": 123,
+  "lifeFitNote": "optional short note about the buyer's real-life fit",
   "recommendations": [
     {
       "boatId": 123,
@@ -337,51 +428,161 @@ Rules:
 - Return at most 8 recommendations.
 - Use only boat IDs from the provided candidates.
 - Keep "whyItFits" and "tradeoffs" concise and concrete.
+- Use reflective context for tone and life-fit framing, not to invent hard constraints.
+- Treat anything in "Uncertainties" as unresolved context, not as an implied preference.
+- If listing details are sparse or noisy, say what needs verification instead of inventing specifics.
+- Do not recommend a propulsion, maintenance, or comfort strategy unless the buyer profile or listing details support it.
 - Scores must be integers between 0 and 100.
 - If the inventory is weak, say so in overallAdvice.
 - Never include markdown fences or extra commentary.`
 
-  const userPrompt = `Buyer profile:
-${JSON.stringify(profile, null, 2)}
+  const userPrompt = `Buyer brief:
+${context.buyerBrief}
+
+Hard constraints:
+${JSON.stringify(context.hardConstraints, null, 2)}
+
+Soft preferences:
+${JSON.stringify(context.softPreferences, null, 2)}
+
+Reflective context:
+${JSON.stringify(context.reflectiveContext, null, 2)}
+
+Uncertainties:
+${JSON.stringify(context.uncertainties, null, 2)}
 
 Structured filters applied:
 ${JSON.stringify(filters, null, 2)}
 
-Candidate boats:
+Relaxed constraints to keep inventory viable:
+${JSON.stringify(relaxedConstraints, null, 2)}
+
+  Candidate boats:
 ${scoredCandidates.map(({ boat, score }) => formatBoatForPrompt(boat, score)).join('\n\n')}`
 
+  return { systemPrompt, userPrompt, scoredCandidates }
+}
+
+export function buildRecommendationPromptPayload(
+  answers: BuyerAnswers,
+  filters: RecommendationFilters,
+  context: BuyerContext,
+  relaxedConstraints: string[],
+  candidates: InventoryBoat[],
+) {
+  return buildRecommendationPromptPayloadInternal(
+    answers,
+    filters,
+    context,
+    relaxedConstraints,
+    candidates,
+  )
+}
+
+async function requestAiRecommendationSummary(
+  event: H3Event,
+  apiKey: string,
+  answers: BuyerAnswers,
+  filters: RecommendationFilters,
+  context: BuyerContext,
+  relaxedConstraints: string[],
+  candidates: InventoryBoat[],
+) {
+  const { systemPrompt, userPrompt } = buildRecommendationPromptPayload(
+    answers,
+    filters,
+    context,
+    relaxedConstraints,
+    candidates,
+  )
+
   const response = await callXAI(
+    event,
     apiKey,
     [
       { role: 'system', content: systemPrompt },
       { role: 'user', content: userPrompt },
     ],
-    { temperature: 0.2, maxTokens: 6000, reasoningEffort: 'high' },
+    { task: 'recommendation', temperature: 0.2, maxTokens: 5000, reasoningEffort: 'high' },
   )
 
-  return parseAiJson(response.content, (value) => recommendationSummarySchema.parse(value))
+  const parsed = parseAiJson(response.content, (value) => recommendationSummarySchema.parse(value))
+  if (!parsed) {
+    return null
+  }
+
+  return {
+    ...parsed,
+    meta: {
+      resolvedModel: response.model,
+      selectionSource: response.selectionSource,
+      contextSummaries: {
+        hardConstraints: relaxedConstraints.length
+          ? [...context.filterSummary.hardConstraintSummary, `Relaxed: ${relaxedConstraints.join(', ')}`]
+          : context.filterSummary.hardConstraintSummary,
+        softPreferences: context.filterSummary.softPreferenceSummary,
+        reflectiveContext: context.filterSummary.reflectiveSummary,
+      },
+    },
+  } satisfies RecommendationSummary
+}
+
+async function fetchCandidatesWithRelaxations(
+  db: AppDb,
+  filters: RecommendationFilters,
+) {
+  let activeFilters = { ...filters }
+  let relaxedConstraints: string[] = []
+  let candidates = await selectRecommendationCandidates(db, activeFilters, { limit: 120 })
+
+  if (candidates.length >= 6) {
+    return { filters: activeFilters, candidates, relaxedConstraints }
+  }
+
+  for (const key of SOFT_RELAXATION_ORDER) {
+    if (activeFilters[key] == null) continue
+    activeFilters = { ...activeFilters, [key]: undefined }
+    relaxedConstraints = [...relaxedConstraints, key]
+    candidates = await selectRecommendationCandidates(db, activeFilters, { limit: 120 })
+    if (candidates.length >= 6) break
+  }
+
+  return { filters: activeFilters, candidates, relaxedConstraints }
 }
 
 export async function buildRecommendationSessionResult(
+  event: H3Event,
   db: AppDb,
   profileInput: unknown,
   apiKey?: string,
 ) {
-  const profile = buyerProfileSchema.parse(profileInput)
+  const profile = normalizeBuyerProfile(profileInput)
+  const answers = buyerAnswersSchema.parse(getEffectiveBuyerAnswers(profile))
   let filters = deriveRecommendationFilters(profile)
-  let candidates = await selectRecommendationCandidates(db, filters)
-
-  if (!candidates.length && filters.location) {
-    filters = { ...filters, location: undefined }
-    candidates = await selectRecommendationCandidates(db, filters)
-  }
-
-  const fallbackSummary = buildFallbackSummary(profile, filters, candidates)
+  const context = buildBuyerContext(answers)
+  const relaxed = await fetchCandidatesWithRelaxations(db, filters)
+  filters = relaxed.filters
+  const candidates = relaxed.candidates
+  const fallbackSummary = buildFallbackSummary(
+    answers,
+    filters,
+    candidates,
+    context,
+    relaxed.relaxedConstraints,
+  )
   let summary = fallbackSummary
 
   if (apiKey && candidates.length) {
     try {
-      const aiSummary = await buildAiRecommendationSummary(apiKey, profile, filters, candidates)
+      const aiSummary = await requestAiRecommendationSummary(
+        event,
+        apiKey,
+        answers,
+        filters,
+        context,
+        relaxed.relaxedConstraints,
+        candidates,
+      )
       if (aiSummary) {
         summary = aiSummary
         if (summary.recommendations.length === 0 && fallbackSummary.recommendations.length > 0) {
@@ -400,10 +601,20 @@ export async function buildRecommendationSessionResult(
   const rankedBoatIds =
     summary.recommendations.length > 0
       ? summary.recommendations.map((item) => item.boatId)
-      : candidates.slice(0, 8).map((boat) => boat.id)
+      : candidates
+          .map((boat) => ({
+            boat,
+            score: scoreBoatAgainstProfile(boat, answers, filters, context).score,
+          }))
+          .sort((left, right) => right.score - left.score)
+          .slice(0, 8)
+          .map((item) => item.boat.id)
 
   return {
-    profile,
+    profile: {
+      ...profile,
+      normalizedContext: context,
+    },
     filters,
     summary,
     rankedBoatIds,
@@ -413,16 +624,17 @@ export async function buildRecommendationSessionResult(
 }
 
 function buildFallbackFitSummary(
-  profile: BuyerProfile,
+  answers: BuyerAnswers,
   boat: InventoryBoat,
   filters: RecommendationFilters,
+  context: BuyerContext,
   recommendation?: RecommendationEntry,
 ): BoatFitSummary {
-  const score = recommendation?.score ?? scoreBoatAgainstProfile(boat, profile, filters).score
+  const score = recommendation?.score ?? scoreBoatAgainstProfile(boat, answers, filters, context).score
   const rating = recommendation?.rating ?? ratingFromScore(score)
   const verdict =
     rating === 'best-fit' ? 'strong-fit' : rating === 'strong-fit' ? 'mixed-fit' : 'weak-fit'
-  const match = scoreBoatAgainstProfile(boat, profile, filters)
+  const match = scoreBoatAgainstProfile(boat, answers, filters, context)
 
   return {
     generatedBy: 'fallback',
@@ -435,7 +647,7 @@ function buildFallbackFitSummary(
           : 'This boat looks off-brief for your current goals.',
     summary:
       recommendation?.whyItFits ??
-      `Based on your ${profile.primaryUse.toLowerCase()} brief, this listing scores ${score}/100 against budget, size, region, and checklist fit.`,
+      `Based on your buyer brief, this listing scores ${score}/100 against budget, size, mission, and ownership reality.`,
     pros:
       match.reasons.length > 0
         ? match.reasons
@@ -444,14 +656,15 @@ function buildFallbackFitSummary(
       match.tradeoffs.length > 0
         ? match.tradeoffs
         : ['You still need to verify engine, condition, and survey details on the source listing.'],
+    lifeFitNote: buildLifeFitNote(answers),
   }
 }
 
-async function buildAiFitSummary(
-  apiKey: string,
-  profile: BuyerProfile,
-  boat: InventoryBoat,
+function buildFitSummaryPromptPayloadInternal(
+  answers: BuyerAnswers,
   filters: RecommendationFilters,
+  context: BuyerContext,
+  boat: InventoryBoat,
   recommendation?: RecommendationEntry,
 ) {
   const systemPrompt = `You are an expert offshore fishing boat buyer's agent.
@@ -463,18 +676,33 @@ Return valid JSON only:
   "headline": "short verdict",
   "summary": "2-3 sentences tailored to the buyer",
   "pros": ["...", "..."],
-  "cons": ["...", "..."]
+  "cons": ["...", "..."],
+  "lifeFitNote": "optional short note about family, time, or ownership reality"
 }
 
 Rules:
 - Keep it concise.
-- Tie the explanation to the buyer's stated profile.
+- Tie the explanation to the buyer's stated profile and reflective context.
+- Treat skipped or not-sure answers as open questions to verify, not as assumed preferences.
+- If listing details are sparse or noisy, call out what should be verified instead of inventing specifics.
 - Mention the biggest fit positives and negatives.
 - Return 2-4 pros and 2-4 cons.
 - No markdown fences.`
 
-  const userPrompt = `Buyer profile:
-${JSON.stringify(profile, null, 2)}
+  const userPrompt = `Buyer brief:
+${context.buyerBrief}
+
+Hard constraints:
+${JSON.stringify(context.hardConstraints, null, 2)}
+
+Soft preferences:
+${JSON.stringify(context.softPreferences, null, 2)}
+
+Reflective context:
+${JSON.stringify(context.reflectiveContext, null, 2)}
+
+Uncertainties:
+${JSON.stringify(context.uncertainties, null, 2)}
 
 Structured filters:
 ${JSON.stringify(filters, null, 2)}
@@ -485,19 +713,57 @@ ${JSON.stringify(boat, null, 2)}
 Prior recommendation context:
 ${JSON.stringify(recommendation ?? null, null, 2)}`
 
+  return { systemPrompt, userPrompt }
+}
+
+export function buildFitSummaryPromptPayload(
+  answers: BuyerAnswers,
+  filters: RecommendationFilters,
+  context: BuyerContext,
+  boat: InventoryBoat,
+  recommendation?: RecommendationEntry,
+) {
+  return buildFitSummaryPromptPayloadInternal(
+    answers,
+    filters,
+    context,
+    boat,
+    recommendation,
+  )
+}
+
+async function requestAiFitSummary(
+  event: H3Event,
+  apiKey: string,
+  answers: BuyerAnswers,
+  boat: InventoryBoat,
+  filters: RecommendationFilters,
+  context: BuyerContext,
+  recommendation?: RecommendationEntry,
+) {
+  const { systemPrompt, userPrompt } = buildFitSummaryPromptPayload(
+    answers,
+    filters,
+    context,
+    boat,
+    recommendation,
+  )
+
   const response = await callXAI(
+    event,
     apiKey,
     [
       { role: 'system', content: systemPrompt },
       { role: 'user', content: userPrompt },
     ],
-    { temperature: 0.2, maxTokens: 1800, reasoningEffort: 'high' },
+    { task: 'fit-summary', temperature: 0.2, maxTokens: 1800, reasoningEffort: 'high' },
   )
 
   return parseAiJson(response.content, (value) => boatFitSummarySchema.parse(value))
 }
 
 export async function buildBoatFitSummaryResult(
+  event: H3Event,
   db: AppDb,
   options: {
     boatId: number
@@ -506,8 +772,10 @@ export async function buildBoatFitSummaryResult(
     apiKey?: string
   },
 ) {
-  const profile = buyerProfileSchema.parse(options.profileInput)
+  const profile = normalizeBuyerProfile(options.profileInput)
+  const answers = buyerAnswersSchema.parse(getEffectiveBuyerAnswers(profile))
   const filters = deriveRecommendationFilters(profile)
+  const context = buildBuyerContext(answers)
   const boat = await selectInventoryBoat(db, options.boatId)
 
   if (!boat) {
@@ -517,7 +785,7 @@ export async function buildBoatFitSummaryResult(
   const recommendation = options.session?.resultSummary.recommendations.find(
     (item) => item.boatId === boat.id,
   )
-  const fallback = buildFallbackFitSummary(profile, boat, filters, recommendation)
+  const fallback = buildFallbackFitSummary(answers, boat, filters, context, recommendation)
 
   if (!options.apiKey) {
     return fallback
@@ -525,7 +793,16 @@ export async function buildBoatFitSummaryResult(
 
   try {
     return (
-      (await buildAiFitSummary(options.apiKey, profile, boat, filters, recommendation)) ?? fallback
+      (await requestAiFitSummary(
+        event,
+        options.apiKey,
+        answers,
+        boat,
+        filters,
+        context,
+        recommendation,
+      )) ??
+      fallback
     )
   } catch {
     return fallback
@@ -543,9 +820,9 @@ function parseSessionRow(row: {
   return recommendationSessionSchema.parse({
     id: row.id,
     createdAt: row.createdAt,
-    profileSnapshot: JSON.parse(row.profileSnapshotJson),
+    profileSnapshot: normalizeBuyerProfile(JSON.parse(row.profileSnapshotJson)),
     generatedFilters: JSON.parse(row.generatedFilterJson),
-    resultSummary: JSON.parse(row.resultSummaryJson),
+    resultSummary: recommendationSummarySchema.parse(JSON.parse(row.resultSummaryJson)),
     rankedBoatIds: JSON.parse(row.rankedBoatIdsJson),
   })
 }

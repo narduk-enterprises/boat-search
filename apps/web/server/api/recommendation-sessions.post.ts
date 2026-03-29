@@ -1,6 +1,13 @@
 import { desc, eq } from 'drizzle-orm'
 import { z } from 'zod'
-import { buyerProfileSchema } from '~~/lib/boatFinder'
+import {
+  buildBuyerContext,
+  createEmptyBuyerAnswerOverrides,
+  createEmptyBuyerProfile,
+  isBuyerAnswersComplete,
+  mergeBuyerAnswers,
+  normalizeBuyerAnswerOverrides,
+} from '~~/lib/boatFinder'
 import { recommendationSessions } from '~~/server/database/schema'
 import {
   buildRecommendationSessionResult,
@@ -10,7 +17,8 @@ import { getBuyerProfile, upsertBuyerProfile } from '~~/server/utils/boatFinderS
 import { defineUserMutation, withOptionalValidatedBody } from '#layer/server/utils/mutation'
 
 const bodySchema = z.object({
-  profile: buyerProfileSchema.optional(),
+  overrides: z.unknown().optional(),
+  saveOverrides: z.boolean().optional().default(false),
 })
 
 export default defineUserMutation(
@@ -21,24 +29,37 @@ export default defineUserMutation(
   async ({ event, body, user }) => {
     const config = useRuntimeConfig(event)
     const db = useAppDatabase(event)
+    const storedProfile = await getBuyerProfile(event, user.id)
+    const overrides = normalizeBuyerAnswerOverrides(body.overrides)
+    const hasOverrides = JSON.stringify(overrides) !== JSON.stringify(createEmptyBuyerAnswerOverrides())
 
-    let profile = body.profile
-    if (profile) {
-      await upsertBuyerProfile(event, user.id, profile)
-    } else {
-      const stored = await getBuyerProfile(event, user.id)
-      if (!stored.isComplete) {
-        throw createError({
-          statusCode: 400,
-          statusMessage: 'Complete the guided questionnaire before generating recommendations.',
-        })
-      }
-      profile = buyerProfileSchema.parse(stored.profile)
+    const baseProfile = storedProfile.profile ?? createEmptyBuyerProfile()
+    const effectiveAnswers = hasOverrides
+      ? mergeBuyerAnswers(baseProfile.coreAnswers, overrides)
+      : storedProfile.effectiveAnswers
+
+    if (!isBuyerAnswersComplete(effectiveAnswers)) {
+      throw createError({
+        statusCode: 400,
+        statusMessage: 'Complete the guided questionnaire before generating recommendations.',
+      })
+    }
+
+    const savedProfile = body.saveOverrides
+      ? await upsertBuyerProfile(event, user.id, effectiveAnswers)
+      : null
+
+    const sessionProfileSnapshot = savedProfile?.profile ?? {
+      version: 2 as const,
+      coreAnswers: baseProfile.coreAnswers,
+      sessionOverrides: hasOverrides ? overrides : createEmptyBuyerAnswerOverrides(),
+      normalizedContext: buildBuyerContext(effectiveAnswers),
     }
 
     const result = await buildRecommendationSessionResult(
+      event,
       db,
-      profile,
+      sessionProfileSnapshot,
       config.xaiApiKey || undefined,
     )
 

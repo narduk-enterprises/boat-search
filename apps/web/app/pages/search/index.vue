@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { buildBuyerContext, getEffectiveBuyerAnswers } from '~~/lib/boatFinder'
+
 definePageMeta({ middleware: ['auth'] })
 
 useSeo({
@@ -27,46 +29,23 @@ const sessionId = computed(() => {
 const { currentSession, currentBoats, detailStatus, detailError, latestSessionId } =
   useRecommendationSessions(sessionId)
 
-const currencyFormatter = new Intl.NumberFormat('en-US', {
-  style: 'currency',
-  currency: 'USD',
-  maximumFractionDigits: 0,
-})
-
 const errorMessage = computed(() => {
   const error = detailError.value as { data?: { statusMessage?: string }; message?: string } | null
   return error?.data?.statusMessage || error?.message || null
 })
 
-function formatMoney(value: number | null | undefined) {
-  if (value == null) return null
-  return currencyFormatter.format(value)
-}
-
-function formatLengthRange(min: number | undefined, max: number | undefined) {
-  if (min != null && max != null) return `${min}-${max} ft`
-  if (min != null) return `${min}+ ft`
-  if (max != null) return `Up to ${max} ft`
-  return null
-}
-
 const profileSignals = computed(() => {
   const session = currentSession.value
   if (!session) return []
 
-  const { profileSnapshot } = session
-  const signals = [
-    profileSnapshot.primaryUse || null,
-    profileSnapshot.targetWatersOrRegion || null,
-    formatMoney(profileSnapshot.budgetMax)
-      ? `Budget to ${formatMoney(profileSnapshot.budgetMax)}`
-      : null,
-    formatLengthRange(profileSnapshot.lengthMin, profileSnapshot.lengthMax),
-    profileSnapshot.crewSize || null,
-    profileSnapshot.maintenanceAppetite || null,
-  ]
+  const context =
+    session.profileSnapshot.normalizedContext ??
+    buildBuyerContext(getEffectiveBuyerAnswers(session.profileSnapshot))
 
-  return signals.filter((value): value is string => Boolean(value)).slice(0, 6)
+  return [
+    ...context.filterSummary.hardConstraintSummary.slice(0, 3),
+    ...context.filterSummary.softPreferenceSummary.slice(0, 3),
+  ]
 })
 
 const topPickBoat = computed(() => {
@@ -207,6 +186,15 @@ const shortlistMetrics = computed(() => {
             </p>
             <p class="mt-2 text-sm text-muted">
               {{ currentSession.resultSummary.overallAdvice }}
+            </p>
+            <p v-if="currentSession.resultSummary.lifeFitNote" class="mt-2 text-sm text-default">
+              {{ currentSession.resultSummary.lifeFitNote }}
+            </p>
+            <p
+              v-if="currentSession.resultSummary.meta.resolvedModel"
+              class="mt-2 text-xs font-semibold uppercase tracking-[0.18em] text-dimmed"
+            >
+              Model: {{ currentSession.resultSummary.meta.resolvedModel }}
             </p>
           </div>
 
