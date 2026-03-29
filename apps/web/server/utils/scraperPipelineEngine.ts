@@ -299,7 +299,7 @@ function finalizeCandidate(candidate: ExtractedBoatCandidate) {
   if (!candidate.model) candidate.model = parsedTitle.model
   if (!candidate.description) candidate.description = cleanBoatDescription(candidate.fullText)
   candidate.description = cleanBoatDescription(candidate.description)
-  candidate.images = dedupeStrings(candidate.images).slice(0, 12)
+  candidate.images = dedupeStrings(candidate.images)
   deriveLocation(candidate)
   candidate.currency = candidate.currency || 'USD'
   candidate.country = candidate.country || 'US'

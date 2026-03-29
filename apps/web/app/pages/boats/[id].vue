@@ -105,7 +105,7 @@ function goLoginForFavorite() {
 
             <div v-if="boat.images.length > 1" class="flex gap-2 overflow-x-auto pb-2">
               <UButton
-                v-for="(image, index) in boat.images.slice(0, 8)"
+                v-for="(image, index) in boat.images"
                 :key="image"
                 color="neutral"
                 variant="ghost"

@@ -38,6 +38,7 @@
     "dev:kill": "sh scripts/dev-kill.sh",
     "test:e2e": "playwright test",
     "test:e2e:web": "pnpm --filter web test:e2e",
+    "test:e2e:extension": "pnpm --filter chrome-scraper-extension run build && playwright test --config=packages/chrome-scraper-extension/playwright.live.config.ts",
     "generate:favicons": "pnpm exec tsx tools/generate-favicons.ts",
     "format": "prettier --write \"**/*.{ts,mts,vue,js,mjs,json,yaml,yml,css,md}\"",
     "format:check": "prettier --check \"**/*.{ts,mts,vue,js,mjs,json,yaml,yml,css,md}\"",
