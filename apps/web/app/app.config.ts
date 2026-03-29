@@ -12,7 +12,8 @@ export default defineAppConfig({
       error: 'rose',
       neutral: 'stone',
     },
-    // Nuxt UI default UPageSection container is py-16/sm:py-24/lg:py-32 — too tall for app-style pages.
+    // Slots-based theme override (see Nuxt UI theming: ui.*.slots.*). UPageSection applies padding on
+    // `container` (UContainer), not `wrapper`; defaults are marketing-sized py-16/sm:24/lg:32.
     pageSection: {
       slots: {
         container: 'flex flex-col lg:grid gap-6 py-8 sm:gap-10 sm:py-10 lg:gap-12 lg:py-12',

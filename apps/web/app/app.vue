@@ -62,6 +62,8 @@ const isFullBleedLayout = computed(() => {
   return m === 'landing' || m === 'wide'
 })
 
+// App shell gutter below the sticky header — separate from Nuxt UI (UPage / UPageSection). Tight
+// vertical padding here; section spacing is tuned in app.config `ui.pageSection.slots.container`.
 const shellContentClass = computed(() =>
   isFullBleedLayout.value
     ? 'w-full px-4 pb-10 pt-4 sm:px-6 sm:pb-14 lg:px-8'
