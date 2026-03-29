@@ -31,7 +31,11 @@ useWebPageSchema({
         Dedicated state filters will ship with enriched geo fields in the crawler.
       </p>
       <div class="mt-8 flex flex-wrap gap-3">
-        <UButton to="/search" label="Search boats" icon="i-lucide-search" />
+        <UButton
+          :to="{ path: '/boats-for-sale', query: region ? { location: region } : undefined }"
+          label="Search boats"
+          icon="i-lucide-search"
+        />
         <UButton to="/browse" label="Browse" color="neutral" variant="soft" />
       </div>
     </UPageSection>

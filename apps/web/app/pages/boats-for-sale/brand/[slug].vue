@@ -21,8 +21,8 @@ useWebPageSchema({
 })
 
 const searchTo = brand
-  ? { path: '/search' as const, query: { make: brand } }
-  : { path: '/search' as const }
+  ? { path: '/boats-for-sale' as const, query: { make: brand } }
+  : { path: '/boats-for-sale' as const }
 </script>
 
 <template>

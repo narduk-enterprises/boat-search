@@ -28,7 +28,12 @@ useWebPageSchema({
           </p>
         </div>
 
-        <UButton class="w-fit" to="/search" label="Go to search" icon="i-lucide-search" />
+        <UButton
+          class="w-fit"
+          to="/boats-for-sale"
+          label="Go to inventory search"
+          icon="i-lucide-search"
+        />
       </div>
     </UPageSection>
 

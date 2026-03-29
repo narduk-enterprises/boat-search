@@ -7,6 +7,8 @@ const { loggedIn } = useUserSession()
 const navLinks = computed(() => {
   const base = [
     { label: 'Home', to: '/', icon: 'i-lucide-home' },
+    { label: 'Search Boats', to: '/boats-for-sale', icon: 'i-lucide-search' },
+    { label: 'Browse', to: '/browse', icon: 'i-lucide-compass' },
     { label: 'Fishing finder', to: '/ai-boat-finder', icon: 'i-lucide-sparkles' },
   ]
 
@@ -95,8 +97,10 @@ const footerLinkClass = 'text-sm text-muted hover:text-default transition-fast'
                 <span class="text-xs font-semibold text-dimmed uppercase tracking-wide"
                   >Product</span
                 >
+                <NuxtLink :class="footerLinkClass" to="/boats-for-sale">Search boats</NuxtLink>
+                <NuxtLink :class="footerLinkClass" to="/browse">Browse inventory</NuxtLink>
                 <NuxtLink :class="footerLinkClass" to="/ai-boat-finder">Fishing finder</NuxtLink>
-                <NuxtLink :class="footerLinkClass" to="/search">Ranked matches</NuxtLink>
+                <NuxtLink :class="footerLinkClass" to="/search">AI shortlist</NuxtLink>
                 <NuxtLink :class="footerLinkClass" to="/account/profile">Saved profile</NuxtLink>
               </div>
               <div class="flex flex-col gap-2">

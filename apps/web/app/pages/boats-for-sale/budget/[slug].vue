@@ -27,8 +27,8 @@ useWebPageSchema({
 })
 
 const searchTo = band
-  ? { path: '/search' as const, query: { maxPrice: String(band.max) } }
-  : { path: '/search' as const }
+  ? { path: '/boats-for-sale' as const, query: { maxPrice: String(band.max) } }
+  : { path: '/boats-for-sale' as const }
 </script>
 
 <template>

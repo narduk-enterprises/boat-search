@@ -40,7 +40,7 @@ async function confirmRemove() {
       <div v-else-if="!data?.favorites?.length" class="mt-8 text-center py-12 card-base rounded-xl">
         <UIcon name="i-lucide-heart" class="size-10 text-dimmed mx-auto" />
         <p class="text-muted mt-3">No favorites yet.</p>
-        <UButton class="mt-4" to="/search" label="Browse boats" icon="i-lucide-search" />
+        <UButton class="mt-4" to="/boats-for-sale" label="Browse boats" icon="i-lucide-search" />
       </div>
       <div v-else class="mt-8 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
         <template v-for="f in data.favorites" :key="f.boatId">

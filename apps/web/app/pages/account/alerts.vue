@@ -24,7 +24,12 @@ useWebPageSchema({
         Signed-in experience is being wired to saved searches, alerts, and recommendations. Check
         back after the next milestone.
       </p>
-      <UButton class="mt-6" to="/search" label="Go to search" icon="i-lucide-search" />
+      <UButton
+        class="mt-6"
+        to="/boats-for-sale"
+        label="Go to inventory search"
+        icon="i-lucide-search"
+      />
     </UPageSection>
   </UPage>
 </template>

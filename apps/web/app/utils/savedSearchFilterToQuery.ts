@@ -1,9 +1,11 @@
 /**
- * Maps a saved-search filter object to `/search` URL query params.
+ * Maps a saved-search filter object to public inventory search query params.
  */
 export function savedSearchFilterToQuery(filter: Record<string, unknown>): Record<string, string> {
   const q: Record<string, string> = {}
   if (typeof filter.make === 'string' && filter.make.trim()) q.make = filter.make.trim()
+  if (typeof filter.location === 'string' && filter.location.trim())
+    q.location = filter.location.trim()
   for (const key of ['minPrice', 'maxPrice', 'minLength', 'maxLength'] as const) {
     const v = filter[key]
     if (v == null || v === '') continue

@@ -42,9 +42,10 @@ useWebPageSchema({
 
 const selectedImage = shallowRef(0)
 const backToSearch = computed(() => ({
-  path: '/search',
+  path: sessionId.value ? '/search' : '/boats-for-sale',
   query: sessionId.value ? { sessionId: String(sessionId.value) } : undefined,
 }))
+const backLabel = computed(() => (sessionId.value ? 'Back to shortlist' : 'Back to search'))
 const loginPath = computed(() => `/login?redirect=${encodeURIComponent(route.fullPath)}`)
 const fitErrorMessage = computed(() => {
   const error = fitError.value as { data?: { statusMessage?: string }; message?: string } | null
@@ -81,7 +82,7 @@ function goLoginForFavorite() {
       <UPageSection :ui="{ wrapper: 'py-4' }">
         <UButton
           :to="backToSearch"
-          label="Back to shortlist"
+          :label="backLabel"
           icon="i-lucide-arrow-left"
           color="neutral"
           variant="ghost"

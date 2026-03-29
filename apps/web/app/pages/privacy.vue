@@ -23,7 +23,7 @@ useWebPageSchema({
         policy text will be finalized with counsel.
       </p>
       <div class="mt-8 flex flex-wrap gap-3">
-        <UButton to="/search" label="Search boats" icon="i-lucide-search" />
+        <UButton to="/boats-for-sale" label="Search boats" icon="i-lucide-search" />
         <UButton to="/" label="Home" color="neutral" variant="soft" />
       </div>
     </UPageSection>

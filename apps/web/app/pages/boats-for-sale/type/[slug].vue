@@ -36,7 +36,7 @@ useWebPageSchema({
         search today and save alerts when they launch.
       </p>
       <div class="mt-8 flex flex-wrap gap-3">
-        <UButton to="/search" label="Search all boats" icon="i-lucide-search" />
+        <UButton to="/boats-for-sale" label="Search all boats" icon="i-lucide-search" />
         <UButton to="/browse" label="Browse index" color="neutral" variant="soft" />
       </div>
     </UPageSection>

@@ -24,7 +24,7 @@ useWebPageSchema({
         search and save alerts for the boats that fit your story.
       </p>
       <div class="mt-8 flex flex-wrap gap-3">
-        <UButton to="/search" label="Search boats" icon="i-lucide-search" />
+        <UButton to="/boats-for-sale" label="Search boats" icon="i-lucide-search" />
         <UButton to="/guides" label="Guides" color="neutral" variant="soft" />
       </div>
     </UPageSection>

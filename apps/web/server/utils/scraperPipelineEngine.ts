@@ -46,7 +46,9 @@ function createEmptyExtraRecordTextFields() {
   >
 }
 
-function pickExtraRecordTextFields(record: Pick<ExtractedBoatCandidate, ScraperExtraRecordTextKey>) {
+function pickExtraRecordTextFields(
+  record: Pick<ExtractedBoatCandidate, ScraperExtraRecordTextKey>,
+) {
   return Object.fromEntries(
     SCRAPER_EXTRA_RECORD_TEXT_KEYS.map((key) => [key, record[key] ?? null]),
   ) as Record<ScraperExtraRecordTextKey, string | null>

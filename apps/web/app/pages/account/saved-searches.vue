@@ -86,7 +86,7 @@ function formatFilterSummary(f: Record<string, unknown>): string {
             Run a saved search anytime, pause alerts, or change how often we check for new matches.
           </p>
         </div>
-        <UButton to="/search" label="New search" icon="i-lucide-search" color="primary" />
+        <UButton to="/boats-for-sale" label="New search" icon="i-lucide-search" color="primary" />
       </div>
 
       <div v-if="status === 'pending'" class="flex justify-center py-16">
@@ -98,7 +98,7 @@ function formatFilterSummary(f: Record<string, unknown>): string {
       >
         <UIcon name="i-lucide-bookmark" class="size-10 text-dimmed mx-auto" />
         <p class="text-muted mt-3">No saved searches yet.</p>
-        <UButton class="mt-4" to="/search" label="Go to search" icon="i-lucide-search" />
+        <UButton class="mt-4" to="/boats-for-sale" label="Go to search" icon="i-lucide-search" />
       </div>
       <div v-else class="mt-8 space-y-4">
         <UCard
@@ -117,7 +117,7 @@ function formatFilterSummary(f: Record<string, unknown>): string {
             </div>
             <div class="flex flex-wrap gap-2 lg:shrink-0">
               <UButton
-                :to="{ path: '/search', query: savedSearchFilterToQuery(row.filter) }"
+                :to="{ path: '/boats-for-sale', query: savedSearchFilterToQuery(row.filter) }"
                 label="Run search"
                 icon="i-lucide-play"
                 size="sm"

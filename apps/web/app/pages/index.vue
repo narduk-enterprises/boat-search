@@ -20,6 +20,8 @@ const primaryCta = computed(() =>
     ? '/ai-boat-finder'
     : ({ path: '/login', query: { redirect: '/ai-boat-finder' } } as const),
 )
+
+const publicSearchCta = '/boats-for-sale'
 </script>
 
 <template>
@@ -51,10 +53,18 @@ const primaryCta = computed(() =>
               size="lg"
             />
             <UButton
+              :to="publicSearchCta"
+              label="Search boats"
+              color="neutral"
+              variant="soft"
+              icon="i-lucide-search"
+              size="lg"
+            />
+            <UButton
               to="/login"
               label="Sign in"
               color="neutral"
-              variant="soft"
+              variant="ghost"
               icon="i-lucide-log-in"
               size="lg"
             />
@@ -110,9 +120,9 @@ const primaryCta = computed(() =>
               </p>
             </div>
             <div class="rounded-xl bg-muted px-4 py-3">
-              <p class="text-sm font-semibold text-default">Deferred</p>
+              <p class="text-sm font-semibold text-default">Shipping next</p>
               <p class="mt-1 text-sm text-muted">
-                Alerts, email, broad editorial hubs, and browse-first discovery stay out of MVP.
+                Alerts, email delivery, and deeper class-level taxonomy after public search.
               </p>
             </div>
           </div>

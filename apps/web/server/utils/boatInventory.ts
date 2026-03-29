@@ -265,10 +265,7 @@ export function deriveRecommendationFilters(profile: BuyerProfile): Recommendati
 export async function selectBoatsByIds(db: AppDb, ids: number[]) {
   if (!ids.length) return []
 
-  const rows = await db
-    .select(INVENTORY_BOAT_SELECT)
-    .from(boats)
-    .where(inArray(boats.id, ids))
+  const rows = await db.select(INVENTORY_BOAT_SELECT).from(boats).where(inArray(boats.id, ids))
 
   const byId = new Map(rows.map((row) => [row.id, hydrateBoatRow(row)]))
   return ids.map((id) => byId.get(id)).filter((boat): boat is InventoryBoat => Boolean(boat))

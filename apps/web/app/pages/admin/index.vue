@@ -59,7 +59,7 @@ const adminTools = [
           </div>
 
           <UButton
-            to="/search"
+            to="/boats-for-sale"
             label="Open search"
             icon="i-lucide-search"
             color="neutral"
