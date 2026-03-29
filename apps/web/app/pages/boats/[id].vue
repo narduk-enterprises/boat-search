@@ -201,8 +201,10 @@ function goLoginForFavorite() {
             </div>
           </div>
 
-          <div class="grid gap-6 xl:grid-cols-[1.05fr_0.95fr] xl:items-start">
-            <div class="order-2 space-y-5 xl:order-1">
+          <div
+            class="grid min-w-0 gap-6 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)] lg:items-start"
+          >
+            <div class="order-2 min-w-0 space-y-5 lg:order-1">
               <div class="brand-surface-soft rounded-[1.25rem] p-4 sm:p-5">
                 <p class="text-xs font-semibold uppercase tracking-[0.18em] text-dimmed">
                   Listing snapshot
@@ -227,16 +229,16 @@ function goLoginForFavorite() {
               </div>
             </div>
 
-            <div class="order-1 space-y-4 xl:order-2">
+            <div class="order-1 min-w-0 space-y-4 lg:order-2">
               <BoatMediaImage
                 :src="galleryImages[selectedImage]"
                 :alt="pageTitle"
                 :width="1440"
                 :height="1080"
-                sizes="100vw xl:48vw"
+                sizes="(min-width: 1024px) 45vw, 100vw"
                 :quality="74"
-                class="aspect-[4/3] rounded-[1.4rem] border border-default bg-muted"
-                img-class="h-full w-full object-cover"
+                class="aspect-[4/3] w-full max-w-full rounded-[1.4rem] border border-default bg-muted"
+                img-class="h-full w-full max-w-full object-cover"
                 loading="eager"
               >
                 <div class="absolute inset-x-0 bottom-0 flex items-end justify-between gap-3 p-4">

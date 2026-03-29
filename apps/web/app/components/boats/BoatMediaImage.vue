@@ -103,7 +103,7 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div class="relative isolate h-full w-full overflow-hidden">
+  <div class="relative isolate h-full min-w-0 w-full overflow-hidden">
     <NuxtImg
       v-if="retryableSrc && !failed && optimizedSrc"
       :src="retryableSrc"
