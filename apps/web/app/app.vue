@@ -12,8 +12,6 @@ const route = useRoute()
 const config = useRuntimeConfig()
 const appName = config.public.appName || 'Boat Search'
 const { loggedIn } = useUserSession()
-// eslint-disable-next-line @typescript-eslint/no-explicit-any -- color mode types resolve at build time
-const colorMode = useColorMode() as any
 const mobileMenuOpen = shallowRef(false)
 
 const navLinks = computed<NavLink[]>(() => {
@@ -25,13 +23,7 @@ const navLinks = computed<NavLink[]>(() => {
       matchPrefixes: ['/boats-for-sale', '/boats'],
     },
     {
-      label: 'Browse paths',
-      to: '/browse',
-      icon: 'i-lucide-compass',
-      matchPrefixes: ['/browse', '/best', '/guides'],
-    },
-    {
-      label: 'Boat finder',
+      label: 'AI Boat Finder',
       to: '/ai-boat-finder',
       icon: 'i-lucide-sparkles',
       matchPrefixes: ['/ai-boat-finder'],
@@ -77,23 +69,12 @@ const shellContentClass = computed(() =>
 )
 const footerLinkClass = 'text-sm text-muted hover:text-default transition-fast'
 
-const colorModeIcon = computed(() => {
-  if (colorMode.preference === 'system') return 'i-lucide-monitor'
-  return colorMode.value === 'dark' ? 'i-lucide-moon-star' : 'i-lucide-sun-medium'
-})
-
 watch(
   () => route.fullPath,
   () => {
     mobileMenuOpen.value = false
   },
 )
-
-function cycleColorMode() {
-  const modes = ['light', 'dark', 'system'] as const
-  const currentIndex = modes.indexOf(colorMode.preference as (typeof modes)[number])
-  colorMode.preference = modes[(currentIndex + 1) % modes.length]
-}
 
 function isActiveLink(link: NavLink) {
   if (typeof link.to !== 'string') return false
@@ -131,7 +112,7 @@ function isActiveLink(link: NavLink) {
               v-if="loggedIn"
               class="hidden lg:block"
               :menu-links="[
-                { label: 'Boat finder', to: '/ai-boat-finder', icon: 'i-lucide-sparkles' },
+                { label: 'AI Boat Finder', to: '/ai-boat-finder', icon: 'i-lucide-sparkles' },
                 { label: 'Shortlist', to: '/search', icon: 'i-lucide-ship-wheel' },
                 { label: 'Saved profile', to: '/account/profile', icon: 'i-lucide-user-round' },
                 { label: 'Favorites', to: '/account/favorites', icon: 'i-lucide-heart' },
@@ -145,13 +126,6 @@ function isActiveLink(link: NavLink) {
               color="neutral"
               variant="soft"
               class="hidden sm:inline-flex"
-            />
-            <UButton
-              :icon="colorModeIcon"
-              color="neutral"
-              variant="ghost"
-              aria-label="Change color mode"
-              @click="cycleColorMode"
             />
             <UButton
               color="neutral"
@@ -227,8 +201,7 @@ function isActiveLink(link: NavLink) {
               <p class="text-xs font-semibold uppercase tracking-[0.2em] text-dimmed">Explore</p>
               <div class="flex flex-col gap-2">
                 <NuxtLink :class="footerLinkClass" to="/boats-for-sale">Live inventory</NuxtLink>
-                <NuxtLink :class="footerLinkClass" to="/browse">Browse paths</NuxtLink>
-                <NuxtLink :class="footerLinkClass" to="/ai-boat-finder">Boat finder</NuxtLink>
+                <NuxtLink :class="footerLinkClass" to="/ai-boat-finder">AI Boat Finder</NuxtLink>
               </div>
             </div>
             <div class="space-y-2">

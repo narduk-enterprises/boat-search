@@ -13,6 +13,7 @@ export interface BoatInventoryBoat {
   description: string | null
   sellerType: string | null
   source: string
+  url: string | null
   images: string[]
 }
 
@@ -58,10 +59,10 @@ export interface BoatInventorySearchResponse {
 }
 
 export const BOAT_INVENTORY_SORT_OPTIONS: Array<{ label: string; value: BoatInventorySort }> = [
-  { label: 'Recently updated', value: 'updated-desc' },
-  { label: 'Price: low to high', value: 'price-asc' },
-  { label: 'Price: high to low', value: 'price-desc' },
-  { label: 'Model year: newest', value: 'year-desc' },
+  { label: 'Newest listings', value: 'updated-desc' },
+  { label: 'Lowest price', value: 'price-asc' },
+  { label: 'Highest price', value: 'price-desc' },
+  { label: 'Newest model year', value: 'year-desc' },
 ]
 
 export interface BoatBrowseLink {

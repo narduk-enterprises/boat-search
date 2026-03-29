@@ -242,7 +242,7 @@ export function useBoatInventorySearch(options: { limit?: number } = {}) {
       return activeFilterChips.value.map((chip) => `${chip.label}: ${chip.value}`).join(' · ')
     }
 
-    return 'Showing live inventory sorted by the latest listing updates.'
+    return 'Newest listings first. Use the floating bar to sort or filter the list at any time.'
   })
 
   return {

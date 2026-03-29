@@ -10,7 +10,7 @@ export default defineEventHandler(async (event) => {
       email: admin.email,
       name: admin.name,
     },
-    imageUploadEnabled: Boolean(event.context.cloudflare?.env?.BUCKET),
+    imageUploadEnabled: false,
     uploadEndpoint: '/api/upload',
   }
 })

@@ -4,44 +4,10 @@ import { copyFile, mkdir } from 'node:fs/promises'
 import { resolve, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { spawn } from 'node:child_process'
+import { getFixturePreset } from '../src/fixture-presets.mjs'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const packageDir = resolve(__dirname, '..')
-
-const FIXTURE_PRESETS = {
-  'boats-com': {
-    'search-ok': {
-      outputPath: '../chrome-scraper-extension/tests/fixtures/boats-com/search-ok.html',
-      defaultUrl:
-        'https://www.boats.com/boats-for-sale/?condition=used&boat-type=power&class=power-saltfish&price=100000-200000&distance=100&postal-code=77388',
-      mirrorHtmlOutputs: ['../boat-crawler/tests/fixtures/boats-com/search-ok.html'],
-    },
-    'search-no-results': {
-      outputPath: '../chrome-scraper-extension/tests/fixtures/boats-com/search-no-results.html',
-      mirrorHtmlOutputs: ['../boat-crawler/tests/fixtures/boats-com/no-results.html'],
-    },
-    'detail-ok': {
-      outputPath: '../chrome-scraper-extension/tests/fixtures/boats-com/detail-ok.html',
-    },
-  },
-  yachtworld: {
-    'search-ok': {
-      outputPath: '../chrome-scraper-extension/tests/fixtures/yachtworld/search-ok.html',
-      defaultUrl:
-        'https://www.yachtworld.com/boats-for-sale/condition-used/type-power/class-power-saltwater-fishing/price-100000,500000/?',
-      mirrorHtmlOutputs: ['../boat-crawler/tests/fixtures/yachtworld/search-ok.html'],
-    },
-    'search-no-results': {
-      outputPath: '../chrome-scraper-extension/tests/fixtures/yachtworld/search-no-results.html',
-    },
-    'detail-ok': {
-      outputPath: '../chrome-scraper-extension/tests/fixtures/yachtworld/detail-ok.html',
-    },
-    'detail-gallery-noise': {
-      outputPath: '../chrome-scraper-extension/tests/fixtures/yachtworld/detail-gallery-noise.html',
-    },
-  },
-}
 
 function printUsage() {
   console.log(`Usage:
@@ -111,10 +77,6 @@ function parseArgs(argv) {
     trusted,
     dryRun,
   }
-}
-
-function getFixturePreset(site, fixture) {
-  return FIXTURE_PRESETS[site]?.[fixture] || null
 }
 
 async function mirrorHtmlOutputs(primaryOutputPath, mirrorOutputPaths) {
@@ -207,7 +169,11 @@ if (args.trusted) {
     resolvedOutputPath,
   ])
 } else {
-  await runNodeScript(resolve(__dirname, 'capture-console-fixture.mjs'), [resolvedOutputPath])
+  const captureArgs = [resolvedOutputPath]
+  if (resolvedUrl) {
+    captureArgs.push(`--requested-url=${resolvedUrl}`)
+  }
+  await runNodeScript(resolve(__dirname, 'capture-console-fixture.mjs'), captureArgs)
 }
 
 if (mirrorHtmlOutputsList.length > 0) {

@@ -5,6 +5,7 @@ import type {
   BoatInventoryFilterKey,
   BoatInventorySort,
 } from '~~/app/types/boat-inventory'
+import BoatInventoryListItem from '~~/app/components/boats/BoatInventoryListItem.vue'
 import { BOAT_INVENTORY_SORT_OPTIONS } from '~~/app/types/boat-inventory'
 
 const props = withDefaults(
@@ -31,159 +32,130 @@ const props = withDefaults(
 )
 
 const emit = defineEmits<{
-  openFilters: []
   clearFilters: []
   removeFilter: [key: BoatInventoryFilterKey]
-  changeSort: [value: BoatInventorySort]
   changePage: [page: number]
   retry: []
 }>()
 
-const sortItems = BOAT_INVENTORY_SORT_OPTIONS
 const visiblePages = computed(() => {
   const start = Math.max(1, props.currentPage - 2)
   const end = Math.min(props.pageCount, props.currentPage + 2)
 
   return Array.from({ length: end - start + 1 }, (_, index) => start + index)
 })
+const currentSortLabel = computed(
+  () =>
+    BOAT_INVENTORY_SORT_OPTIONS.find((option) => option.value === props.currentSort)?.label ||
+    'Newest listings',
+)
 
 const emptyMessage = computed(() =>
   props.hasActiveFilters
     ? 'Widen the budget or hull-size band, or clear one of the applied filters below.'
     : 'Inventory is still filling in. Check back after the next import run.',
 )
-
-function normalizeSort(value: unknown): BoatInventorySort {
-  if (value === 'price-asc') return value
-  if (value === 'price-desc') return value
-  if (value === 'year-desc') return value
-  return 'updated-desc'
-}
-
-function handleSortChange(value: unknown) {
-  emit('changeSort', normalizeSort(value))
-}
 </script>
 
 <template>
   <div class="space-y-5">
-    <UCard class="brand-surface brand-grid-panel" :ui="{ body: 'relative p-5 sm:p-6' }">
-      <div class="space-y-5">
-        <div class="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
-          <div class="space-y-3">
-            <div class="flex flex-wrap items-center gap-2">
-              <UBadge label="Live results" color="primary" variant="subtle" icon="i-lucide-waves" />
-              <h2 class="text-2xl font-semibold text-highlighted">Inventory worth a closer look</h2>
-              <UBadge
-                :label="resultsLabel"
-                :color="boats.length ? 'primary' : 'neutral'"
-                variant="subtle"
-              />
-              <UBadge
-                v-if="status === 'pending'"
-                label="Updating results"
-                color="warning"
-                variant="soft"
-              />
-            </div>
-            <p class="max-w-3xl text-sm text-muted">
+    <div class="space-y-4">
+      <div class="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+        <div class="space-y-3">
+          <UBadge label="Live inventory" color="primary" variant="subtle" icon="i-lucide-waves" />
+          <div class="space-y-2">
+            <h1 class="text-3xl font-bold text-default sm:text-4xl">Boats for sale</h1>
+            <p class="max-w-3xl text-sm text-muted sm:text-base">
               {{ resultsContext }}
             </p>
           </div>
-
-          <div class="flex flex-wrap items-center gap-3">
-            <div class="min-w-56 flex-1 xl:min-w-64">
-              <USelectMenu
-                :model-value="currentSort"
-                :items="sortItems"
-                value-key="value"
-                label-key="label"
-                class="w-full"
-                @update:model-value="handleSortChange"
-              />
-            </div>
-            <UButton
-              class="xl:hidden"
-              color="neutral"
-              variant="soft"
-              icon="i-lucide-sliders-horizontal"
-              :label="
-                activeFilterChips.length ? `Filters (${activeFilterChips.length})` : 'Filters'
-              "
-              @click="emit('openFilters')"
-            />
-          </div>
         </div>
 
-        <USeparator />
+        <div class="flex flex-wrap items-center gap-2">
+          <UBadge
+            :label="resultsLabel"
+            :color="boats.length ? 'primary' : 'neutral'"
+            variant="soft"
+          />
+          <UBadge :label="currentSortLabel" color="neutral" variant="soft" />
+          <UBadge v-if="status === 'pending'" label="Refreshing" color="warning" variant="soft" />
+          <UBadge
+            v-if="hasUnsavedChanges"
+            label="Draft filters ready"
+            color="warning"
+            variant="soft"
+          />
+        </div>
+      </div>
 
-        <div class="space-y-3">
-          <div
-            v-if="activeFilterChips.length"
-            class="flex items-center gap-2 overflow-x-auto pb-1 md:flex-wrap md:overflow-visible"
-          >
-            <UButton
-              v-for="chip in activeFilterChips"
-              :key="chip.key"
-              :label="`${chip.label}: ${chip.value}`"
-              color="neutral"
-              variant="soft"
-              size="sm"
-              class="shrink-0"
-              trailing-icon="i-lucide-x"
-              @click="emit('removeFilter', chip.key)"
-            />
-          </div>
-
-          <div class="flex flex-wrap items-center justify-between gap-3">
+      <div
+        v-if="activeFilterChips.length || hasActiveFilters"
+        class="brand-surface-soft rounded-[1.4rem] p-4"
+      >
+        <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div class="space-y-3">
             <div class="flex flex-wrap items-center gap-2">
               <UBadge
                 :label="`${total.toLocaleString()} total match${total === 1 ? '' : 'es'}`"
                 color="neutral"
                 variant="soft"
               />
-              <UBadge
-                v-if="hasUnsavedChanges"
-                label="Draft filters not applied"
-                color="warning"
-                variant="soft"
-              />
             </div>
 
-            <UButton
-              v-if="hasActiveFilters"
-              color="neutral"
-              variant="ghost"
-              icon="i-lucide-rotate-ccw"
-              label="Clear all"
-              @click="emit('clearFilters')"
-            />
+            <div
+              v-if="activeFilterChips.length"
+              class="flex items-center gap-2 overflow-x-auto pb-1 sm:flex-wrap sm:overflow-visible"
+            >
+              <UButton
+                v-for="chip in activeFilterChips"
+                :key="chip.key"
+                :label="`${chip.label}: ${chip.value}`"
+                color="neutral"
+                variant="soft"
+                size="sm"
+                class="shrink-0"
+                trailing-icon="i-lucide-x"
+                @click="emit('removeFilter', chip.key)"
+              />
+            </div>
           </div>
+
+          <UButton
+            v-if="hasActiveFilters"
+            color="neutral"
+            variant="ghost"
+            icon="i-lucide-rotate-ccw"
+            label="Clear all"
+            @click="emit('clearFilters')"
+          />
         </div>
       </div>
-    </UCard>
+    </div>
 
-    <div
-      v-if="status === 'pending' && !boats.length"
-      class="grid gap-5 md:grid-cols-2 2xl:grid-cols-3"
-    >
+    <div v-if="status === 'pending' && !boats.length" class="space-y-4">
       <UCard
-        v-for="index in 6"
+        v-for="index in 5"
         :key="index"
         class="brand-surface overflow-hidden"
         :ui="{ body: 'p-0' }"
       >
-        <USkeleton class="aspect-[4/3] w-full" />
-        <div class="space-y-4 p-4 sm:p-5">
-          <USkeleton class="h-4 w-28" />
-          <USkeleton class="h-6 w-3/4" />
-          <div class="flex gap-2">
-            <USkeleton class="h-6 w-24 rounded-full" />
-            <USkeleton class="h-6 w-20 rounded-full" />
+        <div class="grid gap-0 md:grid-cols-[16rem_minmax(0,1fr)]">
+          <USkeleton class="aspect-[16/10] w-full md:h-full" />
+          <div class="space-y-4 p-4 sm:p-5">
+            <div class="flex flex-wrap gap-2">
+              <USkeleton class="h-6 w-20 rounded-full" />
+              <USkeleton class="h-6 w-24 rounded-full" />
+              <USkeleton class="h-6 w-24 rounded-full" />
+            </div>
+            <USkeleton class="h-4 w-28" />
+            <USkeleton class="h-7 w-3/4" />
+            <USkeleton class="h-4 w-full" />
+            <USkeleton class="h-4 w-11/12" />
+            <div class="flex gap-2">
+              <USkeleton class="h-10 w-28 rounded-full" />
+              <USkeleton class="h-10 w-36 rounded-full" />
+            </div>
           </div>
-          <USkeleton class="h-4 w-full" />
-          <USkeleton class="h-4 w-11/12" />
-          <USkeleton class="h-4 w-2/3" />
         </div>
       </UCard>
     </div>
@@ -237,13 +209,13 @@ function handleSortChange(value: unknown) {
     </UCard>
 
     <template v-else>
-      <div class="grid gap-5 md:grid-cols-2 2xl:grid-cols-3">
-        <BoatListingCard v-for="boat in boats" :key="boat.id" :boat="boat" />
+      <div class="space-y-4">
+        <BoatInventoryListItem v-for="boat in boats" :key="boat.id" :boat="boat" />
       </div>
 
       <div
         v-if="pageCount > 1"
-        class="flex flex-col gap-3 rounded-[1.5rem] border border-default/80 bg-default/70 p-4 sm:flex-row sm:items-center sm:justify-between"
+        class="brand-surface-soft flex flex-col gap-3 rounded-[1.5rem] p-4 sm:flex-row sm:items-center sm:justify-between"
       >
         <p class="text-sm text-muted">Page {{ currentPage }} of {{ pageCount }}</p>
         <div class="flex flex-wrap items-center gap-2">

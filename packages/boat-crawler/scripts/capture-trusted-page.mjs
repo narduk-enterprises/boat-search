@@ -2,15 +2,9 @@
 
 import { mkdir, writeFile } from 'node:fs/promises'
 import { dirname, resolve } from 'node:path'
-import { chromium } from 'playwright'
 import readline from 'node:readline/promises'
 import { stdin as input, stdout as output } from 'node:process'
-
-const chromeExecutablePath = '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'
-
-function getEnv(name) {
-  return process.env[name]?.trim() || ''
-}
+import { getRequiredChromeProfile, openTrustedChromeWindow } from '../src/trusted-chrome.mjs'
 
 function printUsage() {
   console.log(`Usage:
@@ -31,21 +25,6 @@ Example:
     'https://www.boats.com/boats-for-sale/?length=40-60&type=fishing' \\
     '../chrome-scraper-extension/tests/fixtures/boats-com/search-ok.html'
 `)
-}
-
-function getRequiredChromeProfile() {
-  const userDataDir =
-    getEnv('TRUSTED_CHROME_USER_DATA_DIR') || getEnv('EXTENSION_E2E_CHROME_USER_DATA_DIR')
-  const profileDir =
-    getEnv('TRUSTED_CHROME_PROFILE_DIR') || getEnv('EXTENSION_E2E_CHROME_PROFILE_DIR')
-
-  if (!userDataDir || !profileDir) {
-    throw new Error(
-      'Missing trusted Chrome profile env. Set TRUSTED_CHROME_USER_DATA_DIR and TRUSTED_CHROME_PROFILE_DIR.',
-    )
-  }
-
-  return { userDataDir, profileDir }
 }
 
 function parseArgs(argv) {
@@ -83,7 +62,7 @@ if (args.help || !args.url || !args.outputHtmlPath) {
   process.exit(args.help ? 0 : 1)
 }
 
-const { userDataDir, profileDir } = getRequiredChromeProfile()
+getRequiredChromeProfile()
 const outputHtmlPath = resolve(process.cwd(), args.outputHtmlPath)
 const outputMetaPath = outputHtmlPath.replace(/\.html?$/i, '.meta.json')
 const outputScreenshotPath = outputHtmlPath.replace(/\.html?$/i, '.png')
@@ -91,23 +70,11 @@ const outputScreenshotPath = outputHtmlPath.replace(/\.html?$/i, '.png')
 const rl = readline.createInterface({ input, output })
 
 let context
+let page
 
 try {
-  context = await chromium.launchPersistentContext(userDataDir, {
-    executablePath: chromeExecutablePath,
-    headless: false,
-    viewport: { width: 1600, height: 1200 },
-    args: [
-      `--profile-directory=${profileDir}`,
-      '--disable-blink-features=AutomationControlled',
-    ],
-  })
-
-  const page = context.pages()[0] || (await context.newPage())
-
   console.log(`Opening ${args.url}`)
-  await page.goto(args.url, { waitUntil: 'domcontentloaded', timeout: 60_000 })
-  await page.waitForTimeout(args.waitMs)
+  ;({ context, page } = await openTrustedChromeWindow(args.url, { waitMs: args.waitMs }))
 
   console.log('\nManual capture flow:')
   console.log('1. Use the opened Chrome window with your trusted profile.')

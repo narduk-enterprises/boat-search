@@ -25,7 +25,11 @@ const props = withDefaults(
 
 const runtimeConfig = useRuntimeConfig()
 const failed = shallowRef(false)
+const retryCount = shallowRef(0)
 const normalizedSrc = computed(() => props.src?.trim() || '')
+const shouldRetryLocalImage = computed(
+  () => normalizedSrc.value.startsWith('/images/') && retryCount.value < 6,
+)
 const optimizedSrc = computed(() => {
   const source = normalizedSrc.value
   if (!source) return null
@@ -47,20 +51,62 @@ const optimizedSrc = computed(() => {
     return null
   }
 })
+const retryableSrc = computed(() => {
+  const source = optimizedSrc.value || normalizedSrc.value
+  if (!source) return null
+
+  if (!normalizedSrc.value.startsWith('/images/') || retryCount.value === 0) {
+    return source
+  }
+
+  const separator = source.includes('?') ? '&' : '?'
+  return `${source}${separator}retry=${retryCount.value}`
+})
+
+let retryTimer: ReturnType<typeof setTimeout> | null = null
+
+function clearRetryTimer() {
+  if (!retryTimer) return
+
+  clearTimeout(retryTimer)
+  retryTimer = null
+}
+
+function handleImageError() {
+  clearRetryTimer()
+
+  if (!shouldRetryLocalImage.value) {
+    failed.value = true
+    return
+  }
+
+  failed.value = true
+  retryTimer = setTimeout(() => {
+    retryCount.value += 1
+    failed.value = false
+    retryTimer = null
+  }, 2_500)
+}
 
 watch(
   () => props.src,
   () => {
+    clearRetryTimer()
     failed.value = false
+    retryCount.value = 0
   },
 )
+
+onBeforeUnmount(() => {
+  clearRetryTimer()
+})
 </script>
 
 <template>
-  <div class="relative isolate overflow-hidden">
+  <div class="relative isolate h-full w-full overflow-hidden">
     <NuxtImg
-      v-if="optimizedSrc && !failed"
-      :src="optimizedSrc"
+      v-if="retryableSrc && !failed && optimizedSrc"
+      :src="retryableSrc"
       :alt="props.alt"
       :class="props.imgClass"
       :draggable="props.draggable"
@@ -70,18 +116,18 @@ watch(
       :sizes="props.sizes"
       :quality="props.quality"
       format="webp"
-      @error="failed = true"
+      @error="handleImageError"
     />
 
     <img
-      v-else-if="normalizedSrc && !failed"
-      :src="normalizedSrc"
+      v-else-if="retryableSrc && !failed"
+      :src="retryableSrc"
       :alt="props.alt"
       :class="props.imgClass"
       :draggable="props.draggable"
       :loading="props.loading"
       decoding="async"
-      @error="failed = true"
+      @error="handleImageError"
     />
 
     <div v-else class="boat-image-fallback absolute inset-0 flex items-center justify-center">

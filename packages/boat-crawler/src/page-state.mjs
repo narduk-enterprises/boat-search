@@ -37,7 +37,7 @@ export function classifyGenericSignal(signal) {
   const html = (signal?.html || '').toLowerCase()
 
   if (
-    /access denied|attention required|just a moment|checking your browser|verify you are human|cf-chl|cloudflare|captcha|blocked/i.test(
+    /access denied|attention required|just a moment|checking your browser|verify you are human|cf-chl|captcha|blocked/i.test(
       `${title}\n${body}\n${html}`,
     )
   ) {
@@ -70,7 +70,7 @@ export function classifyGenericSignal(signal) {
   }
 
   if (
-    /cookie preferences|accept all cookies|consent preferences|privacy choices/i.test(
+    /accept all cookies|consent preferences|privacy choices/i.test(
       `${title}\n${body}`,
     )
   ) {

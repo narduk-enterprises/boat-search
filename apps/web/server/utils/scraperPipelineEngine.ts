@@ -13,8 +13,6 @@ import {
   type ScraperRunRecord,
   type ScraperRunSummary,
 } from '~~/lib/scraperPipeline'
-import { ALLOWED_TYPES, MAX_FILE_SIZE, normalizeExtension } from '#layer/server/utils/upload'
-import { uploadToR2 } from '#layer/server/utils/r2'
 import { cleanBoatDescription } from '#server/utils/boatInventory'
 import { rebuildBoatDedupeState, upsertBoatSourceListing } from '#server/utils/boatDedupe'
 import { useAppDatabase } from '#server/utils/database'
@@ -90,14 +88,6 @@ function isStoredBoatSearchImageReference(value: string) {
   }
 }
 
-function countStoredBoatSearchImages(values: string[]) {
-  return values.filter((value) => isStoredBoatSearchImageReference(value)).length
-}
-
-function normalizeImageContentType(value: string | null) {
-  return value?.split(';')[0]?.trim().toLowerCase() || null
-}
-
 function deriveSourceImages(record: ScraperBrowserRunRecord) {
   const rawImages = toStringArray(record.rawFields.images)
   const explicitSourceImages = toStringArray(record.sourceImages)
@@ -106,84 +96,6 @@ function deriveSourceImages(record: ScraperBrowserRunRecord) {
   )
 
   return dedupeStrings([...explicitSourceImages, ...rawImages, ...externalCurrentImages])
-}
-
-async function mirrorExternalImageToR2(
-  event: H3Event,
-  imageUrl: string,
-  uploadCache: Map<string, Promise<string>>,
-) {
-  const cachedUpload = uploadCache.get(imageUrl)
-  if (cachedUpload) {
-    return await cachedUpload
-  }
-
-  const uploadPromise = (async () => {
-    const response = await fetch(imageUrl, {
-      headers: {
-        Accept: 'image/*',
-      },
-    })
-
-    if (!response.ok) {
-      throw new Error(`Could not mirror image ${imageUrl} (${response.status}).`)
-    }
-
-    const contentType = normalizeImageContentType(response.headers.get('content-type'))
-    if (!contentType || !ALLOWED_TYPES.has(contentType)) {
-      throw new Error(`Skipped unsupported image type ${contentType || 'unknown'} for ${imageUrl}.`)
-    }
-
-    const payload = await response.arrayBuffer()
-    if (payload.byteLength > MAX_FILE_SIZE) {
-      throw new Error(`Skipped oversized image ${imageUrl}; it exceeds ${MAX_FILE_SIZE} bytes.`)
-    }
-
-    const key = `uploads/scraped/${crypto.randomUUID()}.${normalizeExtension(contentType)}`
-    await uploadToR2(event, key, payload, contentType)
-    return `/images/${key}`
-  })()
-
-  uploadCache.set(imageUrl, uploadPromise)
-
-  try {
-    return await uploadPromise
-  } catch (error) {
-    uploadCache.delete(imageUrl)
-    throw error
-  }
-}
-
-async function mirrorCandidateImagesToR2(
-  event: H3Event,
-  candidate: ExtractedBoatCandidate,
-  uploadCache: Map<string, Promise<string>>,
-) {
-  if (!event.context.cloudflare?.env?.BUCKET || !candidate.images.length) {
-    return
-  }
-
-  const nextImages: string[] = []
-  const nextWarnings = [...candidate.warnings]
-
-  for (const image of candidate.images) {
-    if (isStoredBoatSearchImageReference(image) || !isHttpUrl(image)) {
-      nextImages.push(image)
-      continue
-    }
-
-    try {
-      nextImages.push(await mirrorExternalImageToR2(event, image, uploadCache))
-    } catch (error: unknown) {
-      nextImages.push(image)
-      nextWarnings.push(
-        error instanceof Error ? error.message : `Could not mirror image ${image} into storage.`,
-      )
-    }
-  }
-
-  candidate.images = dedupeStrings(nextImages)
-  candidate.warnings = dedupeStrings(nextWarnings)
 }
 
 function applyRegex(value: string, pattern: string) {
@@ -690,7 +602,6 @@ async function persistCandidates(
   candidates: ExtractedBoatCandidate[],
   options: { rebuildAfter?: boolean } = {},
 ) {
-  const uploadedImageCache = new Map<string, Promise<string>>()
   const uniqueCandidates = [
     ...new Map(
       candidates
@@ -707,7 +618,6 @@ async function persistCandidates(
   let updated = 0
 
   for (const candidate of uniqueCandidates) {
-    await mirrorCandidateImagesToR2(event, candidate, uploadedImageCache)
     const now = new Date().toISOString()
     const values = toBoatInsertValues(candidate, now)
     const persisted = await upsertBoatSourceListing(event, values)
@@ -755,7 +665,7 @@ export async function persistScraperBrowserRecord(
 
   return {
     candidate,
-    imagesUploaded: countStoredBoatSearchImages(candidate.images),
+    imagesUploaded: 0,
     ...persisted,
   }
 }

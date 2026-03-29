@@ -9,6 +9,7 @@
     "capture:console": "node scripts/capture-console-fixture.mjs",
     "capture:fixture": "node scripts/capture-fixture-preset.mjs",
     "capture:trusted": "node scripts/capture-trusted-page.mjs",
+    "capture:yachtworld:loop": "node scripts/capture-yachtworld-console-loop.mjs",
     "capture:yachtworld:search": "node scripts/capture-fixture-preset.mjs yachtworld search-ok",
     "capture:yachtworld:search:trusted": "node scripts/capture-fixture-preset.mjs yachtworld search-ok --trusted",
     "scrape:boats": "node scripts/scrape-boats.mjs",

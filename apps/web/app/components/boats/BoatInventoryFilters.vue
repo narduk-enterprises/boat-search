@@ -6,16 +6,12 @@ const props = withDefaults(
     loading?: boolean
     hasActiveFilters: boolean
     hasUnsavedChanges?: boolean
-    resultsLabel?: string | null
     suggestedMakes?: string[]
-    mode?: 'desktop' | 'overlay'
   }>(),
   {
     loading: false,
     hasUnsavedChanges: false,
-    resultsLabel: null,
     suggestedMakes: () => [],
-    mode: 'desktop',
   },
 )
 
@@ -40,7 +36,6 @@ const emit = defineEmits<{
   clear: []
 }>()
 
-const isOverlayMode = computed(() => props.mode === 'overlay')
 const activeDraftCount = computed(
   () => Object.values(filters.value).filter((value) => value.trim().length > 0).length,
 )
@@ -50,15 +45,7 @@ const normalizedSuggestedMakes = computed(() =>
     .filter((make, index, makes) => make.length > 0 && makes.indexOf(make) === index),
 )
 const canClear = computed(() => props.hasActiveFilters || activeDraftCount.value > 0)
-const applyLabel = computed(() =>
-  props.hasUnsavedChanges ? 'Apply updated view' : 'View current results',
-)
-const appliedViewLabel = computed(() => props.resultsLabel || 'Ready to open a market view')
-const appliedViewNote = computed(() =>
-  props.hasUnsavedChanges
-    ? 'Draft edits are waiting in the form below. Apply them to refresh the live market slice.'
-    : 'The draft filters already match the live results shown beside this panel.',
-)
+const applyLabel = computed(() => (props.hasUnsavedChanges ? 'Apply filters' : 'Show results'))
 
 function applyBudgetPreset(minPrice: string, maxPrice: string) {
   filters.value.minPrice = minPrice
@@ -84,19 +71,16 @@ function matchesLengthPreset(minLength: string, maxLength: string) {
 </script>
 
 <template>
-  <UCard
-    class="brand-surface brand-grid-panel"
-    :ui="{ body: isOverlayMode ? 'relative space-y-6 p-5 sm:p-6' : 'relative space-y-6 p-6' }"
-  >
+  <UCard class="brand-surface" :ui="{ body: 'space-y-6 p-5 sm:p-6' }">
     <div class="space-y-3">
       <div class="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <p class="text-xs font-semibold uppercase tracking-[0.2em] text-dimmed">Buyer lens</p>
-          <h2 class="mt-2 text-2xl font-semibold text-highlighted">Shape this market view.</h2>
+          <p class="text-xs font-semibold uppercase tracking-[0.2em] text-dimmed">Filters</p>
+          <h2 class="mt-2 text-2xl font-semibold text-default">Refine the list</h2>
         </div>
         <div class="flex flex-wrap gap-2">
           <UBadge
-            :label="props.hasActiveFilters ? 'Custom view active' : 'Wide-open market'"
+            :label="props.hasActiveFilters ? 'Filtered view' : 'All inventory'"
             :color="props.hasActiveFilters ? 'primary' : 'neutral'"
             variant="subtle"
           />
@@ -109,8 +93,8 @@ function matchesLengthPreset(minLength: string, maxLength: string) {
         </div>
       </div>
       <p class="text-sm text-muted">
-        Keep draft edits here, then apply them when the view feels right. The live URL only changes
-        when you apply the view.
+        Draft edits stay in this panel until you apply them. Use quick ranges or set precise values
+        below.
       </p>
       <div class="flex flex-wrap gap-2 text-sm">
         <UBadge
@@ -130,12 +114,8 @@ function matchesLengthPreset(minLength: string, maxLength: string) {
       <div class="brand-surface-soft rounded-[1.25rem] p-4">
         <div class="space-y-3">
           <div>
-            <p class="text-xs font-semibold uppercase tracking-[0.18em] text-dimmed">
-              Budget presets
-            </p>
-            <p class="mt-1 text-sm text-muted">
-              Start with an asking-price lane before you refine the shortlist.
-            </p>
+            <p class="text-xs font-semibold uppercase tracking-[0.18em] text-dimmed">Budget</p>
+            <p class="mt-1 text-sm text-muted">Quick price ranges for fast narrowing.</p>
           </div>
           <div class="flex flex-wrap gap-2">
             <UButton
@@ -154,12 +134,8 @@ function matchesLengthPreset(minLength: string, maxLength: string) {
       <div class="brand-surface-soft rounded-[1.25rem] p-4">
         <div class="space-y-3">
           <div>
-            <p class="text-xs font-semibold uppercase tracking-[0.18em] text-dimmed">
-              Length presets
-            </p>
-            <p class="mt-1 text-sm text-muted">
-              Match the hull-size band you can realistically berth, tow, or run.
-            </p>
+            <p class="text-xs font-semibold uppercase tracking-[0.18em] text-dimmed">Length</p>
+            <p class="mt-1 text-sm text-muted">Common hull-length bands.</p>
           </div>
           <div class="flex flex-wrap gap-2">
             <UButton
@@ -182,9 +158,7 @@ function matchesLengthPreset(minLength: string, maxLength: string) {
       <div class="space-y-3">
         <div>
           <p class="text-xs font-semibold uppercase tracking-[0.18em] text-dimmed">Popular makes</p>
-          <p class="mt-1 text-sm text-muted">
-            Tap a common builder to seed the make field without leaving the current draft view.
-          </p>
+          <p class="mt-1 text-sm text-muted">Seed the make field with one tap.</p>
         </div>
         <div class="flex flex-wrap gap-2">
           <UButton
@@ -199,8 +173,6 @@ function matchesLengthPreset(minLength: string, maxLength: string) {
         </div>
       </div>
     </div>
-
-    <USeparator />
 
     <UForm :state="filters" class="space-y-5" @submit.prevent="emit('submit')">
       <div class="grid gap-4 md:grid-cols-2">
@@ -265,35 +237,10 @@ function matchesLengthPreset(minLength: string, maxLength: string) {
         </UFormField>
       </div>
 
-      <div class="brand-surface-soft rounded-[1.25rem] p-4">
-        <div class="flex flex-wrap items-start justify-between gap-3">
-          <div class="space-y-1">
-            <p class="text-xs font-semibold uppercase tracking-[0.18em] text-dimmed">
-              Current applied view
-            </p>
-            <p class="text-base font-semibold text-highlighted">
-              {{ appliedViewLabel }}
-            </p>
-          </div>
-          <UBadge
-            :label="props.hasUnsavedChanges ? 'Draft differs from live' : 'Live view in sync'"
-            :color="props.hasUnsavedChanges ? 'warning' : 'neutral'"
-            variant="soft"
-          />
-        </div>
-        <p class="mt-2 text-sm text-muted">
-          {{ appliedViewNote }}
-        </p>
-      </div>
-
       <div
-        :class="
-          isOverlayMode
-            ? 'sticky bottom-0 z-10 -mx-5 border-t border-default bg-default/95 px-5 pb-1 pt-4 backdrop-blur-sm sm:-mx-6 sm:px-6'
-            : 'flex flex-wrap gap-3'
-        "
+        class="sticky bottom-0 z-10 -mx-5 border-t border-default bg-default/95 px-5 pb-1 pt-4 backdrop-blur-sm sm:-mx-6 sm:px-6"
       >
-        <div :class="isOverlayMode ? 'flex flex-wrap gap-3' : 'contents'">
+        <div class="flex flex-wrap gap-3">
           <UButton
             type="submit"
             :label="applyLabel"
