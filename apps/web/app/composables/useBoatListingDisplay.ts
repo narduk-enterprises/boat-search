@@ -27,7 +27,10 @@ export function useBoatListingDisplay() {
 
   function formatLength(length: string | null) {
     if (!length) return 'Length unlisted'
-    return /\bft\b|'/i.test(length) ? length : `${length} ft`
+    const t = length.trim()
+    // Avoid "34ft ft": values like "34ft" have no \b before "ft" (digit is a word char).
+    if (/\bft\b|'|′|feet\b/i.test(t) || /\d\s*ft\.?\b/i.test(t) || /\dft\b/i.test(t)) return t
+    return `${t} ft`
   }
 
   function formatLocation(location: BoatLocationInput) {

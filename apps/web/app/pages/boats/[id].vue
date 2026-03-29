@@ -6,6 +6,7 @@ import {
   makeInventoryResultsRoute,
   makeInventorySearchLink,
 } from '~~/app/utils/boatBrowse'
+import { parseListingBrief } from '~~/app/utils/listingBrief'
 
 const LISTING_BRIEF_ID = 'listing-brief'
 
@@ -99,28 +100,30 @@ const overviewFacts = computed(() => {
     {
       label: 'Year',
       value: boat.value.year ? String(boat.value.year) : 'Year unlisted',
-      detail: 'Original model year reported by the source listing.',
       icon: 'i-lucide-calendar',
     },
     {
       label: 'Length',
       value: formatLength(boat.value.length),
-      detail: 'Hull length pulled directly from the marketplace source.',
       icon: 'i-lucide-ruler',
     },
     {
       label: 'Seller',
       value: boat.value.sellerType || 'Seller type unlisted',
-      detail: 'Useful when deciding how much diligence to do before contacting them.',
       icon: 'i-lucide-store',
     },
     {
       label: 'Location',
       value: headlineLocation.value,
-      detail: 'Helps you gauge logistics, survey travel, and delivery options.',
       icon: 'i-lucide-map-pin',
     },
   ]
+})
+
+const listingBriefBlocks = computed(() => {
+  const d = boat.value?.description?.trim()
+  if (!d) return []
+  return parseListingBrief(d)
 })
 
 const marketLinks = computed(() => {
@@ -202,8 +205,10 @@ function scrollToListingBrief() {
               class="self-start"
             />
 
-            <div class="flex flex-col gap-8 lg:flex-row lg:items-start lg:justify-between lg:gap-12">
-              <div class="min-w-0 max-w-3xl space-y-4">
+            <div
+              class="flex flex-col gap-8 lg:flex-row lg:items-end lg:justify-between lg:gap-12"
+            >
+              <div class="min-w-0 max-w-3xl space-y-4 lg:pb-0.5">
                 <div class="flex flex-wrap items-center gap-2">
                   <UBadge
                     :label="getSourceLabel(boat.source)"
@@ -237,7 +242,7 @@ function scrollToListingBrief() {
               </div>
 
               <div
-                class="shrink-0 rounded-[1.35rem] border border-default bg-elevated p-5 shadow-card sm:min-w-[16rem] lg:max-w-sm lg:text-right"
+                class="w-full shrink-0 rounded-[1.35rem] border border-default bg-elevated p-5 shadow-card sm:min-w-[16rem] sm:max-w-md lg:w-auto lg:max-w-sm lg:text-right"
               >
                 <p class="text-xs font-semibold uppercase tracking-[0.18em] text-dimmed">
                   Asking price
@@ -270,7 +275,7 @@ function scrollToListingBrief() {
           <div
             class="grid min-w-0 gap-8 lg:gap-10 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)] lg:items-start"
           >
-            <div class="order-2 min-w-0 space-y-6 lg:order-1">
+            <div class="order-2 min-w-0 space-y-8 lg:order-1">
               <div class="space-y-4 rounded-[1.35rem] border border-default bg-muted/40 p-5 sm:p-6">
                 <div class="flex items-center gap-2">
                   <UIcon name="i-lucide-sparkles" class="text-lg text-primary" aria-hidden="true" />
@@ -303,30 +308,30 @@ function scrollToListingBrief() {
                 </div>
               </div>
 
+              <USeparator class="hidden lg:block" />
+
               <div>
                 <p class="mb-3 text-xs font-semibold uppercase tracking-[0.18em] text-dimmed">
                   At a glance
                 </p>
-                <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <div class="grid grid-cols-2 gap-2 sm:gap-3 lg:grid-cols-4">
                   <div
                     v-for="item in overviewFacts"
                     :key="item.label"
-                    class="flex gap-3 rounded-[1.25rem] border border-default bg-elevated p-4 transition-base hover:border-primary/25"
+                    class="flex min-h-[4.5rem] flex-col justify-center gap-1 rounded-2xl border border-default bg-elevated px-3 py-3 sm:px-4"
                   >
-                    <UIcon
-                      :name="item.icon"
-                      class="mt-0.5 size-5 shrink-0 text-primary"
-                      aria-hidden="true"
-                    />
-                    <div class="min-w-0">
-                      <p class="text-xs font-semibold uppercase tracking-[0.12em] text-dimmed">
+                    <div class="flex items-center gap-2 text-dimmed">
+                      <UIcon :name="item.icon" class="size-4 shrink-0 text-primary" aria-hidden="true" />
+                      <span class="text-xs font-semibold uppercase tracking-[0.12em]">
                         {{ item.label }}
-                      </p>
-                      <p class="mt-1 text-base font-semibold text-highlighted">{{ item.value }}</p>
-                      <p class="mt-1 hidden text-sm leading-snug text-muted sm:block">
-                        {{ item.detail }}
-                      </p>
+                      </span>
                     </div>
+                    <p
+                      class="text-sm font-semibold leading-snug text-highlighted sm:text-base"
+                      :class="item.label === 'Seller' ? 'capitalize' : ''"
+                    >
+                      {{ item.value }}
+                    </p>
                   </div>
                 </div>
               </div>
@@ -450,7 +455,38 @@ function scrollToListingBrief() {
                   </div>
                 </div>
                 <USeparator />
-                <p class="max-w-prose whitespace-pre-wrap text-base leading-relaxed text-default">
+                <div v-if="listingBriefBlocks.length" class="space-y-8">
+                  <template v-for="(block, bi) in listingBriefBlocks" :key="bi">
+                    <div
+                      v-if="block.kind === 'specs'"
+                      class="rounded-xl border border-default bg-muted/25 p-4 sm:p-5"
+                    >
+                      <div
+                        class="grid grid-cols-1 gap-x-6 gap-y-3 sm:grid-cols-[minmax(0,12rem)_minmax(0,1fr)]"
+                      >
+                        <template v-for="(row, ri) in block.items" :key="`${bi}-${ri}-${row.label}`">
+                          <div
+                            class="border-b border-default pb-2 text-sm font-medium text-dimmed sm:border-0 sm:pb-0"
+                          >
+                            {{ row.label }}
+                          </div>
+                          <div class="pb-3 text-sm leading-relaxed text-default sm:pb-0">
+                            {{ row.value }}
+                          </div>
+                        </template>
+                      </div>
+                    </div>
+                    <div v-else class="max-w-prose space-y-4">
+                      <p class="text-base leading-relaxed text-default">
+                        {{ block.text }}
+                      </p>
+                    </div>
+                  </template>
+                </div>
+                <p
+                  v-else
+                  class="max-w-prose whitespace-pre-wrap text-base leading-relaxed text-default"
+                >
                   {{ boat.description }}
                 </p>
               </UCard>
