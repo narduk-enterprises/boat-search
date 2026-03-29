@@ -587,11 +587,38 @@ export function useExtensionSession() {
       return (await chrome.tabs.sendMessage(tab.id, message)) as T
     } catch (error: unknown) {
       if (!hasMissingReceiverError(error)) {
+        recordDebugEvent(
+          'tab-message-failed',
+          error instanceof Error ? error.message : 'Could not send a message to the active tab.',
+          {
+            tabId: tab.id,
+          },
+        )
         throw error
       }
 
+      recordDebugEvent(
+        'tab-message-retry',
+        'The content script was missing on the active tab, so the helper is retrying after reinjection.',
+        {
+          tabId: tab.id,
+        },
+      )
       await ensureContentScript(tab)
-      return (await chrome.tabs.sendMessage(tab.id, message)) as T
+      try {
+        return (await chrome.tabs.sendMessage(tab.id, message)) as T
+      } catch (retryError: unknown) {
+        recordDebugEvent(
+          'tab-message-failed',
+          retryError instanceof Error
+            ? retryError.message
+            : 'The helper could not talk to the active tab after reinjecting the content script.',
+          {
+            tabId: tab.id,
+          },
+        )
+        throw retryError
+      }
     }
   }
 
@@ -1342,6 +1369,8 @@ export function useExtensionSession() {
       throw new Error('Set the Boat Search app URL before starting a scrape.')
     }
 
+    const method = (init.method || 'GET').toUpperCase()
+    const requestUrl = `${base}${path}`
     const isFormData = typeof FormData !== 'undefined' && init.body instanceof FormData
     const headers = isFormData
       ? createBoatSearchHeaders(session.value, init.headers || {})
@@ -1350,13 +1379,36 @@ export function useExtensionSession() {
           ...(init.headers || {}),
         })
 
-    const response = await fetch(`${base}${path}`, {
-      ...init,
-      headers,
-    })
+    let response: Response
+    try {
+      response = await fetch(requestUrl, {
+        ...init,
+        headers,
+      })
+    } catch (error: unknown) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : 'The helper could not reach Boat Search.'
+      recordDebugEvent('boat-search-request-failed', message, {
+        method,
+        path,
+        url: requestUrl,
+        phase: 'network',
+      })
+      throw error instanceof Error ? error : new Error(message)
+    }
 
     if (!response.ok) {
-      throw new Error(await readErrorMessage(response))
+      const message = await readErrorMessage(response)
+      recordDebugEvent('boat-search-request-failed', message, {
+        method,
+        path,
+        url: requestUrl,
+        phase: 'response',
+        status: response.status,
+      })
+      throw new Error(message)
     }
 
     return (await response.json()) as T
@@ -1379,12 +1431,19 @@ export function useExtensionSession() {
       session.value.connection.verifiedName = result.user.name
       session.value.connection.imageUploadEnabled = result.imageUploadEnabled
       statusMessage.value = `Connected to Boat Search as ${result.user.email}.`
+      recordDebugEvent('boat-search-authenticated', `Connected to Boat Search as ${result.user.email}.`, {
+        imageUploadEnabled: result.imageUploadEnabled,
+      })
       return result
     } catch (error: unknown) {
       session.value.connection.verifiedAt = null
       session.value.connection.verifiedEmail = null
       session.value.connection.verifiedName = null
       session.value.connection.imageUploadEnabled = false
+      recordDebugEvent(
+        'boat-search-auth-failed',
+        error instanceof Error ? error.message : 'Boat Search authentication failed.',
+      )
       throw error
     } finally {
       verifyingConnection.value = false
@@ -1936,6 +1995,14 @@ export function useExtensionSession() {
         },
       )
       activeRun = run
+      recordDebugEvent(
+        'browser-scrape-started',
+        'Boat Search accepted the browser scrape run.',
+        {
+          pipelineId: run.pipelineId,
+          jobId: run.jobId,
+        },
+      )
       const activePresetId = session.value.preset.appliedPresetId
       const uploadedImageCache = new Map<string, string>()
       if (!imageUploadEnabled) {
@@ -2211,6 +2278,7 @@ export function useExtensionSession() {
     itemSelectorPreview,
     remoteRun,
     browserRunProgress,
+    debugEvents,
     sampleDetailRun,
     startingRemoteRun,
     verifyingConnection,

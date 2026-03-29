@@ -3,7 +3,7 @@ import { computed, onMounted, shallowRef, watch } from 'vue'
 import FieldRuleList from './components/FieldRuleList.vue'
 import WorkflowStepCard from './components/WorkflowStepCard.vue'
 import { useExtensionSession } from './composables/useExtensionSession'
-import type { ScraperFieldRule } from '@/shared/types'
+import type { ExtensionDebugEvent, ScraperFieldRule } from '@/shared/types'
 
 type WorkflowStatus = 'active' | 'complete' | 'upcoming' | 'ready'
 
@@ -120,9 +120,11 @@ const itemSelectorTraining = computed(() => extension.itemSelectorTraining.value
 const itemSelectorPreview = computed(() => extension.itemSelectorPreview.value)
 const remoteRun = computed(() => extension.remoteRun.value)
 const browserRunProgress = computed(() => extension.browserRunProgress.value)
+const debugEvents = computed(() => extension.debugEvents.value)
 const sampleDetailRun = computed(() => extension.sampleDetailRun.value)
 const startingRemoteRun = computed(() => extension.startingRemoteRun.value)
 const verifyingConnection = computed(() => extension.verifyingConnection.value)
+const debugCopyLabel = shallowRef('Copy debug snapshot')
 const detectedCardCount = computed(
   () => itemSelectorPreview.value?.matchCount || itemSelectorTraining.value?.matchCount || 0,
 )
@@ -146,6 +148,7 @@ const paginationAutoDetected = computed(() => {
     draft.value.config.nextPageSelector.trim() === detectedSelector,
   )
 })
+const recentDebugEvents = computed(() => [...debugEvents.value].slice(-8).reverse())
 const analysisStateLabel = computed(() => {
   if (!analysis.value) {
     return 'Not scanned yet'
@@ -359,6 +362,64 @@ async function pickField(field: ScraperFieldRule) {
 function setSinglePageMode() {
   draft.value.config.maxPages = 1
   draft.value.config.nextPageSelector = ''
+}
+
+function formatDebugTime(value: string) {
+  try {
+    return new Date(value).toLocaleTimeString([], {
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+    })
+  } catch {
+    return value
+  }
+}
+
+function summarizeDebugDetail(detail: ExtensionDebugEvent['detail']) {
+  if (!detail) {
+    return ''
+  }
+
+  const parts = [
+    typeof detail.method === 'string' ? detail.method : null,
+    typeof detail.path === 'string' ? detail.path : null,
+    typeof detail.status === 'number' ? `status ${detail.status}` : null,
+    typeof detail.phase === 'string' ? detail.phase : null,
+    typeof detail.pipelineId === 'number' ? `pipeline ${detail.pipelineId}` : null,
+    typeof detail.jobId === 'number' ? `job ${detail.jobId}` : null,
+    typeof detail.tabId === 'number' ? `tab ${detail.tabId}` : null,
+    typeof detail.pagesVisited === 'number' ? `pages ${detail.pagesVisited}` : null,
+    typeof detail.itemsSeen === 'number' ? `seen ${detail.itemsSeen}` : null,
+    typeof detail.itemsExtracted === 'number' ? `extracted ${detail.itemsExtracted}` : null,
+    typeof detail.recordsPersisted === 'number'
+      ? `written ${detail.recordsPersisted}`
+      : null,
+  ].filter((value): value is string => Boolean(value))
+
+  return parts.join(' · ')
+}
+
+async function copyDebugSnapshot() {
+  const payload = {
+    statusMessage: extension.statusMessage.value,
+    errorMessage: extension.errorMessage.value,
+    browserRunProgress: browserRunProgress.value,
+    remoteRun: remoteRun.value,
+    session: extension.session.value,
+    events: debugEvents.value,
+  }
+
+  try {
+    await navigator.clipboard.writeText(JSON.stringify(payload, null, 2))
+    debugCopyLabel.value = 'Copied debug snapshot'
+  } catch {
+    debugCopyLabel.value = 'Could not copy debug snapshot'
+  }
+
+  window.setTimeout(() => {
+    debugCopyLabel.value = 'Copy debug snapshot'
+  }, 1800)
 }
 
 onMounted(async () => {
@@ -1026,6 +1087,52 @@ onMounted(async () => {
       </label>
 
       <div
+        v-if="extension.errorMessage.value || recentDebugEvents.length"
+        class="scrape-debug-card"
+        data-testid="browser-scrape-debug"
+      >
+        <div class="scrape-debug-card__header">
+          <div class="scrape-debug-card__copy">
+            <strong>{{
+              extension.errorMessage.value ? 'Last scrape failure' : 'Recent scrape events'
+            }}</strong>
+            <p>Use this block to see the last tab or Boat Search step before the run stopped.</p>
+          </div>
+          <button
+            type="button"
+            class="secondary"
+            @click="copyDebugSnapshot"
+          >
+            {{ debugCopyLabel }}
+          </button>
+        </div>
+
+        <p
+          v-if="extension.errorMessage.value"
+          class="scrape-debug-card__error"
+        >
+          {{ extension.errorMessage.value }}
+        </p>
+
+        <div class="scrape-debug-list">
+          <article
+            v-for="event in recentDebugEvents"
+            :key="`${event.at}-${event.type}`"
+            class="scrape-debug-list__item"
+          >
+            <div class="scrape-debug-list__meta">
+              <span>{{ formatDebugTime(event.at) }}</span>
+              <code>{{ event.type }}</code>
+            </div>
+            <strong>{{ event.message }}</strong>
+            <p v-if="summarizeDebugDetail(event.detail)">
+              {{ summarizeDebugDetail(event.detail) }}
+            </p>
+          </article>
+        </div>
+      </div>
+
+      <div
         class="detail-review-banner"
         :class="{
           'detail-review-banner--warning': !detailContextReady && !presetValidationOptional,
@@ -1675,6 +1782,82 @@ button:disabled {
   line-height: 1.4;
 }
 
+.scrape-debug-card {
+  display: grid;
+  gap: 0.75rem;
+  border-radius: 0.95rem;
+  border: 1px solid rgba(248, 113, 113, 0.3);
+  background: rgba(254, 242, 242, 0.95);
+  padding: 0.95rem;
+}
+
+.scrape-debug-card__header {
+  display: flex;
+  gap: 0.8rem;
+  justify-content: space-between;
+  align-items: flex-start;
+}
+
+.scrape-debug-card__copy {
+  display: grid;
+  gap: 0.2rem;
+}
+
+.scrape-debug-card__copy strong {
+  color: #7f1d1d;
+  font-size: 0.9rem;
+}
+
+.scrape-debug-card__copy p,
+.scrape-debug-card__error,
+.scrape-debug-list__item p {
+  margin: 0;
+  color: #7f1d1d;
+  font-size: 0.78rem;
+  line-height: 1.45;
+}
+
+.scrape-debug-card__error {
+  border-radius: 0.8rem;
+  background: rgba(254, 226, 226, 0.96);
+  padding: 0.7rem 0.8rem;
+  font-weight: 700;
+}
+
+.scrape-debug-list {
+  display: grid;
+  gap: 0.55rem;
+  max-height: 16rem;
+  overflow: auto;
+}
+
+.scrape-debug-list__item {
+  display: grid;
+  gap: 0.2rem;
+  border-radius: 0.85rem;
+  border: 1px solid rgba(248, 113, 113, 0.22);
+  background: rgba(255, 255, 255, 0.85);
+  padding: 0.7rem 0.8rem;
+}
+
+.scrape-debug-list__item strong {
+  color: #111827;
+  font-size: 0.82rem;
+}
+
+.scrape-debug-list__meta {
+  display: flex;
+  gap: 0.6rem;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.scrape-debug-list__meta span,
+.scrape-debug-list__meta code {
+  color: #991b1b;
+  font-size: 0.72rem;
+}
+
 @media (max-width: 980px) {
   .status-strip,
   .progress-nav {
@@ -1685,7 +1868,8 @@ button:disabled {
 @media (max-width: 720px) {
   .toolbar__top,
   .toolbar__actions,
-  .preset-banner {
+  .preset-banner,
+  .scrape-debug-card__header {
     flex-direction: column;
   }
 
