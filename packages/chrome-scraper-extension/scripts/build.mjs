@@ -25,6 +25,14 @@ function createSidepanelBuildOptions() {
         '@': resolveFromRoot('src'),
       },
     },
+    define: {
+      'import.meta.env.VITE_BOAT_SEARCH_EXTENSION_DEFAULT_API_KEY': JSON.stringify(
+        process.env.BOAT_SEARCH_EXTENSION_DEFAULT_API_KEY || '',
+      ),
+      'import.meta.env.VITE_BOAT_SEARCH_EXTENSION_DEFAULT_APP_BASE_URL': JSON.stringify(
+        process.env.BOAT_SEARCH_EXTENSION_DEFAULT_APP_BASE_URL || '',
+      ),
+    },
     build: {
       outDir: distDir,
       emptyOutDir: false,

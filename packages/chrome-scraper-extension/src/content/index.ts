@@ -1,9 +1,10 @@
-import { createFieldRule } from '../shared/defaults'
-import { hostToSourceName } from '../shared/transfer'
+import {
+  analyzeDocument,
+  extractDetailPageDocument,
+  extractSearchPageDocument,
+} from './analyzer'
 import type {
-  AutoDetectedAnalysis,
   BackgroundMessage,
-  BrowserScrapeRecord,
   ContentMessage,
   DetailPageExtractRequest,
   DetailPageExtractResponse,
@@ -17,9 +18,7 @@ import type {
   SearchPageExtractResponse,
 } from '../shared/types'
 
-const PRICE_PATTERN = /\$\s?[\d,.]+/
 const DETAIL_LINK_PATTERN = /\/yacht\//i
-const SELECTABLE_TEXT_SELECTOR = 'a, h1, h2, h3, p, span, div, li, strong'
 
 type PickerState = {
   request: PickerRequest
@@ -270,6 +269,29 @@ function isVisible(element: Element) {
   return rect.width > 0 && rect.height > 0
 }
 
+function readFirstSrcsetUrl(value: string | null) {
+  return (
+    value
+      ?.split(',')
+      .map((entry) => entry.trim().split(/\s+/)[0] || '')
+      .find(Boolean) || ''
+  )
+}
+
+function readImageSource(target: HTMLImageElement) {
+  return (
+    target.currentSrc ||
+    target.src ||
+    target.getAttribute('data-src') ||
+    target.getAttribute('data-lazy-src') ||
+    target.getAttribute('data-original') ||
+    target.getAttribute('data-zoom-image') ||
+    readFirstSrcsetUrl(target.getAttribute('data-srcset')) ||
+    readFirstSrcsetUrl(target.getAttribute('srcset')) ||
+    ''
+  )
+}
+
 function formatFieldKey(key: ScraperFieldRule['key']) {
   return key
     .replace(/([A-Z])/g, ' $1')
@@ -279,7 +301,7 @@ function formatFieldKey(key: ScraperFieldRule['key']) {
 function readAttributeValue(target: Element, attribute: string) {
   if (!attribute) return ''
   if (attribute === 'href' && target instanceof HTMLAnchorElement) return target.href
-  if (attribute === 'src' && target instanceof HTMLImageElement) return target.currentSrc || target.src
+  if (attribute === 'src' && target instanceof HTMLImageElement) return readImageSource(target)
   return target.getAttribute(attribute) || ''
 }
 
@@ -363,211 +385,12 @@ function resolveFieldMatches({ field, itemSelector }: FieldPreviewRequest) {
   return queryRelativeMatches(document.documentElement, selector)
 }
 
-function createEmptyBrowserRecord(source: string): BrowserScrapeRecord {
-  return {
-    source,
-    url: null,
-    listingId: null,
-    title: null,
-    make: null,
-    model: null,
-    year: null,
-    length: null,
-    price: null,
-    currency: null,
-    location: null,
-    city: null,
-    state: null,
-    country: null,
-    description: null,
-    sellerType: null,
-    listingType: null,
-    images: [],
-    fullText: null,
-    rawFields: {},
-    warnings: [],
-  }
-}
-
-function resolveFieldTargets(root: Element | Document, selector: string) {
-  if (!selector.trim()) {
-    return []
-  }
-
-  if (root instanceof Document) {
-    return queryRelativeMatches(document.documentElement, selector)
-  }
-
-  return queryRelativeMatches(root, selector)
-}
-
-function readSelectionValues(root: Element | Document, field: ScraperFieldRule, baseUrl: string) {
-  const targets = field.selector === ':root' && root instanceof Element
-    ? [root]
-    : resolveFieldTargets(root, field.selector)
-
-  if (!targets.length) {
-    return null
-  }
-
-  const resolvedValues = targets
-    .map((target) => extractFieldValue(target, field, baseUrl))
-    .filter((value): value is string => Boolean(value))
-
-  if (!resolvedValues.length) {
-    return null
-  }
-
-  if (field.multiple || field.key === 'images') {
-    return [...new Set(resolvedValues)]
-  }
-
-  return resolvedValues[0] || null
-}
-
-function assignFieldValue(
-  record: BrowserScrapeRecord,
-  field: ScraperFieldRule,
-  value: string | string[] | null,
-) {
-  if (value == null || (Array.isArray(value) && value.length === 0)) {
-    if (field.required) {
-      record.warnings.push(`Missing required field: ${field.key}`)
-    }
-    return
-  }
-
-  record.rawFields[field.key] = value
-
-  if (field.key === 'images') {
-    record.images = Array.isArray(value) ? [...new Set(value)] : [value]
-    return
-  }
-
-  if (field.key === 'year') {
-    record.year = typeof value === 'string' ? Number.parseInt(value, 10) || null : null
-    return
-  }
-
-  const nextValue = Array.isArray(value) ? value.join(field.joinWith) : value
-
-  switch (field.key) {
-    case 'url':
-      record.url = nextValue
-      break
-    case 'listingId':
-      record.listingId = nextValue
-      break
-    case 'title':
-      record.title = nextValue
-      break
-    case 'make':
-      record.make = nextValue
-      break
-    case 'model':
-      record.model = nextValue
-      break
-    case 'length':
-      record.length = nextValue
-      break
-    case 'price':
-      record.price = nextValue
-      break
-    case 'currency':
-      record.currency = nextValue
-      break
-    case 'location':
-      record.location = nextValue
-      break
-    case 'city':
-      record.city = nextValue
-      break
-    case 'state':
-      record.state = nextValue
-      break
-    case 'country':
-      record.country = nextValue
-      break
-    case 'description':
-      record.description = nextValue
-      break
-    case 'sellerType':
-      record.sellerType = nextValue
-      break
-    case 'listingType':
-      record.listingType = nextValue
-      break
-    case 'fullText':
-      record.fullText = nextValue
-      break
-  }
-}
-
 function extractSearchPage(request: SearchPageExtractRequest): SearchPageExtractResponse {
-  const itemSelector = request.draft.config.itemSelector.trim()
-  const itemFields = request.draft.config.fields.filter((field) => field.scope === 'item')
-  const warnings: string[] = []
-
-  if (!itemSelector) {
-    return {
-      pageUrl: window.location.href,
-      itemCount: 0,
-      nextPageUrl: null,
-      records: [],
-      warnings: ['Item selector is required before scraping search pages.'],
-    }
-  }
-
-  const itemRoots = queryAll<HTMLElement>(document, itemSelector)
-  const records: BrowserScrapeRecord[] = []
-
-  for (const root of itemRoots) {
-    if (records.length >= request.draft.config.maxItemsPerRun) {
-      break
-    }
-
-    const record = createEmptyBrowserRecord(request.draft.boatSource)
-
-    for (const field of itemFields) {
-      assignFieldValue(record, field, readSelectionValues(root, field, window.location.href))
-    }
-
-    if (!record.url) {
-      warnings.push('Skipped a search result because no URL could be extracted.')
-      continue
-    }
-
-    records.push(record)
-  }
-
-  const nextHref = request.draft.config.nextPageSelector.trim()
-    ? queryAll<HTMLAnchorElement>(document, request.draft.config.nextPageSelector)
-        .find((element) => Boolean(element.getAttribute('href')))
-        ?.getAttribute('href') || null
-    : null
-
-  return {
-    pageUrl: window.location.href,
-    itemCount: itemRoots.length,
-    nextPageUrl: nextHref ? toAbsoluteUrl(nextHref, window.location.href) : null,
-    records,
-    warnings,
-  }
+  return extractSearchPageDocument(document, window.location.href, request)
 }
 
 function extractDetailPage(request: DetailPageExtractRequest): DetailPageExtractResponse {
-  const detailFields = request.draft.config.fields.filter((field) => field.scope === 'detail')
-  const record = createEmptyBrowserRecord(request.draft.boatSource)
-
-  for (const field of detailFields) {
-    assignFieldValue(record, field, readSelectionValues(document, field, window.location.href))
-  }
-
-  return {
-    pageUrl: window.location.href,
-    record,
-    warnings: [...record.warnings],
-  }
+  return extractDetailPageDocument(document, window.location.href, request)
 }
 
 function refreshPreviewLayout() {
@@ -733,288 +556,8 @@ function getUniqueDetailHrefCount(root: ParentNode = document) {
   return new Set(getDetailAnchors(root).map((anchor) => anchor.href)).size
 }
 
-function scoreContainerSelector(selector: string) {
-  const matches = queryAll(document, selector)
-  if (matches.length < 3 || matches.length > 80) return -1
-
-  const uniqueHrefCounts = matches.map((element) => getUniqueDetailHrefCount(element))
-  const averageUniqueHrefs =
-    uniqueHrefCounts.reduce((total, count) => total + count, 0) / uniqueHrefCounts.length
-  if (!averageUniqueHrefs || averageUniqueHrefs > 2.2) return -1
-
-  const totalUniqueListings = Math.max(getUniqueDetailHrefCount(document), matches.length)
-  const countDistance = Math.abs(matches.length - totalUniqueListings)
-  const countScore = Math.max(0, 100 - countDistance * 5)
-  const mediaRichMatches = matches.filter((element) => queryAll(element, 'img[src]').length > 0).length
-
-  return countScore + mediaRichMatches * 3 - averageUniqueHrefs * 20 - selector.length / 10
-}
-
-function detectRepeatedItemSelector(anchors: HTMLAnchorElement[]) {
-  const candidates = new Map<string, number>()
-
-  for (const anchor of anchors.slice(0, 24)) {
-    let current: Element | null = anchor
-    for (let depth = 0; current && current !== document.body && depth < 5; depth += 1) {
-      for (const selector of buildReusableSelectorCandidates(current)) {
-        const score = scoreContainerSelector(selector)
-        if (score >= 0) {
-          candidates.set(selector, Math.max(candidates.get(selector) || -1, score))
-        }
-      }
-      current = current.parentElement
-    }
-  }
-
-  return [...candidates.entries()].sort((left, right) => right[1] - left[1])[0]?.[0] || ''
-}
-
-function findBestTitleAnchor(root: ParentNode) {
-  const anchors = getDetailAnchors(root)
-  return anchors.sort(
-    (left, right) => normalizeText(right.textContent).length - normalizeText(left.textContent).length,
-  )[0]
-}
-
-function findFirstTextMatch(root: ParentNode, matcher: (text: string) => boolean) {
-  return queryAll<HTMLElement>(root, SELECTABLE_TEXT_SELECTOR).find((element) => {
-    if (!isVisible(element)) return false
-    const text = normalizeText(element.textContent)
-    return text.length > 1 && text.length < 220 && matcher(text)
-  })
-}
-
-function findLikelyPriceElement(root: ParentNode) {
-  return (
-    queryAll<HTMLElement>(root, '[class*="price" i], [data-testid*="price" i], [data-test*="price" i]')
-      .find((element) => isVisible(element) && PRICE_PATTERN.test(normalizeText(element.textContent))) ||
-    findFirstTextMatch(root, (text) => PRICE_PATTERN.test(text) && text.length < 40)
-  )
-}
-
-function findLikelyLocationElement(root: ParentNode) {
-  return (
-    queryAll<HTMLElement>(root, '[class*="location" i], [data-testid*="location" i]')
-      .find((element) => isVisible(element) && /,/.test(normalizeText(element.textContent))) ||
-    findFirstTextMatch(
-      root,
-      (text) =>
-        /,/.test(text) &&
-        text.length < 90 &&
-        !PRICE_PATTERN.test(text) &&
-        !/contact|broker|united states/i.test(text),
-    )
-  )
-}
-
-function findLikelyDescriptionElement(root: ParentNode) {
-  return (
-    queryAll<HTMLElement>(root, 'meta[name="description"], [class*="description" i] p, #description p')
-      .find((element) => normalizeText(element.textContent || element.getAttribute('content')).length > 40) ||
-    queryAll<HTMLElement>(root, 'p').find((element) => normalizeText(element.textContent).length > 100)
-  )
-}
-
-function findLikelyImageElement(root: ParentNode) {
-  return queryAll<HTMLImageElement>(root, 'img[src]').find(
-    (image) => {
-      const rect = image.getBoundingClientRect()
-      const alt = normalizeText(image.alt)
-      const closestLink = image.closest('a[href]')
-      const closestLinkHref = closestLink instanceof HTMLAnchorElement ? closestLink.href : ''
-      const closestId = image.closest('[id]')?.id || ''
-      return (
-        isVisible(image) &&
-        rect.width >= 160 &&
-        rect.height >= 100 &&
-        !/sprite|icon|logo|adbutler|servedby/i.test(image.src) &&
-        !/servedbyadbutler/i.test(closestLinkHref) &&
-        !/^ad[-_]|^ad$/i.test(closestId) &&
-        alt.length > 6 &&
-        alt.toLowerCase() !== 'img'
-      )
-    },
-  )
-}
-
-function findVisibleTitleElement() {
-  return (
-    queryAll<HTMLElement>(document, 'h1')
-      .find((element) => isVisible(element) && normalizeText(element.textContent).length > 4) ??
-    queryAll<HTMLElement>(document, 'h1').find((element) => normalizeText(element.textContent).length > 4) ??
-    null
-  )
-}
-
-function findDetailSummaryRoot(titleElement: HTMLElement | null) {
-  let current: HTMLElement | null = titleElement
-
-  for (let depth = 0; current && current !== document.body && depth < 6; depth += 1) {
-    const text = normalizeText(current.textContent)
-    if (PRICE_PATTERN.test(text) && /,/.test(text) && text.length < 600) {
-      return current
-    }
-    current = current.parentElement
-  }
-
-  return titleElement?.parentElement ?? document.body
-}
-
-function ruleFromElement(
-  key: ScraperFieldRule['key'],
-  scope: ScraperFieldRule['scope'],
-  element: Element | null,
-  root: Element | Document = document,
-  overrides: Partial<ScraperFieldRule> = {},
-) {
-  if (!element) return null
-
-  const selector =
-    root instanceof Document ? buildAbsoluteSelector(element) : buildRelativeSelector(element, root)
-  return createFieldRule(key, scope, selector, overrides)
-}
-
-function detectNextPageSelector() {
-  const nextCandidate =
-    queryAll<HTMLAnchorElement>(document, 'a[rel="next"]').find((element) => isVisible(element)) ||
-    queryAll<HTMLAnchorElement>(document, 'a[aria-label*="next" i], a[title*="next" i]').find((element) =>
-      isVisible(element),
-    ) ||
-    queryAll<HTMLAnchorElement>(document, 'a[href]').find((element) =>
-      /\bnext\b/i.test(normalizeText(element.textContent || element.getAttribute('aria-label'))),
-    )
-
-  return nextCandidate ? buildAbsoluteSelector(nextCandidate) : ''
-}
-
-function getSiteName() {
-  return hostToSourceName(window.location.hostname)
-}
-
-function buildSearchAnalysis(): AutoDetectedAnalysis {
-  const detailAnchors = getDetailAnchors()
-  const itemSelector = detectRepeatedItemSelector(detailAnchors)
-  const firstItem = itemSelector ? queryAll<HTMLElement>(document, itemSelector)[0] : null
-  const titleAnchor = firstItem ? findBestTitleAnchor(firstItem) : findBestTitleAnchor(document)
-  const sampleDetailUrl = titleAnchor?.href || detailAnchors[0]?.href || null
-  const warnings: string[] = []
-  const priceElement = firstItem ? (findLikelyPriceElement(firstItem) ?? null) : null
-  const locationElement = firstItem ? (findLikelyLocationElement(firstItem) ?? null) : null
-  const imageElement = firstItem ? (findLikelyImageElement(firstItem) ?? null) : null
-
-  if (!itemSelector) {
-    warnings.push('Could not confidently detect a repeating listing card. Pick the card manually.')
-  }
-
-  const fields = [
-    ruleFromElement('url', 'item', titleAnchor || null, firstItem || document, {
-      extract: 'attr',
-      attribute: 'href',
-      transform: 'url',
-    }),
-    ruleFromElement('title', 'item', titleAnchor || null, firstItem || document),
-    ruleFromElement('price', 'item', priceElement, firstItem || document, {
-      transform: 'price',
-      required: false,
-    }),
-    ruleFromElement('location', 'item', locationElement, firstItem || document, { required: false }),
-    ruleFromElement(
-      'images',
-      'item',
-      imageElement,
-      firstItem || document,
-      {
-        extract: 'attr',
-        attribute: 'src',
-        multiple: true,
-        transform: 'url',
-        required: false,
-      },
-    ),
-  ].filter((field): field is ScraperFieldRule => Boolean(field))
-
-  return {
-    pageType: 'search',
-    siteName: getSiteName(),
-    pageUrl: window.location.href,
-    itemSelector,
-    nextPageSelector: detectNextPageSelector(),
-    sampleDetailUrl,
-    fields,
-    warnings,
-  }
-}
-
-function buildDetailAnalysis(): AutoDetectedAnalysis {
-  const warnings: string[] = []
-  const titleElement = findVisibleTitleElement()
-  const summaryRoot = findDetailSummaryRoot(titleElement)
-  const priceElement = findLikelyPriceElement(summaryRoot) ?? findLikelyPriceElement(document) ?? null
-  const locationElement =
-    findLikelyLocationElement(summaryRoot) ?? findLikelyLocationElement(document) ?? null
-  const descriptionElement = findLikelyDescriptionElement(document) ?? null
-  const imageElement = findLikelyImageElement(document) ?? null
-  const descriptionIsMeta = descriptionElement?.tagName.toLowerCase() === 'meta'
-  const detailFields = [
-    ruleFromElement('title', 'detail', titleElement || null, document),
-    ruleFromElement('price', 'detail', priceElement, document, {
-      transform: 'price',
-      required: false,
-    }),
-    ruleFromElement('location', 'detail', locationElement, document, {
-      required: false,
-    }),
-    ruleFromElement('description', 'detail', descriptionElement, document, {
-      extract: descriptionIsMeta ? 'attr' : 'text',
-      attribute: descriptionIsMeta ? 'content' : '',
-      required: false,
-    }),
-    ruleFromElement('images', 'detail', imageElement, document, {
-      extract: 'attr',
-      attribute: 'src',
-      transform: 'url',
-      multiple: true,
-      required: false,
-    }),
-  ].filter((field): field is ScraperFieldRule => Boolean(field))
-
-  if (!titleElement) {
-    warnings.push('Could not detect the main title automatically. Pick it manually.')
-  }
-
-  return {
-    pageType: 'detail',
-    siteName: getSiteName(),
-    pageUrl: window.location.href,
-    itemSelector: '',
-    nextPageSelector: '',
-    sampleDetailUrl: null,
-    fields: detailFields,
-    warnings,
-  }
-}
-
-function detectPageType() {
-  if (DETAIL_LINK_PATTERN.test(window.location.pathname)) return 'detail'
-  if (getDetailAnchors().length >= 4) return 'search'
-  return 'unknown'
-}
-
 function analyzeCurrentPage() {
-  const pageType = detectPageType()
-  if (pageType === 'detail') return buildDetailAnalysis()
-  if (pageType === 'search') return buildSearchAnalysis()
-
-  return {
-    pageType: 'unknown',
-    siteName: getSiteName(),
-    pageUrl: window.location.href,
-    itemSelector: '',
-    nextPageSelector: '',
-    sampleDetailUrl: null,
-    fields: [],
-    warnings: ['This page does not look like a listing index or a detail page yet.'],
-  } satisfies AutoDetectedAnalysis
+  return analyzeDocument(document, window.location.href)
 }
 
 function inferPickerSelection(target: HTMLElement, request: PickerRequest): PickerResult {

@@ -28,7 +28,12 @@ export type ScraperFieldScope = (typeof FIELD_SCOPES)[number]
 export type ScraperFieldExtractType = (typeof FIELD_EXTRACT_TYPES)[number]
 export type ScraperFieldTransform = (typeof FIELD_TRANSFORMS)[number]
 export type PageType = 'search' | 'detail' | 'unknown'
+export type AnalysisPageState = 'ok' | 'challenge' | 'no_results' | 'parser_changed'
 export type PickerKind = 'itemSelector' | 'nextPageSelector' | 'field'
+export type SitePresetId = 'yachtworld-search'
+export type SitePresetPageContext = 'search' | 'detail'
+export type SitePresetApplicationMode = 'auto' | 'manual'
+export type SessionValueSource = 'manual' | 'local-default' | null
 
 export interface ScraperFieldRule {
   key: ScraperFieldKey
@@ -62,6 +67,8 @@ export interface ScraperPipelineDraft {
 
 export interface AutoDetectedAnalysis {
   pageType: PageType
+  pageState: AnalysisPageState
+  stateMessage: string | null
   siteName: string
   pageUrl: string
   itemSelector: string
@@ -69,6 +76,11 @@ export interface AutoDetectedAnalysis {
   sampleDetailUrl: string | null
   fields: ScraperFieldRule[]
   warnings: string[]
+  stats: {
+    detailLinkCount: number
+    listingCardCount: number
+    distinctImageCount: number
+  }
 }
 
 export interface PickerRequest {
@@ -129,9 +141,11 @@ export interface BrowserScrapeRecord {
 
 export interface SearchPageExtractRequest {
   draft: ScraperPipelineDraft
+  presetId?: SitePresetId | null
 }
 
 export interface SearchPageExtractResponse {
+  analysis: AutoDetectedAnalysis
   pageUrl: string
   itemCount: number
   nextPageUrl: string | null
@@ -141,9 +155,11 @@ export interface SearchPageExtractResponse {
 
 export interface DetailPageExtractRequest {
   draft: ScraperPipelineDraft
+  presetId?: SitePresetId | null
 }
 
 export interface DetailPageExtractResponse {
+  analysis: AutoDetectedAnalysis
   pageUrl: string
   record: Partial<BrowserScrapeRecord>
   warnings: string[]
@@ -169,12 +185,70 @@ export interface BrowserScrapeProgress {
   imagesUploaded: number
 }
 
+export type SampleDetailRunStatus = 'opening' | 'opened' | 'scanned' | 'error'
+
+export interface SampleDetailRunState {
+  status: SampleDetailRunStatus
+  url: string | null
+  fieldCount: number
+  imageCount: number
+  message: string
+}
+
+export interface ExtensionDebugEvent {
+  type: string
+  at: string
+  message: string
+  detail?: Record<string, unknown>
+}
+
+export interface ExtensionDebugSnapshot {
+  statusMessage: string
+  errorMessage: string
+  currentTabUrl: string | null
+  analysis: AutoDetectedAnalysis | null
+  preset: ExtensionPresetState
+  connection: {
+    apiKeySource: SessionValueSource
+    appBaseUrlSource: SessionValueSource
+    verifiedEmail: string | null
+    imageUploadEnabled: boolean
+  }
+  sampleDetailRun: SampleDetailRunState | null
+  browserRunProgress: BrowserScrapeProgress | null
+  remoteRun:
+    | {
+        pipelineId: number
+        jobId: number | null
+        summary: BrowserScrapeSummary & {
+          inserted: number
+          updated: number
+        }
+      }
+    | null
+  draft: ScraperPipelineDraft
+  events: ExtensionDebugEvent[]
+}
+
 export interface ExtensionConnection {
   apiKey: string
+  apiKeySource: SessionValueSource
   verifiedAt: string | null
   verifiedEmail: string | null
   verifiedName: string | null
   imageUploadEnabled: boolean
+}
+
+export interface ExtensionPresetState {
+  matchedPresetId: SitePresetId | null
+  matchedPresetLabel: string | null
+  matchedContext: SitePresetPageContext | null
+  appliedPresetId: SitePresetId | null
+  appliedPresetLabel: string | null
+  appliedForUrl: string | null
+  applicationMode: SitePresetApplicationMode | null
+  appliedDraftFingerprint: string | null
+  isDraftDirty: boolean
 }
 
 export interface ExtensionAuthStatusResponse {
@@ -223,11 +297,13 @@ export interface PickerProgress {
 
 export interface ExtensionSession {
   appBaseUrl: string
+  appBaseUrlSource: SessionValueSource
   connection: ExtensionConnection
   currentTabUrl: string | null
   stage: 'search' | 'detail'
   sampleDetailUrl: string | null
   lastAnalysis: AutoDetectedAnalysis | null
+  preset: ExtensionPresetState
   draft: ScraperPipelineDraft
 }
 

@@ -1,8 +1,30 @@
 import { computed, onScopeDispose, ref, shallowRef, watch } from 'vue'
 import { createDefaultSession, createFieldRule } from '@/shared/defaults'
-import { buildImportUrl, hostToSourceName } from '@/shared/transfer'
+import {
+  buildPresetDraft,
+  buildPresetDraftFingerprint,
+  canAutoApplySitePreset,
+  describePresetApplication,
+  findMatchingSitePreset,
+  getSitePresetLabel,
+} from '@/shared/sitePresets'
+import { buildImportUrl } from '@/shared/transfer'
+import {
+  applyAnalysisToSession,
+  buildAnalysisStatusMessage,
+  createDebugEvent,
+  createSampleDetailRunState,
+  isTrustedPresetReady,
+} from '@/sidepanel/state/sessionState'
+import { cloneSerializableValue } from '@/sidepanel/utils/cloneSerializableValue'
+import {
+  applySessionValueDefaults,
+  getBuildSessionDefaults,
+} from '@/sidepanel/utils/buildSessionDefaults'
 import type {
   AutoDetectedAnalysis,
+  ExtensionDebugEvent,
+  ExtensionDebugSnapshot,
   BackgroundMessage,
   BrowserScrapeProgress,
   BrowserScrapeRecord,
@@ -20,7 +42,12 @@ import type {
   ScraperFieldRule,
   ScraperFieldScope,
   ScraperPipelineDraft,
+  SitePresetApplicationMode,
+  SitePresetId,
   ExtensionSession,
+  ExtensionPresetState,
+  SampleDetailRunState,
+  SessionValueSource,
 } from '@/shared/types'
 
 const STORAGE_KEY = 'boat-search-extension-session-v3'
@@ -43,6 +70,7 @@ type RemoteRunSummary = {
   pagesVisited: number
   itemsSeen: number
   itemsExtracted: number
+  visitedUrls: string[]
   inserted: number
   updated: number
   warnings: string[]
@@ -55,9 +83,20 @@ type RemoteRunState = {
 } | null
 
 type BrowserRunProgressState = BrowserScrapeProgress | null
+type SampleDetailRunRefState = SampleDetailRunState | null
+
+const MAX_DEBUG_EVENTS = 120
+
+type ExtensionWindow = Window & {
+  __BOAT_SEARCH_EXTENSION_DEBUG__?: ExtensionDebugSnapshot
+}
 
 function uniqueStrings(values: string[]) {
   return [...new Set(values.filter(Boolean))]
+}
+
+function normalizeSessionValueSource(value: unknown): SessionValueSource {
+  return value === 'manual' || value === 'local-default' ? value : null
 }
 
 function makeFieldId(field: Pick<ScraperFieldRule, 'key' | 'scope'>) {
@@ -218,10 +257,47 @@ function normalizeDraft(draft: unknown, fallback: ScraperPipelineDraft): Scraper
   }
 }
 
-function normalizeSession(value: unknown): ExtensionSession {
-  const fallback = createDefaultSession()
+function normalizePresetState(
+  value: unknown,
+  fallback: ExtensionPresetState,
+): ExtensionPresetState {
   if (!value || typeof value !== 'object') {
-    return fallback
+    return structuredClone(fallback)
+  }
+
+  const raw = value as Partial<ExtensionPresetState>
+  const matchedPresetId = raw.matchedPresetId === 'yachtworld-search' ? raw.matchedPresetId : null
+  const appliedPresetId = raw.appliedPresetId === 'yachtworld-search' ? raw.appliedPresetId : null
+
+  return {
+    ...fallback,
+    ...raw,
+    matchedPresetId,
+    matchedPresetLabel:
+      typeof raw.matchedPresetLabel === 'string'
+        ? raw.matchedPresetLabel
+        : getSitePresetLabel(matchedPresetId),
+    matchedContext: raw.matchedContext === 'detail' || raw.matchedContext === 'search'
+      ? raw.matchedContext
+      : null,
+    appliedPresetId,
+    appliedPresetLabel:
+      typeof raw.appliedPresetLabel === 'string'
+        ? raw.appliedPresetLabel
+        : getSitePresetLabel(appliedPresetId),
+    appliedForUrl: typeof raw.appliedForUrl === 'string' ? raw.appliedForUrl : null,
+    applicationMode: raw.applicationMode === 'auto' || raw.applicationMode === 'manual'
+      ? raw.applicationMode
+      : null,
+    appliedDraftFingerprint:
+      typeof raw.appliedDraftFingerprint === 'string' ? raw.appliedDraftFingerprint : null,
+    isDraftDirty: typeof raw.isDraftDirty === 'boolean' ? raw.isDraftDirty : false,
+  }
+}
+
+function normalizeSession(value: unknown, fallback: ExtensionSession): ExtensionSession {
+  if (!value || typeof value !== 'object') {
+    return structuredClone(fallback)
   }
 
   const raw = value as Partial<ExtensionSession>
@@ -229,6 +305,7 @@ function normalizeSession(value: unknown): ExtensionSession {
     ...fallback,
     ...raw,
     appBaseUrl: typeof raw.appBaseUrl === 'string' ? raw.appBaseUrl : fallback.appBaseUrl,
+    appBaseUrlSource: normalizeSessionValueSource(raw.appBaseUrlSource),
     connection:
       raw.connection && typeof raw.connection === 'object'
         ? {
@@ -238,6 +315,7 @@ function normalizeSession(value: unknown): ExtensionSession {
               typeof raw.connection.apiKey === 'string'
                 ? raw.connection.apiKey.trim()
                 : fallback.connection.apiKey,
+            apiKeySource: normalizeSessionValueSource(raw.connection.apiKeySource),
             verifiedAt:
               typeof raw.connection.verifiedAt === 'string'
                 ? raw.connection.verifiedAt
@@ -259,15 +337,27 @@ function normalizeSession(value: unknown): ExtensionSession {
     currentTabUrl: typeof raw.currentTabUrl === 'string' ? raw.currentTabUrl : null,
     stage: raw.stage === 'detail' ? 'detail' : 'search',
     sampleDetailUrl: typeof raw.sampleDetailUrl === 'string' ? raw.sampleDetailUrl : null,
+    preset: normalizePresetState(raw.preset, fallback.preset),
     draft: normalizeDraft(raw.draft, fallback.draft),
     lastAnalysis:
       raw.lastAnalysis && typeof raw.lastAnalysis === 'object'
         ? {
             ...raw.lastAnalysis,
             pageType:
-              raw.lastAnalysis.pageType === 'detail' || raw.lastAnalysis.pageType === 'unknown'
+              raw.lastAnalysis.pageType === 'detail' ||
+              raw.lastAnalysis.pageType === 'unknown'
                 ? raw.lastAnalysis.pageType
                 : 'search',
+            pageState:
+              raw.lastAnalysis.pageState === 'challenge' ||
+              raw.lastAnalysis.pageState === 'no_results' ||
+              raw.lastAnalysis.pageState === 'parser_changed'
+                ? raw.lastAnalysis.pageState
+                : 'ok',
+            stateMessage:
+              typeof raw.lastAnalysis.stateMessage === 'string'
+                ? raw.lastAnalysis.stateMessage
+                : null,
             siteName:
               typeof raw.lastAnalysis.siteName === 'string' ? raw.lastAnalysis.siteName : '',
             pageUrl: typeof raw.lastAnalysis.pageUrl === 'string' ? raw.lastAnalysis.pageUrl : '',
@@ -284,6 +374,18 @@ function normalizeSession(value: unknown): ExtensionSession {
                 ? raw.lastAnalysis.sampleDetailUrl
                 : null,
             warnings: toStringArray(raw.lastAnalysis.warnings),
+            stats:
+              raw.lastAnalysis.stats && typeof raw.lastAnalysis.stats === 'object'
+                ? {
+                    detailLinkCount: toBoundedInteger(raw.lastAnalysis.stats.detailLinkCount, 0, 0, 10_000),
+                    listingCardCount: toBoundedInteger(raw.lastAnalysis.stats.listingCardCount, 0, 0, 10_000),
+                    distinctImageCount: toBoundedInteger(raw.lastAnalysis.stats.distinctImageCount, 0, 0, 10_000),
+                  }
+                : {
+                    detailLinkCount: 0,
+                    listingCardCount: 0,
+                    distinctImageCount: 0,
+                  },
             fields: Array.isArray(raw.lastAnalysis.fields)
               ? raw.lastAnalysis.fields.map((field, index) =>
                   normalizeField(field, fallback.draft.config.fields[index] ?? fallback.draft.config.fields[0]),
@@ -295,7 +397,10 @@ function normalizeSession(value: unknown): ExtensionSession {
 }
 
 export function useExtensionSession() {
-  const session = ref(createDefaultSession())
+  const configuredSessionDefaults = getBuildSessionDefaults()
+  const createConfiguredDefaultSession = () => createDefaultSession(configuredSessionDefaults)
+
+  const session = ref(createConfiguredDefaultSession())
   const activeTab = shallowRef<chrome.tabs.Tab | null>(null)
   const statusMessage = shallowRef('Ready')
   const errorMessage = shallowRef('')
@@ -305,29 +410,124 @@ export function useExtensionSession() {
   const itemSelectorPreview = shallowRef<ItemSelectorPreviewState>(null)
   const remoteRun = shallowRef<RemoteRunState>(null)
   const browserRunProgress = shallowRef<BrowserRunProgressState>(null)
+  const sampleDetailRun = shallowRef<SampleDetailRunRefState>(null)
   const startingRemoteRun = shallowRef(false)
   const verifyingConnection = shallowRef(false)
+  const debugEvents = shallowRef<ExtensionDebugEvent[]>([])
   let previewSequence = 0
 
   async function loadSession() {
     const stored = await chrome.storage.local.get(STORAGE_KEY)
-    if (stored[STORAGE_KEY]) {
-      session.value = normalizeSession(stored[STORAGE_KEY])
+    const fallback = createConfiguredDefaultSession()
+    const nextSession = stored[STORAGE_KEY]
+      ? normalizeSession(stored[STORAGE_KEY], fallback)
+      : fallback
+
+    session.value = applySessionValueDefaults(nextSession, configuredSessionDefaults)
+  }
+
+  function buildDebugSnapshot(): ExtensionDebugSnapshot {
+    return {
+      statusMessage: statusMessage.value,
+      errorMessage: errorMessage.value,
+      currentTabUrl: session.value.currentTabUrl,
+      analysis: session.value.lastAnalysis ? cloneSerializableValue(session.value.lastAnalysis) : null,
+      preset: cloneSerializableValue(session.value.preset),
+      connection: {
+        apiKeySource: session.value.connection.apiKeySource,
+        appBaseUrlSource: session.value.appBaseUrlSource,
+        verifiedEmail: session.value.connection.verifiedEmail,
+        imageUploadEnabled: session.value.connection.imageUploadEnabled,
+      },
+      sampleDetailRun: sampleDetailRun.value
+        ? cloneSerializableValue(sampleDetailRun.value)
+        : null,
+      browserRunProgress: browserRunProgress.value
+        ? cloneSerializableValue(browserRunProgress.value)
+        : null,
+      remoteRun: remoteRun.value
+        ? {
+            pipelineId: remoteRun.value.pipelineId,
+            jobId: remoteRun.value.jobId,
+            summary: cloneSerializableValue(remoteRun.value.summary),
+          }
+        : null,
+      draft: cloneSerializableValue(session.value.draft),
+      events: cloneSerializableValue(debugEvents.value),
     }
+  }
+
+  function syncDebugSurface() {
+    if (typeof window === 'undefined') {
+      return
+    }
+
+    ;(window as ExtensionWindow).__BOAT_SEARCH_EXTENSION_DEBUG__ = buildDebugSnapshot()
+  }
+
+  function recordDebugEvent(type: string, message: string, detail?: Record<string, unknown>) {
+    debugEvents.value = [...debugEvents.value, createDebugEvent(type, message, detail)].slice(
+      -MAX_DEBUG_EVENTS,
+    )
+    syncDebugSurface()
   }
 
   watch(
     session,
     async (nextSession) => {
-      await chrome.storage.local.set({ [STORAGE_KEY]: nextSession })
+      try {
+        await chrome.storage.local.set({
+          [STORAGE_KEY]: cloneSerializableValue(nextSession),
+        })
+      } catch (error: unknown) {
+        recordDebugEvent(
+          'session-save-failed',
+          error instanceof Error ? error.message : 'Could not persist the extension session.',
+        )
+      }
     },
     { deep: true },
   )
+
+  watch(
+    [session, statusMessage, errorMessage, sampleDetailRun, browserRunProgress, remoteRun, debugEvents],
+    () => {
+      syncDebugSurface()
+    },
+    { deep: true, immediate: true },
+  )
+
+  watch(
+    () => session.value.draft,
+    () => {
+      const appliedPresetId = session.value.preset.appliedPresetId
+      const appliedDraftFingerprint = session.value.preset.appliedDraftFingerprint
+
+      session.value.preset.isDraftDirty = Boolean(
+        appliedPresetId &&
+          appliedDraftFingerprint &&
+          buildPresetDraftFingerprint(cloneSerializableValue(session.value.draft)) !==
+            appliedDraftFingerprint,
+      )
+    },
+    { deep: true, immediate: true },
+  )
+
+  function updateMatchedPreset(pageUrl: string | null) {
+    const match = pageUrl ? findMatchingSitePreset(pageUrl) : null
+
+    session.value.preset.matchedPresetId = match?.id ?? null
+    session.value.preset.matchedPresetLabel = match?.label ?? null
+    session.value.preset.matchedContext = match?.context ?? null
+
+    return match
+  }
 
   async function refreshActiveTab() {
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true })
     activeTab.value = tab ?? null
     session.value.currentTabUrl = tab?.url || null
+    updateMatchedPreset(tab?.url || null)
     return tab ?? null
   }
 
@@ -400,37 +600,208 @@ export function useExtensionSession() {
     },
   })
 
+  const matchedPreset = computed(() =>
+    session.value.preset.matchedPresetId
+      ? {
+          id: session.value.preset.matchedPresetId,
+          label: session.value.preset.matchedPresetLabel || getSitePresetLabel(session.value.preset.matchedPresetId) || 'Preset',
+          context: session.value.preset.matchedContext,
+        }
+      : null,
+  )
+
+  const trustedPresetActive = computed(() => isTrustedPresetReady(session.value))
+  const presetValidationOptional = computed(() => trustedPresetActive.value)
+  const shouldOfferMatchedPresetLoad = computed(() =>
+    Boolean(
+      matchedPreset.value?.id &&
+        matchedPreset.value.context === 'search' &&
+        (
+          session.value.preset.appliedPresetId !== matchedPreset.value.id ||
+          session.value.preset.isDraftDirty ||
+          !session.value.preset.appliedDraftFingerprint
+        ),
+    ),
+  )
+
   function applyAnalysis(analysis: AutoDetectedAnalysis) {
-    const host = new URL(analysis.pageUrl).hostname
-    session.value.currentTabUrl = analysis.pageUrl
+    applyAnalysisToSession(session.value, analysis)
+    recordDebugEvent('analysis-applied', buildAnalysisStatusMessage(analysis), {
+      pageType: analysis.pageType,
+      pageState: analysis.pageState,
+      pageUrl: analysis.pageUrl,
+      listingCardCount: analysis.stats.listingCardCount,
+      detailLinkCount: analysis.stats.detailLinkCount,
+      distinctImageCount: analysis.stats.distinctImageCount,
+      fieldCount: analysis.fields.length,
+    })
+
+    if (analysis.pageType === 'search' && analysis.pageState === 'ok' && analysis.nextPageSelector) {
+      recordDebugEvent('pagination-autofilled', `Auto-filled the next-page selector ${analysis.nextPageSelector}.`, {
+        nextPageSelector: analysis.nextPageSelector,
+      })
+    }
+
+    if (analysis.pageType === 'search' && analysis.pageState === 'ok' && analysis.sampleDetailUrl) {
+      recordDebugEvent('sample-detail-discovered', 'Captured a sample detail URL from the search page.', {
+        sampleDetailUrl: analysis.sampleDetailUrl,
+      })
+    }
+  }
+
+  function canAutoApplyMatchedPreset(presetId: SitePresetId, context: 'search' | 'detail' | null) {
+    return canAutoApplySitePreset({
+      draft: session.value.draft,
+      appliedPresetId: session.value.preset.appliedPresetId,
+      isDraftDirty: session.value.preset.isDraftDirty,
+      match:
+        context && presetId
+          ? {
+              id: presetId,
+              label: getSitePresetLabel(presetId) || 'Preset',
+              context,
+            }
+          : null,
+    })
+  }
+
+  async function analyzeTabForPreset(tab: chrome.tabs.Tab) {
+    try {
+      const analysis = await sendToTab<AutoDetectedAnalysis>(tab, {
+        type: 'EXTENSION_ANALYZE_PAGE',
+      })
+      recordDebugEvent('preset-analysis-applied', buildAnalysisStatusMessage(analysis), {
+        pageType: analysis.pageType,
+        pageState: analysis.pageState,
+        pageUrl: analysis.pageUrl,
+      })
+      return analysis
+    } catch (error: unknown) {
+      recordDebugEvent(
+        'auto-analyze-failed',
+        error instanceof Error ? error.message : 'Could not analyze the active tab while loading a preset.',
+      )
+      return null
+    }
+  }
+
+  function commitPresetDraft(
+    presetId: SitePresetId,
+    mode: SitePresetApplicationMode,
+    pageUrl: string,
+    analysis: AutoDetectedAnalysis | null,
+  ) {
+    const draft = buildPresetDraft(presetId, {
+      pageUrl,
+      analysis,
+    })
+    const presetLabel = getSitePresetLabel(presetId) || 'Preset'
+
+    session.value.draft = draft
+    session.value.stage = 'search'
+    session.value.currentTabUrl = pageUrl
+    session.value.sampleDetailUrl = analysis?.sampleDetailUrl || null
     session.value.lastAnalysis = analysis
-    session.value.sampleDetailUrl = analysis.sampleDetailUrl
-    session.value.draft.boatSource = session.value.draft.boatSource || hostToSourceName(host)
-    session.value.draft.name =
-      session.value.draft.name || `${hostToSourceName(host)} ${analysis.pageType} pipeline`
-    session.value.draft.config.allowedDomains = uniqueStrings([
-      ...session.value.draft.config.allowedDomains,
-      host,
-    ])
+    session.value.preset.appliedPresetId = presetId
+    session.value.preset.appliedPresetLabel = presetLabel
+    session.value.preset.appliedForUrl = pageUrl
+    session.value.preset.applicationMode = mode
+    session.value.preset.appliedDraftFingerprint = buildPresetDraftFingerprint(
+      cloneSerializableValue(draft),
+    )
+    session.value.preset.isDraftDirty = false
 
-    if (analysis.pageType === 'search') {
-      session.value.stage = 'search'
-      session.value.draft.config.startUrls = [analysis.pageUrl]
-      if (analysis.itemSelector) {
-        session.value.draft.config.itemSelector = analysis.itemSelector
-      }
-      if (analysis.nextPageSelector) {
-        session.value.draft.config.nextPageSelector = analysis.nextPageSelector
-      }
+    statusMessage.value = [
+      `${presetLabel} ${describePresetApplication(mode)}.`,
+      'Search and detail rules are ready, and sample-detail validation is optional.',
+      analysis?.pageState && analysis.pageState !== 'ok' ? analysis.stateMessage || '' : '',
+    ]
+      .filter(Boolean)
+      .join(' ')
+    errorMessage.value = ''
+
+    recordDebugEvent('preset-applied', `${presetLabel} ${describePresetApplication(mode)}.`, {
+      presetId,
+      mode,
+      pageUrl,
+      pageState: analysis?.pageState ?? null,
+      itemSelector: draft.config.itemSelector,
+      nextPageSelector: draft.config.nextPageSelector,
+      fieldCount: draft.config.fields.length,
+    })
+  }
+
+  async function applyMatchedPreset(mode: SitePresetApplicationMode = 'manual') {
+    const match = matchedPreset.value
+    const pageUrl = session.value.currentTabUrl
+
+    if (!match?.id || !pageUrl) {
+      throw new Error('Open a supported results page before loading a preset.')
     }
 
-    if (analysis.pageType === 'detail') {
-      session.value.stage = 'detail'
-      session.value.draft.config.fetchDetailPages = true
+    if (match.context !== 'search') {
+      throw new Error('Open a YachtWorld search results page before loading the YachtWorld preset.')
     }
 
-    for (const field of analysis.fields) {
-      upsertFieldRule(field)
+    statusMessage.value =
+      mode === 'auto'
+        ? `Loading ${match.label} automatically...`
+        : `Loading ${match.label}...`
+    errorMessage.value = ''
+
+    const tab = await refreshActiveTab()
+    const analysis =
+      tab && isWebPageUrl(tab.url)
+        ? await analyzeTabForPreset(tab)
+        : null
+
+    commitPresetDraft(match.id, mode, pageUrl, analysis)
+    return match
+  }
+
+  async function initializeForCurrentTab() {
+    try {
+      await loadSession()
+      const tab = await refreshActiveTab()
+
+      if (!tab?.url || !isWebPageUrl(tab.url)) {
+        statusMessage.value = 'Open a YachtWorld results page or another site to begin configuring a scrape.'
+        return
+      }
+
+      const match = updateMatchedPreset(tab.url)
+      if (!match) {
+        statusMessage.value = session.value.connection.apiKey.trim()
+          ? 'Ready'
+          : 'Ready to configure a scrape.'
+        return
+      }
+
+      recordDebugEvent('preset-matched', `Matched ${match.label} on the active tab.`, {
+        presetId: match.id,
+        context: match.context,
+        pageUrl: tab.url,
+      })
+
+      if (canAutoApplyMatchedPreset(match.id, match.context)) {
+        await applyMatchedPreset('auto')
+        return
+      }
+
+      if (match.context === 'detail') {
+        statusMessage.value = `${match.label} detail page detected. Open a YachtWorld search results page to auto-load the full preset, or validate this detail page manually.`
+        return
+      }
+
+      statusMessage.value = `${match.label} is available for this page. Load it if you want to replace the current draft.`
+    } catch (error: unknown) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : 'The extension could not initialize the current tab.'
+      errorMessage.value = message
+      statusMessage.value = 'Initialization failed'
+      recordDebugEvent('preset-initialize-failed', message)
     }
   }
 
@@ -454,10 +825,7 @@ export function useExtensionSession() {
         type: 'EXTENSION_ANALYZE_PAGE',
       })
       applyAnalysis(analysis)
-      statusMessage.value =
-        analysis.pageType === 'unknown'
-          ? 'Page analyzed, but detection was inconclusive.'
-          : `Detected ${analysis.pageType} selectors for ${analysis.siteName}.`
+      statusMessage.value = buildAnalysisStatusMessage(analysis)
     } catch (error: unknown) {
       const message =
         error instanceof Error
@@ -465,6 +833,7 @@ export function useExtensionSession() {
           : 'The helper could not connect to the current page.'
       errorMessage.value = message
       statusMessage.value = 'Analysis failed'
+      recordDebugEvent('analysis-failed', message)
     }
   }
 
@@ -577,6 +946,7 @@ export function useExtensionSession() {
     if (changeInfo.url || changeInfo.status === 'complete') {
       activeTab.value = tab
       session.value.currentTabUrl = tab.url || null
+      updateMatchedPreset(tab.url || null)
       clearFieldPreviewState()
     }
   }
@@ -626,29 +996,89 @@ export function useExtensionSession() {
     clearFieldPreviewState()
     itemSelectorPreview.value = null
     statusMessage.value = 'Opening sample detail page and waiting for it to load...'
+    sampleDetailRun.value = createSampleDetailRunState('opening', {
+      url: targetUrl,
+      message: 'Opening the sample detail page and preparing an automatic scan.',
+    })
+    recordDebugEvent('sample-detail-opening', 'Opening the sample detail page.', {
+      url: targetUrl,
+    })
     const tab = await chrome.tabs.create({ url: targetUrl, active: true })
     session.value.stage = 'detail'
     session.value.currentTabUrl = targetUrl
 
     if (!tab.id) {
       statusMessage.value = 'Sample detail page opened.'
+      sampleDetailRun.value = createSampleDetailRunState('opened', {
+        url: targetUrl,
+        message: 'The sample detail page opened. Return here after it settles, then re-scan if needed.',
+      })
+      recordDebugEvent('sample-detail-opened', 'Opened the sample detail page.', {
+        url: targetUrl,
+      })
       return
     }
 
     try {
       const readyTab = await waitForTabComplete(tab.id)
+      sampleDetailRun.value = createSampleDetailRunState('opened', {
+        url: readyTab.url || targetUrl,
+        message: 'The sample detail page is open. Running the automatic detail scan now.',
+      })
+      recordDebugEvent('sample-detail-opened', 'The sample detail page finished loading.', {
+        url: readyTab.url || targetUrl,
+      })
       const detailAnalysis = await sendToTab<AutoDetectedAnalysis>(readyTab, {
         type: 'EXTENSION_ANALYZE_PAGE',
       })
       applyAnalysis(detailAnalysis)
       statusMessage.value =
-        detailAnalysis.pageType === 'detail'
-          ? `Scanned the detail page and found ${detailAnalysis.fields.length} field suggestion${detailAnalysis.fields.length === 1 ? '' : 's'}.`
-          : 'Opened the sample page, but it did not classify as a detail page. Re-scan after the page settles.'
+        detailAnalysis.pageType === 'detail' && detailAnalysis.pageState === 'ok'
+          ? `Scanned the detail page and found ${detailAnalysis.fields.length} field suggestion${detailAnalysis.fields.length === 1 ? '' : 's'} across ${detailAnalysis.stats.distinctImageCount} images.`
+          : buildAnalysisStatusMessage(detailAnalysis)
+      sampleDetailRun.value =
+        detailAnalysis.pageType === 'detail' && detailAnalysis.pageState === 'ok'
+          ? createSampleDetailRunState('scanned', {
+              url: detailAnalysis.pageUrl,
+              fieldCount: detailAnalysis.fields.length,
+              imageCount: detailAnalysis.stats.distinctImageCount,
+              message: `Opened and auto-scanned the sample detail page. Found ${detailAnalysis.fields.length} field suggestion${detailAnalysis.fields.length === 1 ? '' : 's'} and ${detailAnalysis.stats.distinctImageCount} gallery image${detailAnalysis.stats.distinctImageCount === 1 ? '' : 's'}.`,
+            })
+          : createSampleDetailRunState('error', {
+              url: detailAnalysis.pageUrl,
+              fieldCount: detailAnalysis.fields.length,
+              imageCount: detailAnalysis.stats.distinctImageCount,
+              message:
+                detailAnalysis.stateMessage ||
+                'The sample page opened, but it did not classify as a stable detail page yet.',
+            })
+      recordDebugEvent(
+        detailAnalysis.pageType === 'detail' && detailAnalysis.pageState === 'ok'
+          ? 'sample-detail-scanned'
+          : 'sample-detail-scan-blocked',
+        sampleDetailRun.value.message,
+        {
+          url: detailAnalysis.pageUrl,
+          pageType: detailAnalysis.pageType,
+          pageState: detailAnalysis.pageState,
+          fieldCount: detailAnalysis.fields.length,
+          imageCount: detailAnalysis.stats.distinctImageCount,
+        },
+      )
     } catch (error: unknown) {
       statusMessage.value = 'Sample detail page opened.'
       errorMessage.value =
         error instanceof Error ? error.message : 'Could not auto-scan the detail page.'
+      sampleDetailRun.value = createSampleDetailRunState('error', {
+        url: targetUrl,
+        message:
+          error instanceof Error ? error.message : 'Could not auto-scan the sample detail page.',
+      })
+      recordDebugEvent(
+        'sample-detail-scan-failed',
+        sampleDetailRun.value.message,
+        { url: targetUrl },
+      )
     }
   }
 
@@ -945,7 +1375,7 @@ export function useExtensionSession() {
     const nextImages: string[] = []
     let uploadedCount = 0
 
-    for (const imageUrl of record.images.slice(0, 12)) {
+    for (const imageUrl of record.images) {
       try {
         const uploadedUrl = await uploadImageToBoatSearch(imageUrl, uploadCache)
         nextImages.push(uploadedUrl)
@@ -990,6 +1420,7 @@ export function useExtensionSession() {
 
   async function crawlDraftInBrowser(
     draft: ScraperPipelineDraft,
+    presetId: SitePresetId | null,
     runState: { recordsPersisted: number; imagesUploaded: number },
     onRecord: (record: BrowserScrapeRecord) => Promise<void>,
   ) {
@@ -1056,8 +1487,23 @@ export function useExtensionSession() {
           const readyTab = await navigateTab(crawlTab.id, currentUrl)
           const pageResult = await sendToTab<SearchPageExtractResponse>(readyTab, {
             type: 'EXTENSION_EXTRACT_SEARCH_PAGE',
-            request: { draft },
+            request: { draft, presetId },
           })
+
+          recordDebugEvent('browser-scrape-search-page', 'Scraped a search page in the browser run.', {
+            url: pageResult.pageUrl,
+            pageState: pageResult.analysis.pageState,
+            itemCount: pageResult.itemCount,
+            extractedRecords: pageResult.records.length,
+            nextPageUrl: pageResult.nextPageUrl,
+          })
+
+          if (pageResult.analysis.pageState === 'challenge') {
+            throw new Error(
+              pageResult.analysis.stateMessage ||
+                `The browser scrape hit a challenge page on ${pageResult.pageUrl}.`,
+            )
+          }
 
           seenSearchUrls.add(pageResult.pageUrl)
           visitedUrls.push(pageResult.pageUrl)
@@ -1066,12 +1512,21 @@ export function useExtensionSession() {
           itemsSeen += pageResult.itemCount
           searchWarnings.push(...pageResult.warnings)
 
+          recordDebugEvent('browser-scrape-listing-cards', 'Counted listing cards on the search page.', {
+            url: pageResult.pageUrl,
+            itemCount: pageResult.itemCount,
+            listingCardCount: pageResult.analysis.stats.listingCardCount,
+          })
+
           for (const record of pageResult.records) {
             if (searchRecords.length >= draft.config.maxItemsPerRun) {
               break
             }
 
             searchRecords.push(record)
+            recordDebugEvent('browser-scrape-listing-url', 'Extracted a listing URL during the browser run.', {
+              url: record.url,
+            })
 
             if (!draft.config.fetchDetailPages) {
               await onRecord(record)
@@ -1085,6 +1540,18 @@ export function useExtensionSession() {
       const detailRecords = draft.config.fetchDetailPages
         ? searchRecords.filter((record) => Boolean(record.url))
         : []
+
+      if (itemsSeen === 0) {
+        throw new Error(
+          `The browser scrape found zero listing cards across ${pagesVisited || 1} page${pagesVisited === 1 ? '' : 's'}. Re-scan the search page and confirm the listing-card selector matches live results.`,
+        )
+      }
+
+      if (!searchRecords.length) {
+        throw new Error(
+          'The browser scrape found listing cards but could not extract any listing URLs. Re-scan the title and URL mappings on the search page before running again.',
+        )
+      }
 
       for (let index = 0; index < detailRecords.length; index += 1) {
         const record = detailRecords[index]
@@ -1120,8 +1587,22 @@ export function useExtensionSession() {
           const readyTab = await navigateTab(crawlTab.id, record.url)
           const detailResult = await sendToTab<DetailPageExtractResponse>(readyTab, {
             type: 'EXTENSION_EXTRACT_DETAIL_PAGE',
-            request: { draft },
+            request: { draft, presetId },
           })
+
+          recordDebugEvent('browser-scrape-detail-page', 'Scraped a detail page in the browser run.', {
+            url: detailResult.pageUrl,
+            pageState: detailResult.analysis.pageState,
+            imageCount: detailResult.analysis.stats.distinctImageCount,
+            fieldCount: detailResult.analysis.fields.length,
+          })
+
+          if (detailResult.analysis.pageState === 'challenge') {
+            throw new Error(
+              detailResult.analysis.stateMessage ||
+                `The browser scrape hit a challenge page while opening ${record.url}.`,
+            )
+          }
 
           const recordIndex = searchRecords.findIndex((entry) => entry.url === record.url)
           if (recordIndex >= 0) {
@@ -1227,7 +1708,7 @@ export function useExtensionSession() {
         throw new Error('Boat Search image upload is not enabled yet because no R2 bucket is bound.')
       }
 
-      const draft = structuredClone(session.value.draft)
+      const draft = cloneSerializableValue(session.value.draft)
       activeDraft = draft
       const run = await fetchBoatSearchJson<ExtensionRunStartResponse>(
         '/api/admin/scraper-extension/run/start',
@@ -1237,9 +1718,10 @@ export function useExtensionSession() {
         },
       )
       activeRun = run
+      const activePresetId = session.value.preset.appliedPresetId
       const uploadedImageCache = new Map<string, string>()
       statusMessage.value = 'Scraping the site in a real browser tab...'
-      const browserRun = await crawlDraftInBrowser(draft, runState, async (record) => {
+      const browserRun = await crawlDraftInBrowser(draft, activePresetId, runState, async (record) => {
         const imageResult = await storeRecordImagesInR2(record, uploadedImageCache)
         runState.imagesUploaded += imageResult.uploadedCount
         const persisted = await persistBrowserRecordToBoatSearch(run, draft, imageResult.record)
@@ -1288,6 +1770,15 @@ export function useExtensionSession() {
       }
       browserRunProgress.value = null
       statusMessage.value = `Browser scrape complete. Inserted ${response.summary.inserted} and updated ${response.summary.updated} boats.`
+      recordDebugEvent('browser-scrape-complete', 'Completed the browser scrape and Boat Search finalization.', {
+        pipelineId: run.pipelineId,
+        jobId: response.jobId,
+        pagesVisited: response.summary.pagesVisited,
+        itemsSeen: response.summary.itemsSeen,
+        itemsExtracted: response.summary.itemsExtracted,
+        inserted: response.summary.inserted,
+        updated: response.summary.updated,
+      })
       return
     } catch (error: unknown) {
       if (browserRunProgress.value && activeRun && activeDraft) {
@@ -1321,6 +1812,13 @@ export function useExtensionSession() {
         error instanceof Error ? error.message : 'Could not finish the browser scrape.'
       errorMessage.value = message
       statusMessage.value = 'Browser scrape failed'
+      recordDebugEvent('browser-scrape-failed', message, {
+        pagesVisited: browserRunProgress.value?.pagesVisited ?? 0,
+        itemsSeen: browserRunProgress.value?.itemsSeen ?? 0,
+        itemsExtracted: browserRunProgress.value?.itemsExtracted ?? 0,
+        recordsPersisted: runState.recordsPersisted,
+        imagesUploaded: runState.imagesUploaded,
+      })
     } finally {
       startingRemoteRun.value = false
     }
@@ -1328,14 +1826,20 @@ export function useExtensionSession() {
 
   function updateConnectionApiKey(value: string) {
     session.value.connection.apiKey = value.trim()
+    session.value.connection.apiKeySource = 'manual'
     session.value.connection.verifiedAt = null
     session.value.connection.verifiedEmail = null
     session.value.connection.verifiedName = null
     session.value.connection.imageUploadEnabled = false
   }
 
+  function updateAppBaseUrl(value: string) {
+    session.value.appBaseUrl = value.trim()
+    session.value.appBaseUrlSource = 'manual'
+  }
+
   function resetSession() {
-    session.value = createDefaultSession()
+    session.value = createConfiguredDefaultSession()
     statusMessage.value = 'Session reset'
     errorMessage.value = ''
     pendingPicker.value = null
@@ -1343,6 +1847,7 @@ export function useExtensionSession() {
     itemSelectorPreview.value = null
     remoteRun.value = null
     browserRunProgress.value = null
+    sampleDetailRun.value = null
     void clearFieldPreview()
   }
 
@@ -1451,11 +1956,17 @@ export function useExtensionSession() {
     itemSelectorPreview,
     remoteRun,
     browserRunProgress,
+    sampleDetailRun,
     startingRemoteRun,
     verifyingConnection,
     statusMessage,
     errorMessage,
+    matchedPreset,
+    trustedPresetActive,
+    presetValidationOptional,
+    shouldOfferMatchedPresetLoad,
     loadSession,
+    initializeForCurrentTab,
     refreshActiveTab,
     analyzeCurrentPage,
     startPicker,
@@ -1469,7 +1980,9 @@ export function useExtensionSession() {
     removeField,
     openSampleDetailPage,
     verifyBoatSearchConnection,
+    applyMatchedPreset,
     updateConnectionApiKey,
+    updateAppBaseUrl,
     startScrapeInBoatSearch,
     openBoatSearchAccountSettings,
     handoffToBoatSearch,

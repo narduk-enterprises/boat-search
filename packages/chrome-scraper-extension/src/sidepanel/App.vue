@@ -45,9 +45,23 @@ function formatFieldName(key: ScraperFieldRule['key']) {
 const draft = computed(() => extension.session.value.draft)
 const connection = computed(() => extension.session.value.connection)
 const analysis = computed(() => extension.session.value.lastAnalysis)
-const analysisWarnings = computed(() => analysis.value?.warnings ?? [])
-const connectionReady = computed(
-  () => Boolean(connection.value.apiKey.trim() && connection.value.verifiedAt),
+const matchedPreset = computed(() => extension.matchedPreset.value)
+const analysisWarnings = computed(() =>
+  [analysis.value?.stateMessage, ...(analysis.value?.warnings ?? [])].filter(
+    (warning): warning is string => Boolean(warning),
+  ),
+)
+const trustedPresetActive = computed(() => extension.trustedPresetActive.value)
+const presetValidationOptional = computed(() => extension.presetValidationOptional.value)
+const shouldOfferMatchedPresetLoad = computed(() => extension.shouldOfferMatchedPresetLoad.value)
+const hasApiKey = computed(() => Boolean(connection.value.apiKey.trim()))
+const connectionVerified = computed(() => Boolean(connection.value.verifiedAt))
+const usingDefaultApiKey = computed(() => connection.value.apiKeySource === 'local-default')
+const usingDefaultAppBaseUrl = computed(
+  () => extension.session.value.appBaseUrlSource === 'local-default',
+)
+const appliedPresetLabel = computed(
+  () => extension.session.value.preset.appliedPresetLabel || matchedPreset.value?.label || 'Trusted preset',
 )
 
 const startUrlsText = computed({
@@ -76,10 +90,15 @@ const itemFieldCount = computed(
 const detailFieldCount = computed(
   () => extension.detailFields.value.filter((field) => field.selector.trim()).length,
 )
+const detailImageCount = computed(() =>
+  analysis.value?.pageType === 'detail' ? analysis.value.stats.distinctImageCount : 0,
+)
 
 const isDetailStage = computed(() => extension.session.value.stage === 'detail')
 const hasSearchAnalysis = computed(
-  () => analysis.value?.pageType === 'search' || draft.value.config.startUrls.length > 0,
+  () =>
+    (analysis.value?.pageType === 'search' && analysis.value.pageState === 'ok') ||
+    draft.value.config.startUrls.length > 0,
 )
 const hasItemSelector = computed(() => Boolean(draft.value.config.itemSelector.trim()))
 const hasSearchFields = computed(() => itemFieldCount.value > 0)
@@ -87,12 +106,18 @@ const paginationConfigured = computed(
   () => Boolean(draft.value.config.nextPageSelector.trim()) || draft.value.config.maxPages === 1,
 )
 const hasSampleDetail = computed(() => Boolean(extension.session.value.sampleDetailUrl))
-const hasDetailAnalysis = computed(() => analysis.value?.pageType === 'detail')
+const hasDetailAnalysis = computed(
+  () => analysis.value?.pageType === 'detail' && analysis.value.pageState === 'ok',
+)
 const hasDetailFields = computed(() => detailFieldCount.value > 0)
+const detailWorkflowReady = computed(
+  () => hasDetailAnalysis.value || (presetValidationOptional.value && hasDetailFields.value),
+)
 const itemSelectorTraining = computed(() => extension.itemSelectorTraining.value)
 const itemSelectorPreview = computed(() => extension.itemSelectorPreview.value)
 const remoteRun = computed(() => extension.remoteRun.value)
 const browserRunProgress = computed(() => extension.browserRunProgress.value)
+const sampleDetailRun = computed(() => extension.sampleDetailRun.value)
 const startingRemoteRun = computed(() => extension.startingRemoteRun.value)
 const verifyingConnection = computed(() => extension.verifyingConnection.value)
 const detectedCardCount = computed(
@@ -109,13 +134,52 @@ const detailFieldLabels = computed(() =>
     .filter((field) => field.selector.trim())
     .map((field) => formatFieldName(field.key)),
 )
+const paginationAutoDetected = computed(() => {
+  const detectedSelector = analysis.value?.nextPageSelector?.trim()
+  return Boolean(
+    analysis.value?.pageType === 'search' &&
+      analysis.value.pageState === 'ok' &&
+      detectedSelector &&
+      draft.value.config.nextPageSelector.trim() === detectedSelector,
+  )
+})
+const analysisStateLabel = computed(() => {
+  if (!analysis.value) {
+    return 'Not scanned yet'
+  }
+
+  return analysis.value.pageState === 'ok'
+    ? analysis.value.pageType
+    : `${analysis.value.pageType} · ${analysis.value.pageState}`
+})
+const searchScanStatus = computed(() => {
+  if (trustedPresetActive.value) {
+    return `${appliedPresetLabel.value} is active. Search and detail rules were auto-loaded, and opening a sample detail page is optional validation only.`
+  }
+
+  if (!analysis.value) {
+    return 'Scan the current page to lock the search workflow.'
+  }
+
+  if (analysis.value.pageType !== 'search') {
+    return extension.statusMessage.value
+  }
+
+  if (analysis.value.pageState !== 'ok') {
+    return analysis.value.stateMessage || extension.statusMessage.value
+  }
+
+  return `${analysis.value.stats.listingCardCount || 0} listing cards detected, ${analysis.value.stats.detailLinkCount} detail links found, and ${
+    analysis.value.nextPageSelector ? 'pagination was auto-filled.' : 'pagination still needs review.'
+  }`
+})
 
 const exportGaps = computed(() => {
   const gaps: string[] = []
 
   if (!draft.value.name.trim()) gaps.push('pipeline name')
   if (!draft.value.boatSource.trim()) gaps.push('source name')
-  if (!connectionReady.value) gaps.push('extension auth')
+  if (!hasApiKey.value) gaps.push('Boat Search API key')
   if (!draft.value.config.startUrls.length) gaps.push('start URL')
   if (!hasItemSelector.value) gaps.push('listing card selector')
   if (!hasSearchFields.value) gaps.push('reviewed search fields')
@@ -146,9 +210,14 @@ const workflowSteps = computed<WorkflowStep[]>(() => {
       step: 1,
       title: 'Scan search page',
       status: hasSearchAnalysis.value ? 'complete' : 'active',
-      note: hasSearchAnalysis.value
-        ? `Detected ${analysis.value?.pageType ?? 'search'} page on ${analysis.value?.siteName ?? 'this site'}.`
-        : 'Start on a YachtWorld results page and read the DOM before editing selectors.',
+      note:
+        analysis.value && analysis.value.pageState !== 'ok'
+          ? analysis.value.stateMessage || 'The page scan needs review before locking selectors.'
+          : trustedPresetActive.value
+            ? `${appliedPresetLabel.value} is active and already filled the search + detail workflow.`
+          : hasSearchAnalysis.value
+            ? `Detected ${analysis.value?.pageType ?? 'search'} page on ${analysis.value?.siteName ?? 'this site'}.`
+            : 'Start on a YachtWorld results page and read the DOM before editing selectors.',
     },
     {
       id: 'listing-card',
@@ -178,7 +247,9 @@ const workflowSteps = computed<WorkflowStep[]>(() => {
           ? 'complete'
           : 'active',
       note: draft.value.config.nextPageSelector.trim()
-        ? draft.value.config.nextPageSelector
+        ? paginationAutoDetected.value
+          ? `Auto-detected next page selector: ${draft.value.config.nextPageSelector}`
+          : draft.value.config.nextPageSelector
         : draft.value.config.maxPages === 1
           ? 'Single-page mode is on.'
           : 'Pick the next-page button or cap the run at one page.',
@@ -189,18 +260,22 @@ const workflowSteps = computed<WorkflowStep[]>(() => {
       title: 'Scan detail page',
       status: !paginationConfigured.value
         ? 'upcoming'
-        : hasDetailAnalysis.value
+        : detailWorkflowReady.value
           ? 'complete'
           : 'active',
-      note: hasDetailAnalysis.value
-        ? analysis.value?.pageUrl || 'Detail page scanned.'
-        : extension.session.value.sampleDetailUrl || 'Open one sample listing and scan it again.',
+      note:
+        sampleDetailRun.value?.message ||
+        (presetValidationOptional.value && !hasDetailAnalysis.value
+          ? `${appliedPresetLabel.value} detail rules are already loaded. Open a sample detail page only if you want to validate the live DOM.`
+          : hasDetailAnalysis.value
+          ? analysis.value?.pageUrl || 'Detail page scanned.'
+          : extension.session.value.sampleDetailUrl || 'Open one sample listing and scan it again.'),
     },
     {
       id: 'detail-fields-export',
       step: 6,
       title: 'Review detail fields',
-      status: !hasDetailAnalysis.value ? 'upcoming' : exportReady.value ? 'ready' : 'active',
+      status: !detailWorkflowReady.value ? 'upcoming' : exportReady.value ? 'ready' : 'active',
       note: exportReady.value
         ? 'The draft is ready for a browser scrape or handoff.'
         : exportGaps.value.length
@@ -281,8 +356,7 @@ function setSinglePageMode() {
 }
 
 onMounted(async () => {
-  await extension.loadSession()
-  await extension.refreshActiveTab()
+  await extension.initializeForCurrentTab()
 })
 </script>
 
@@ -296,12 +370,18 @@ onMounted(async () => {
               Boat Search pipeline helper
             </p>
             <span class="context-pill">{{ analysis?.siteName || 'Waiting for scan' }}</span>
-            <span class="context-pill context-pill--muted">
-              {{ analysis?.pageType || 'Not scanned yet' }}
+            <span
+              class="context-pill context-pill--muted"
+              data-testid="analysis-state-pill"
+            >
+              {{ analysisStateLabel }}
             </span>
           </div>
           <h1>Scraper workflow</h1>
-          <p class="toolbar__summary">
+          <p
+            class="toolbar__summary"
+            data-testid="toolbar-status"
+          >
             <span class="toolbar__summary-label">Next</span>
             <strong>{{ nextAction }}</strong>
             <span>{{
@@ -319,6 +399,7 @@ onMounted(async () => {
         <div class="toolbar__actions">
           <button
             type="button"
+            data-testid="scan-current-page"
             @click="extension.analyzeCurrentPage"
           >
             {{ isDetailStage ? 'Re-scan detail page' : 'Scan current page' }}
@@ -348,7 +429,15 @@ onMounted(async () => {
         </article>
         <article class="status-pill">
           <span>Extension auth</span>
-          <strong>{{ connectionReady ? connection.verifiedEmail || 'Connected' : 'API key needed' }}</strong>
+          <strong>
+            {{
+              connectionVerified
+                ? connection.verifiedEmail || 'Connected'
+                : hasApiKey
+                  ? 'Ready to verify'
+                  : 'API key needed'
+            }}
+          </strong>
         </article>
         <article class="status-pill">
           <span>Export</span>
@@ -365,6 +454,7 @@ onMounted(async () => {
         v-for="step in workflowSteps"
         :key="step.id"
         type="button"
+        :data-testid="`workflow-step-${step.id}`"
         class="progress-nav__step"
         :class="[
           `progress-nav__step--${step.status}`,
@@ -396,15 +486,55 @@ onMounted(async () => {
       </div>
     </section>
 
+    <section
+      v-if="matchedPreset"
+      class="preset-banner"
+      data-testid="preset-banner"
+    >
+      <div class="preset-banner__copy">
+        <p class="eyebrow">
+          Site preset
+        </p>
+        <strong>
+          {{
+            trustedPresetActive
+              ? `${appliedPresetLabel} active`
+              : `${matchedPreset.label} available`
+          }}
+        </strong>
+        <p>
+          {{
+            trustedPresetActive
+              ? 'YachtWorld search and detail rules were loaded into the draft. The detail step is optional validation now.'
+              : matchedPreset.context === 'detail'
+                ? 'This tab matches the YachtWorld detail context. Open a YachtWorld results page to auto-load the full search preset.'
+                : 'This page matches the YachtWorld search preset. Load it to replace the current draft if you do not want to keep the current manual configuration.'
+          }}
+        </p>
+      </div>
+
+      <button
+        v-if="shouldOfferMatchedPresetLoad"
+        type="button"
+        class="secondary"
+        data-testid="load-matched-preset-button"
+        @click="extension.applyMatchedPreset('manual')"
+      >
+        Load YachtWorld preset
+      </button>
+    </section>
+
     <WorkflowStepCard
       :step="0"
       title="Connect the extension"
       subtitle="Store a Boat Search API key in the plugin so scraping and writes stay inside the extension instead of depending on the website session."
-      :status="connectionReady ? 'complete' : 'active'"
+      :status="connectionVerified ? 'complete' : hasApiKey ? 'ready' : 'active'"
       :note="
-        connectionReady
+        connectionVerified
           ? `Connected as ${connection.verifiedEmail || 'an authenticated user'}.`
-          : 'Paste a Boat Search API key, test it, then the plugin can write boats and images directly.'
+          : hasApiKey
+            ? 'The API key is saved. You can test it now or launch the browser scrape and the extension will verify it first.'
+            : 'Paste a Boat Search API key, test it, then the plugin can write boats and images directly.'
       "
       :open="true"
     >
@@ -418,6 +548,7 @@ onMounted(async () => {
         </button>
         <button
           type="button"
+          data-testid="connection-test-button"
           class="secondary"
           :disabled="verifyingConnection"
           @click="extension.verifyBoatSearchConnection(true)"
@@ -430,9 +561,11 @@ onMounted(async () => {
         <label class="stack">
           <span>Boat Search app URL</span>
           <input
-            v-model="extension.session.value.appBaseUrl"
+            :value="extension.session.value.appBaseUrl"
+            data-testid="app-base-url-input"
             type="url"
             placeholder="https://boat-search.nard.uk"
+            @input="extension.updateAppBaseUrl(String(($event.target as HTMLInputElement).value))"
           >
         </label>
 
@@ -440,6 +573,7 @@ onMounted(async () => {
           <span>Boat Search API key</span>
           <input
             :value="connection.apiKey"
+            data-testid="api-key-input"
             type="password"
             placeholder="nk_..."
             @input="extension.updateConnectionApiKey(String(($event.target as HTMLInputElement).value))"
@@ -450,6 +584,19 @@ onMounted(async () => {
       <p class="context-note">
         Create this key in Boat Search account settings. The extension stores it locally, uses it
         to upload images into R2, and streams boats into the database while the scrape runs.
+      </p>
+      <p
+        v-if="usingDefaultApiKey || usingDefaultAppBaseUrl"
+        class="context-note"
+        data-testid="dev-default-connection-note"
+      >
+        {{
+          usingDefaultApiKey && usingDefaultAppBaseUrl
+            ? 'The extension is currently using local dev defaults for the API key and the Boat Search app URL.'
+            : usingDefaultApiKey
+              ? 'The extension is currently using a local dev default API key.'
+              : 'The extension is currently using a local dev default Boat Search app URL.'
+        }}
       </p>
       <p
         v-if="connection.verifiedAt"
@@ -491,6 +638,13 @@ onMounted(async () => {
           <strong>{{ draft.config.allowedDomains.length }}</strong>
         </div>
       </div>
+
+      <p
+        class="context-note"
+        data-testid="search-scan-status"
+      >
+        {{ searchScanStatus }}
+      </p>
     </WorkflowStepCard>
 
     <WorkflowStepCard
@@ -632,6 +786,7 @@ onMounted(async () => {
         <button
           type="button"
           class="secondary"
+          data-testid="pick-next-page-button"
           @click="pickNextPageSelector"
         >
           Pick next page
@@ -650,6 +805,7 @@ onMounted(async () => {
           <span>Next-page selector</span>
           <input
             v-model="draft.config.nextPageSelector"
+            data-testid="next-page-selector-input"
             type="text"
             placeholder="a[rel='next']"
           >
@@ -659,6 +815,7 @@ onMounted(async () => {
           <span>Max pages</span>
           <input
             v-model.number="draft.config.maxPages"
+            data-testid="max-pages-input"
             type="number"
             min="1"
             max="25"
@@ -669,18 +826,33 @@ onMounted(async () => {
           <span>Max items per run</span>
           <input
             v-model.number="draft.config.maxItemsPerRun"
+            data-testid="max-items-per-run-input"
             type="number"
             min="1"
             max="250"
           >
         </label>
       </div>
+
+      <p
+        v-if="paginationAutoDetected"
+        class="context-note"
+        data-testid="pagination-auto-detected"
+      >
+        The helper detected the next-page control during the search scan and filled
+        <code>{{ draft.config.nextPageSelector }}</code> for you. Replace it only if the site
+        paginates differently than this page.
+      </p>
     </WorkflowStepCard>
 
     <WorkflowStepCard
       :step="5"
       title="Open and scan a detail page"
-      subtitle="Open one real listing so detail previews run against live DOM."
+      :subtitle="
+        presetValidationOptional
+          ? 'Detail rules are already loaded by the trusted YachtWorld preset. Open a real listing only if you want to validate the live DOM.'
+          : 'Open one real listing so detail previews run against live DOM.'
+      "
       :status="workflowSteps[4]?.status ?? 'upcoming'"
       :note="workflowSteps[4]?.note"
       :open="openStepId === 'detail-page'"
@@ -690,6 +862,7 @@ onMounted(async () => {
         <button
           type="button"
           class="secondary"
+          data-testid="open-sample-detail-button"
           @click="extension.openSampleDetailPage"
         >
           Open sample detail
@@ -718,7 +891,54 @@ onMounted(async () => {
       </div>
 
       <p
-        v-if="!detailContextReady"
+        class="context-note"
+        data-testid="detail-image-count"
+      >
+        {{
+          detailImageCount
+            ? `Detected ${detailImageCount} gallery image${detailImageCount === 1 ? '' : 's'} on the current detail page.`
+            : 'No gallery images have been confirmed on the current detail page yet.'
+        }}
+      </p>
+
+      <div
+        v-if="sampleDetailRun"
+        class="detail-review-banner"
+        data-testid="sample-detail-status"
+        :class="{
+          'detail-review-banner--warning': sampleDetailRun.status === 'opening' || sampleDetailRun.status === 'opened',
+          'detail-review-banner--error': sampleDetailRun.status === 'error',
+        }"
+      >
+        <strong>
+          {{
+            sampleDetailRun.status === 'scanned'
+              ? 'Sample detail page opened and scanned'
+              : sampleDetailRun.status === 'error'
+                ? 'Sample detail scan failed'
+                : sampleDetailRun.status === 'opening'
+                  ? 'Opening sample detail page'
+                  : 'Sample detail page opened'
+          }}
+        </strong>
+        <p>{{ sampleDetailRun.message }}</p>
+        <p v-if="sampleDetailRun.url">
+          <code>{{ sampleDetailRun.url }}</code>
+        </p>
+        <p v-if="sampleDetailRun.imageCount">
+          Gallery images detected: <strong>{{ sampleDetailRun.imageCount }}</strong>
+        </p>
+      </div>
+
+      <p
+        v-if="presetValidationOptional && !detailContextReady"
+        class="context-note"
+      >
+        {{ appliedPresetLabel }} is trusted, so you can start the browser scrape without opening a
+        sample detail page. Open one only if you want to preview the live DOM before running.
+      </p>
+      <p
+        v-else-if="!detailContextReady"
         class="context-note context-note--warning"
       >
         The current tab does not look like a listing detail page yet. Open the sample listing or
@@ -751,7 +971,8 @@ onMounted(async () => {
         </button>
         <button
           type="button"
-          :disabled="!exportReady || !connectionReady || startingRemoteRun || verifyingConnection"
+          :disabled="!exportReady || !hasApiKey || startingRemoteRun || verifyingConnection"
+          data-testid="start-browser-scrape-button"
           @click="extension.startScrapeInBoatSearch"
         >
           {{ startingRemoteRun ? 'Running scrape...' : 'Start browser scrape' }}
@@ -797,16 +1018,22 @@ onMounted(async () => {
 
       <div
         class="detail-review-banner"
-        :class="{ 'detail-review-banner--warning': !detailContextReady }"
+        :class="{ 'detail-review-banner--warning': !detailContextReady && !presetValidationOptional }"
       >
         <strong>{{
-          detailContextReady ? 'Reviewing the open detail page' : 'Open a detail page first'
+          detailContextReady
+            ? 'Reviewing the open detail page'
+            : presetValidationOptional
+              ? 'Preset detail rules loaded'
+              : 'Open a detail page first'
         }}</strong>
         <p>
           {{
             detailContextReady
               ? 'Use Show on page to verify title, price, location, description, and images against the listing open right now.'
-              : 'The current tab still looks like a search page or something else. Open the sample listing from step 5, then come back here.'
+              : presetValidationOptional
+                ? 'This preset can run without a live detail preview. Open the sample listing from step 5 only if you want to spot-check the selectors on the real page.'
+                : 'The current tab still looks like a search page or something else. Open the sample listing from step 5, then come back here.'
           }}
         </p>
         <div
@@ -826,6 +1053,7 @@ onMounted(async () => {
       <div
         v-if="browserRunProgress"
         class="remote-run-card"
+        data-testid="browser-scrape-progress"
       >
         <div class="remote-run-card__grid">
           <div>
@@ -869,6 +1097,7 @@ onMounted(async () => {
       <div
         v-if="remoteRun"
         class="remote-run-card"
+        data-testid="browser-scrape-result"
       >
         <div class="remote-run-card__grid">
           <div>
@@ -925,9 +1154,10 @@ onMounted(async () => {
           <label class="stack">
             <span>Boat Search app URL</span>
             <input
-              v-model="extension.session.value.appBaseUrl"
+              :value="extension.session.value.appBaseUrl"
               type="url"
               placeholder="https://boat-search.nard.uk"
+              @input="extension.updateAppBaseUrl(String(($event.target as HTMLInputElement).value))"
             >
           </label>
         </div>
@@ -1195,6 +1425,35 @@ onMounted(async () => {
   line-height: 1.35;
 }
 
+.preset-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.85rem;
+  padding: 0.9rem 0.95rem;
+  border-radius: 1.1rem;
+  border: 1px solid rgba(16, 185, 129, 0.22);
+  background: rgba(236, 253, 245, 0.94);
+  box-shadow: 0 18px 42px rgba(15, 23, 42, 0.05);
+}
+
+.preset-banner__copy {
+  display: grid;
+  gap: 0.24rem;
+}
+
+.preset-banner__copy strong {
+  color: var(--panel-text);
+  font-size: 0.92rem;
+}
+
+.preset-banner__copy p {
+  margin: 0;
+  color: var(--panel-muted);
+  font-size: 0.8rem;
+  line-height: 1.45;
+}
+
 .task-grid {
   display: grid;
   gap: 0.7rem;
@@ -1332,6 +1591,11 @@ button:disabled {
   background: rgba(254, 252, 232, 0.94);
 }
 
+.detail-review-banner--error {
+  border-color: rgba(252, 165, 165, 0.82);
+  background: rgba(254, 242, 242, 0.96);
+}
+
 .detail-review-banner strong {
   color: #0f172a;
   font-size: 0.88rem;
@@ -1409,7 +1673,8 @@ button:disabled {
 
 @media (max-width: 720px) {
   .toolbar__top,
-  .toolbar__actions {
+  .toolbar__actions,
+  .preset-banner {
     flex-direction: column;
   }
 

@@ -1,4 +1,17 @@
-import type { ExtensionSession, ScraperFieldRule, ScraperFieldScope, ScraperPipelineDraft } from './types'
+import type {
+  ExtensionConnection,
+  ExtensionPresetState,
+  ExtensionSession,
+  ScraperFieldRule,
+  ScraperFieldScope,
+  ScraperPipelineDraft,
+} from './types'
+
+export type SessionDefaults = Partial<Omit<ExtensionSession, 'connection' | 'preset' | 'draft'>> & {
+  connection?: Partial<ExtensionConnection>
+  preset?: Partial<ExtensionPresetState>
+  draft?: ScraperPipelineDraft
+}
 
 export function createFieldRule(
   key: ScraperFieldRule['key'],
@@ -56,21 +69,58 @@ export function createEmptyDraft(): ScraperPipelineDraft {
   }
 }
 
-export function createDefaultSession(): ExtensionSession {
+export function createDefaultConnection(): ExtensionConnection {
   return {
+    apiKey: '',
+    apiKeySource: null,
+    verifiedAt: null,
+    verifiedEmail: null,
+    verifiedName: null,
+    imageUploadEnabled: false,
+  }
+}
+
+export function createDefaultPresetState(): ExtensionPresetState {
+  return {
+    matchedPresetId: null,
+    matchedPresetLabel: null,
+    matchedContext: null,
+    appliedPresetId: null,
+    appliedPresetLabel: null,
+    appliedForUrl: null,
+    applicationMode: null,
+    appliedDraftFingerprint: null,
+    isDraftDirty: false,
+  }
+}
+
+export function createDefaultSession(overrides: SessionDefaults = {}): ExtensionSession {
+  const connection = {
+    ...createDefaultConnection(),
+    ...(overrides.connection ?? {}),
+  }
+  const preset = {
+    ...createDefaultPresetState(),
+    ...(overrides.preset ?? {}),
+  }
+  const baseSession: ExtensionSession = {
     appBaseUrl: 'https://boat-search.nard.uk',
-    connection: {
-      apiKey: '',
-      verifiedAt: null,
-      verifiedEmail: null,
-      verifiedName: null,
-      imageUploadEnabled: false,
-    },
+    appBaseUrlSource: null,
+    connection,
     currentTabUrl: null,
     stage: 'search',
     sampleDetailUrl: null,
     lastAnalysis: null,
-    draft: createEmptyDraft(),
+    preset,
+    draft: overrides.draft ? structuredClone(overrides.draft) : createEmptyDraft(),
+  }
+
+  return {
+    ...baseSession,
+    ...overrides,
+    connection,
+    preset,
+    draft: baseSession.draft,
   }
 }
 
