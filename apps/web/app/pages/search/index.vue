@@ -54,6 +54,50 @@ const topPickBoat = computed(() => {
   return currentBoats.value.find((boat) => boat.id === boatId) ?? null
 })
 
+function formatBoatLabel(boat: { year: number | null; make: string | null; model: string | null }) {
+  return `${boat.year || ''} ${boat.make || ''} ${boat.model || ''}`.trim() || 'Unnamed boat'
+}
+
+function boatDetailTo(boatId: number) {
+  return {
+    path: `/boats/${boatId}`,
+    query: currentSession.value?.id ? { sessionId: String(currentSession.value.id) } : undefined,
+  }
+}
+
+const topPickDetailTo = computed(() => {
+  const boat = topPickBoat.value
+  return boat ? boatDetailTo(boat.id) : null
+})
+
+const quickPursueBoats = computed(() => {
+  const session = currentSession.value
+  if (!session) return []
+
+  const orderedIds =
+    session.resultSummary.recommendations.length > 0
+      ? session.resultSummary.recommendations.map((item) => item.boatId)
+      : session.rankedBoatIds
+  const byId = new Map(currentBoats.value.map((boat) => [boat.id, boat]))
+
+  return orderedIds
+    .map((boatId) => byId.get(boatId))
+    .filter((boat): boat is (typeof currentBoats.value)[number] => Boolean(boat))
+    .slice(0, 3)
+})
+
+const quickAvoidBoats = computed(() => {
+  const session = currentSession.value
+  if (!session) return []
+
+  const byId = new Map(currentBoats.value.map((boat) => [boat.id, boat]))
+
+  return session.resultSummary.boatsToAvoid
+    .map((item) => byId.get(item.boatId))
+    .filter((boat): boat is (typeof currentBoats.value)[number] => Boolean(boat))
+    .slice(0, 2)
+})
+
 const shortlistMetrics = computed(() => {
   const session = currentSession.value
   if (!session) return []
@@ -199,6 +243,195 @@ const shortlistMetrics = computed(() => {
             </p>
           </div>
 
+          <div
+            v-if="topPickBoat"
+            class="rounded-[1.4rem] border border-primary/15 bg-primary/5 p-4 space-y-4"
+          >
+            <div class="flex items-center justify-between gap-3">
+              <div>
+                <p class="brand-caption">Open a boat now</p>
+                <h3 class="mt-2 text-lg font-semibold text-default">Top pick with direct links</h3>
+              </div>
+              <UBadge label="Top pick" color="primary" variant="soft" />
+            </div>
+
+            <div class="overflow-hidden rounded-[1.2rem] border border-default">
+              <BoatMediaImage
+                :src="topPickBoat.images?.[0]"
+                :alt="formatBoatLabel(topPickBoat)"
+                :width="900"
+                :height="640"
+                sizes="100vw"
+                class="aspect-[16/10] bg-muted"
+                img-class="h-full w-full object-cover"
+              />
+            </div>
+
+            <div class="space-y-2">
+              <p class="text-lg font-semibold text-highlighted">
+                {{ formatBoatLabel(topPickBoat) }}
+              </p>
+              <p class="text-sm text-muted">
+                {{ topPickBoat.location || 'Location not listed' }}
+              </p>
+            </div>
+
+            <div class="flex flex-wrap gap-2">
+              <UButton
+                v-if="topPickDetailTo"
+                :to="topPickDetailTo"
+                label="Open boat detail"
+                color="primary"
+                icon="i-lucide-ship-wheel"
+              />
+              <UButton
+                v-if="topPickBoat.url"
+                :to="topPickBoat.url"
+                label="Open source listing"
+                color="neutral"
+                variant="soft"
+                icon="i-lucide-arrow-up-right"
+                target="_blank"
+              />
+              <UButton
+                to="#full-shortlist"
+                label="Jump to full shortlist"
+                color="neutral"
+                variant="ghost"
+                icon="i-lucide-move-down"
+              />
+            </div>
+          </div>
+
+          <div
+            v-if="quickPursueBoats.length"
+            class="rounded-[1.4rem] border border-default/80 bg-default/80 p-4 space-y-3"
+          >
+            <div class="flex items-center justify-between gap-3">
+              <div>
+                <p class="brand-caption">Quick pursue links</p>
+                <p class="mt-1 text-sm text-muted">These are the first boats to click into.</p>
+              </div>
+              <UBadge
+                :label="`${quickPursueBoats.length} boats`"
+                color="primary"
+                variant="subtle"
+              />
+            </div>
+
+            <div class="space-y-3">
+              <div
+                v-for="boat in quickPursueBoats"
+                :key="boat.id"
+                class="rounded-[1.2rem] border border-default bg-muted/35 p-3"
+              >
+                <div class="flex gap-3">
+                  <div class="w-24 shrink-0 overflow-hidden rounded-xl border border-default">
+                    <BoatMediaImage
+                      :src="boat.images?.[0]"
+                      :alt="formatBoatLabel(boat)"
+                      :width="320"
+                      :height="240"
+                      sizes="96px"
+                      class="aspect-[4/3] bg-muted"
+                      img-class="h-full w-full object-cover"
+                    />
+                  </div>
+
+                  <div class="min-w-0 flex-1 space-y-2">
+                    <p class="truncate text-sm font-semibold text-default">
+                      {{ formatBoatLabel(boat) }}
+                    </p>
+                    <p class="text-xs text-muted">{{ boat.location || 'Location not listed' }}</p>
+                    <div class="flex flex-wrap gap-2">
+                      <UButton
+                        :to="boatDetailTo(boat.id)"
+                        label="Boat detail"
+                        color="primary"
+                        size="sm"
+                        icon="i-lucide-ship-wheel"
+                      />
+                      <UButton
+                        v-if="boat.url"
+                        :to="boat.url"
+                        label="Source"
+                        color="neutral"
+                        variant="soft"
+                        size="sm"
+                        icon="i-lucide-arrow-up-right"
+                        target="_blank"
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div
+            v-if="quickAvoidBoats.length"
+            class="rounded-[1.4rem] border border-error/20 bg-error/8 p-4 space-y-3"
+          >
+            <div class="flex items-center justify-between gap-3">
+              <div>
+                <p class="brand-caption">Boats to avoid first</p>
+                <p class="mt-1 text-sm text-muted">
+                  Weak fits you should skip before opening a pile of tabs.
+                </p>
+              </div>
+              <UBadge label="Avoid first" color="error" variant="soft" />
+            </div>
+
+            <div class="space-y-3">
+              <div
+                v-for="boat in quickAvoidBoats"
+                :key="boat.id"
+                class="rounded-[1.2rem] border border-error/15 bg-default/80 p-3"
+              >
+                <div class="flex gap-3">
+                  <div class="w-24 shrink-0 overflow-hidden rounded-xl border border-default">
+                    <BoatMediaImage
+                      :src="boat.images?.[0]"
+                      :alt="formatBoatLabel(boat)"
+                      :width="320"
+                      :height="240"
+                      sizes="96px"
+                      class="aspect-[4/3] bg-muted"
+                      img-class="h-full w-full object-cover"
+                    />
+                  </div>
+
+                  <div class="min-w-0 flex-1 space-y-2">
+                    <p class="truncate text-sm font-semibold text-default">
+                      {{ formatBoatLabel(boat) }}
+                    </p>
+                    <p class="text-xs text-muted">{{ boat.location || 'Location not listed' }}</p>
+                    <div class="flex flex-wrap gap-2">
+                      <UButton
+                        :to="boatDetailTo(boat.id)"
+                        label="Why avoid"
+                        color="error"
+                        variant="soft"
+                        size="sm"
+                        icon="i-lucide-circle-x"
+                      />
+                      <UButton
+                        v-if="boat.url"
+                        :to="boat.url"
+                        label="Source"
+                        color="neutral"
+                        variant="ghost"
+                        size="sm"
+                        icon="i-lucide-arrow-up-right"
+                        target="_blank"
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
           <div v-else class="brand-surface-soft rounded-[1.4rem] p-4">
             <p class="text-sm text-muted">
               Complete the finder once and this area will show the active run, current top pick, and
@@ -209,7 +442,7 @@ const shortlistMetrics = computed(() => {
       </div>
     </UPageSection>
 
-    <UPageSection>
+    <UPageSection id="full-shortlist">
       <div v-if="detailStatus === 'pending'" class="flex items-center justify-center py-24">
         <UIcon name="i-lucide-loader-2" class="animate-spin text-3xl text-muted" />
       </div>
