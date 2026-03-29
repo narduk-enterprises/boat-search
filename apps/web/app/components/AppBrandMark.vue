@@ -39,7 +39,7 @@ const sizeClasses = computed(() => {
 <template>
   <div class="flex items-center gap-3 text-left">
     <div :class="['brand-mark inline-flex items-center justify-center shrink-0', sizeClasses.mark]">
-      <NuxtImg src="/favicon.svg" alt="" width="64" height="64" densities="x1" class="size-[72%]" />
+      <img src="/favicon.svg" alt="" width="64" height="64" class="size-[72%]" />
     </div>
 
     <div class="min-w-0 leading-none">
