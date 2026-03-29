@@ -128,13 +128,21 @@ function toUserFacingError(error: unknown, fallback: string) {
 </script>
 
 <template>
-  <UCard class="w-full max-w-md">
+  <UCard
+    class="brand-surface w-full border-default/80 shadow-elevated"
+    :ui="{
+      root: 'rounded-[1.75rem]',
+      header: 'px-6 pt-6 sm:px-7 sm:pt-7',
+      body: 'px-6 pb-6 sm:px-7 sm:pb-7',
+      footer: 'px-6 pb-6 sm:px-7 sm:pb-7',
+    }"
+  >
     <template #header>
       <div class="space-y-2 text-center">
-        <h1 class="text-2xl font-bold">
+        <h1 class="font-display text-4xl leading-none text-highlighted sm:text-[2.75rem]">
           {{ title }}
         </h1>
-        <p class="text-sm text-muted">
+        <p class="mx-auto max-w-sm text-sm leading-6 text-muted">
           {{ subtitle }}
         </p>
       </div>
@@ -163,8 +171,8 @@ function toUserFacingError(error: unknown, fallback: string) {
       <UButton
         v-if="canUseApple"
         color="neutral"
-        variant="solid"
-        class="w-full justify-center"
+        variant="soft"
+        class="w-full justify-center rounded-[1rem]"
         :loading="appleLoading"
         @click="onAppleSignIn"
       >
@@ -210,7 +218,7 @@ function toUserFacingError(error: unknown, fallback: string) {
         <UButton
           type="submit"
           color="primary"
-          class="w-full justify-center"
+          class="w-full justify-center rounded-[1rem]"
           :loading="loading"
           data-testid="auth-login-submit"
         >

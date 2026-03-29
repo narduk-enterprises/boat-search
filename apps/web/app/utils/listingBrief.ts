@@ -56,7 +56,10 @@ function linesToBlocks(lines: string[]): BriefBlock[] {
 
   const flushProse = () => {
     if (!proseBuf.length) return
-    const text = proseBuf.join('\n\n').replaceAll(/\n{3,}/g, '\n\n').trim()
+    const text = proseBuf
+      .join('\n\n')
+      .replaceAll(/\n{3,}/g, '\n\n')
+      .trim()
     if (text) blocks.push({ kind: 'prose', text })
     proseBuf = []
   }
@@ -81,7 +84,10 @@ function linesToBlocks(lines: string[]): BriefBlock[] {
 export function splitProseIntoParagraphs(text: string): string[] {
   const t = text.replaceAll(/\s+/g, ' ').trim()
   if (!t) return []
-  const parts = t.split(/(?<=[.!?])\s+(?=[A-Z\d"'])/).map((p) => p.trim()).filter(Boolean)
+  const parts = t
+    .split(/(?<=[.!?])\s+(?=[A-Z\d"'])/)
+    .map((p) => p.trim())
+    .filter(Boolean)
   return parts.length ? parts : [t]
 }
 

@@ -16,7 +16,9 @@ describe('normalizeListingDescriptionText', () => {
 describe('parseListingBrief', () => {
   it('returns prose-only for text without spec lines', () => {
     const blocks = parseListingBrief('Just a short intro with no colons worth splitting.')
-    expect(blocks).toEqual([{ kind: 'prose', text: 'Just a short intro with no colons worth splitting.' }])
+    expect(blocks).toEqual([
+      { kind: 'prose', text: 'Just a short intro with no colons worth splitting.' },
+    ])
   })
 
   it('parses line-oriented label:value rows', () => {

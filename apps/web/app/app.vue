@@ -91,53 +91,63 @@ function isActiveLink(link: NavLink) {
   <LayerAppShell>
     <template #header>
       <div class="brand-shell-header">
-        <div class="mx-auto flex max-w-7xl items-center gap-4 px-4 py-4 sm:px-6 lg:px-8">
-          <NuxtLink to="/" class="shrink-0">
-            <AppBrandMark subtitle="Marine market intelligence" />
-          </NuxtLink>
+        <div class="mx-auto w-full max-w-7xl px-4 py-3 sm:px-6 lg:px-8">
+          <div class="brand-header-bar">
+            <div class="brand-header-side brand-header-side-start">
+              <NuxtLink to="/" class="flex min-w-0 shrink-0 items-center">
+                <AppBrandMark subtitle="Marine market intelligence" />
+              </NuxtLink>
+            </div>
 
-          <div class="brand-nav brand-caption hidden flex-1 items-center justify-center xl:flex">
-            <NuxtLink
-              v-for="link in navLinks"
-              :key="String(link.to)"
-              :to="link.to"
-              :data-active="isActiveLink(link)"
-              class="brand-nav-link"
-            >
-              <UIcon :name="link.icon" class="size-4" />
-              <span>{{ link.label }}</span>
-            </NuxtLink>
-          </div>
+            <div class="brand-header-center hidden xl:flex">
+              <div
+                class="brand-nav brand-caption w-max min-w-0 max-w-full xl:flex xl:flex-row xl:items-center"
+              >
+                <NuxtLink
+                  v-for="link in navLinks"
+                  :key="String(link.to)"
+                  :to="link.to"
+                  :data-active="isActiveLink(link)"
+                  class="brand-nav-link"
+                >
+                  <UIcon :name="link.icon" class="size-4" />
+                  <span>{{ link.label }}</span>
+                </NuxtLink>
+              </div>
+            </div>
 
-          <div class="ml-auto flex items-center gap-2">
-            <AppUserMenu
-              v-if="loggedIn"
-              class="hidden lg:block"
-              :menu-links="[
-                { label: 'AI Boat Finder', to: '/ai-boat-finder', icon: 'i-lucide-sparkles' },
-                { label: 'Shortlist', to: '/search', icon: 'i-lucide-ship-wheel' },
-                { label: 'Saved profile', to: '/account/profile', icon: 'i-lucide-user-round' },
-                { label: 'Favorites', to: '/account/favorites', icon: 'i-lucide-heart' },
-              ]"
-              logout-redirect="/login"
-            />
-            <UButton
-              v-else
-              to="/login"
-              label="Sign in"
-              color="neutral"
-              variant="soft"
-              class="hidden sm:inline-flex"
-            />
-            <UButton
-              color="neutral"
-              variant="ghost"
-              class="xl:hidden"
-              :icon="mobileMenuOpen ? 'i-lucide-x' : 'i-lucide-menu'"
-              aria-label="Toggle navigation menu"
-              :aria-expanded="mobileMenuOpen"
-              @click="mobileMenuOpen = !mobileMenuOpen"
-            />
+            <div class="brand-header-side brand-header-side-end">
+              <div class="flex items-center justify-end gap-2">
+                <AppUserMenu
+                  v-if="loggedIn"
+                  class="hidden lg:block"
+                  :menu-links="[
+                    { label: 'AI Boat Finder', to: '/ai-boat-finder', icon: 'i-lucide-sparkles' },
+                    { label: 'Shortlist', to: '/search', icon: 'i-lucide-ship-wheel' },
+                    { label: 'Saved profile', to: '/account/profile', icon: 'i-lucide-user-round' },
+                    { label: 'Favorites', to: '/account/favorites', icon: 'i-lucide-heart' },
+                  ]"
+                  logout-redirect="/login"
+                />
+                <UButton
+                  v-else
+                  to="/login"
+                  label="Sign in"
+                  color="neutral"
+                  variant="soft"
+                  class="hidden min-w-[6.5rem] justify-center sm:inline-flex"
+                />
+                <UButton
+                  color="neutral"
+                  variant="ghost"
+                  class="xl:hidden"
+                  :icon="mobileMenuOpen ? 'i-lucide-x' : 'i-lucide-menu'"
+                  aria-label="Toggle navigation menu"
+                  :aria-expanded="mobileMenuOpen"
+                  @click="mobileMenuOpen = !mobileMenuOpen"
+                />
+              </div>
+            </div>
           </div>
         </div>
 

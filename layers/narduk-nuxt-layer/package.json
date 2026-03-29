@@ -93,10 +93,16 @@
     "./components/*": "./components/*",
     "./testing/*": "./testing/*",
     "./server/database/schema": {
-      "import": "./server/database/schema.ts"
+      "types": "./server/database/schema.ts",
+      "import": "./server/database/schema.ts",
+      "require": "./server/database/schema.ts",
+      "default": "./server/database/schema.ts"
     },
     "./server/database/pg-schema": {
-      "import": "./server/database/pg-schema.ts"
+      "types": "./server/database/pg-schema.ts",
+      "import": "./server/database/pg-schema.ts",
+      "require": "./server/database/pg-schema.ts",
+      "default": "./server/database/pg-schema.ts"
     },
     "./drizzle/*": "./drizzle/*",
     "./eslint-nuxt-flat-fragments": "./eslint-nuxt-flat-fragments.mjs"

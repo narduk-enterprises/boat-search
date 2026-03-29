@@ -23,10 +23,13 @@ const redirectPath = computed(() => {
 </script>
 
 <template>
-  <div class="flex items-center justify-center min-h-[calc(100vh-8rem)]">
+  <div
+    class="mx-auto flex min-h-[calc(100dvh-10rem)] w-full max-w-5xl items-start justify-center pt-4 sm:pt-8 lg:pt-12"
+  >
     <AuthLoginCard
       title="Welcome back"
       subtitle="Sign in before we build your fishing-boat shortlist"
+      class="w-full max-w-[30rem]"
       :redirect-path="redirectPath"
     />
   </div>

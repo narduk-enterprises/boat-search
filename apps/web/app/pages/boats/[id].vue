@@ -193,8 +193,7 @@ function scrollToListingBrief() {
       <!-- UPageSection padding lives on `container`, not `wrapper` (Nuxt UI defaults: py-16/24/32). -->
       <UPageSection
         :ui="{
-          container:
-            'flex flex-col lg:grid gap-6 sm:gap-8 pt-1 pb-6 sm:pt-2 sm:pb-8 lg:pb-10',
+          container: 'flex flex-col lg:grid gap-6 sm:gap-8 pt-1 pb-6 sm:pt-2 sm:pb-8 lg:pb-10',
         }"
       >
         <div class="mx-auto w-full max-w-5xl px-4 sm:px-6">
@@ -231,10 +230,12 @@ function scrollToListingBrief() {
               {{ pageTitle }}
             </h1>
 
-            <p
-              class="mt-3 flex items-center justify-center gap-2 text-base text-muted sm:text-lg"
-            >
-              <UIcon name="i-lucide-map-pin" class="size-5 shrink-0 text-primary" aria-hidden="true" />
+            <p class="mt-3 flex items-center justify-center gap-2 text-base text-muted sm:text-lg">
+              <UIcon
+                name="i-lucide-map-pin"
+                class="size-5 shrink-0 text-primary"
+                aria-hidden="true"
+              />
               <span>{{ headlineLocation }}</span>
             </p>
 
@@ -298,7 +299,11 @@ function scrollToListingBrief() {
                 color="neutral"
                 variant="ghost"
                 class="h-20 min-h-11 w-28 min-w-11 shrink-0 overflow-hidden rounded-xl border border-default p-0 sm:h-24 sm:w-32"
-                :class="index === selectedImage ? 'ring-2 ring-primary ring-offset-2 ring-offset-default' : ''"
+                :class="
+                  index === selectedImage
+                    ? 'ring-2 ring-primary ring-offset-2 ring-offset-default'
+                    : ''
+                "
                 :aria-label="`Show photo ${index + 1} of ${galleryImages.length}`"
                 :aria-pressed="index === selectedImage"
                 @click="selectedImage = index"
@@ -322,11 +327,12 @@ function scrollToListingBrief() {
 
       <UPageSection
         :ui="{
-          container:
-            'flex flex-col lg:grid gap-6 py-4 pb-10 sm:gap-8 sm:py-6 sm:pb-12 lg:pb-14',
+          container: 'flex flex-col lg:grid gap-6 py-4 pb-10 sm:gap-8 sm:py-6 sm:pb-12 lg:pb-14',
         }"
       >
-        <div class="mx-auto grid min-w-0 max-w-6xl gap-6 px-4 sm:px-6 lg:grid-cols-[minmax(0,1fr)_17.5rem] lg:items-start lg:gap-8">
+        <div
+          class="mx-auto grid min-w-0 max-w-6xl gap-6 px-4 sm:px-6 lg:grid-cols-[minmax(0,1fr)_17.5rem] lg:items-start lg:gap-8"
+        >
           <UCard
             class="brand-surface brand-grid-panel min-w-0 lg:col-start-1"
             :ui="{ body: 'p-4 sm:p-6 space-y-5' }"
@@ -338,7 +344,9 @@ function scrollToListingBrief() {
                   Listing snapshot
                 </p>
               </div>
-              <p class="mt-3 text-center text-pretty text-sm leading-relaxed text-default sm:text-left sm:text-base">
+              <p
+                class="mt-3 text-center text-pretty text-sm leading-relaxed text-default sm:text-left sm:text-base"
+              >
                 {{ snapshotTeaser.text }}
               </p>
               <div
@@ -367,7 +375,9 @@ function scrollToListingBrief() {
             </div>
 
             <div>
-              <p class="mb-2 text-center text-xs font-semibold uppercase tracking-[0.18em] text-dimmed sm:text-left">
+              <p
+                class="mb-2 text-center text-xs font-semibold uppercase tracking-[0.18em] text-dimmed sm:text-left"
+              >
                 At a glance
               </p>
               <div class="grid grid-cols-2 gap-2 sm:grid-cols-4 sm:gap-3">
@@ -377,7 +387,11 @@ function scrollToListingBrief() {
                   class="flex flex-col justify-center gap-1 rounded-xl border border-default bg-elevated px-3 py-2.5"
                 >
                   <div class="flex items-center gap-1.5 text-dimmed">
-                    <UIcon :name="item.icon" class="size-3.5 shrink-0 text-primary" aria-hidden="true" />
+                    <UIcon
+                      :name="item.icon"
+                      class="size-3.5 shrink-0 text-primary"
+                      aria-hidden="true"
+                    />
                     <span class="text-xs font-semibold uppercase tracking-[0.1em]">
                       {{ item.label }}
                     </span>
@@ -396,7 +410,11 @@ function scrollToListingBrief() {
 
             <div class="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
               <div class="flex items-center gap-2 text-dimmed">
-                <UIcon name="i-lucide-compass" class="size-5 shrink-0 text-primary" aria-hidden="true" />
+                <UIcon
+                  name="i-lucide-compass"
+                  class="size-5 shrink-0 text-primary"
+                  aria-hidden="true"
+                />
                 <span class="text-sm font-semibold text-highlighted">Market</span>
               </div>
               <div class="flex flex-wrap justify-center gap-2 sm:ms-auto sm:justify-end">
@@ -444,8 +462,13 @@ function scrollToListingBrief() {
                       <div
                         class="grid grid-cols-1 gap-x-4 gap-y-2 sm:grid-cols-[minmax(0,10rem)_minmax(0,1fr)]"
                       >
-                        <template v-for="(row, ri) in block.items" :key="`${bi}-${ri}-${row.label}`">
-                          <div class="border-b border-default pb-1 text-xs font-medium text-dimmed sm:border-0 sm:pb-0 sm:text-sm">
+                        <template
+                          v-for="(row, ri) in block.items"
+                          :key="`${bi}-${ri}-${row.label}`"
+                        >
+                          <div
+                            class="border-b border-default pb-1 text-xs font-medium text-dimmed sm:border-0 sm:pb-0 sm:text-sm"
+                          >
                             {{ row.label }}
                           </div>
                           <div class="pb-2 text-xs leading-relaxed text-default sm:pb-0 sm:text-sm">
