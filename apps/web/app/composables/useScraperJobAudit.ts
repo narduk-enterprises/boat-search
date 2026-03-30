@@ -43,18 +43,21 @@ export function useScraperJobAudit(jobId: Ref<number | null>) {
     errorMessage.value = ''
 
     try {
-      audit.value = await appFetch<ScraperJobAuditDetail>(`/api/admin/scraper-jobs/${jobId.value}`, {
-        method: 'GET',
-        query: {
-          duplicateDecision: filters.value.duplicateDecision,
-          detailStatus: filters.value.detailStatus,
-          persistenceStatus: filters.value.persistenceStatus,
-          weakFingerprintOnly: filters.value.weakFingerprintOnly ? '1' : '0',
-          errorsOnly: filters.value.errorsOnly ? '1' : '0',
-          page: filters.value.page,
-          pageSize: filters.value.pageSize,
+      audit.value = await appFetch<ScraperJobAuditDetail>(
+        `/api/admin/scraper-jobs/${jobId.value}`,
+        {
+          method: 'GET',
+          query: {
+            duplicateDecision: filters.value.duplicateDecision,
+            detailStatus: filters.value.detailStatus,
+            persistenceStatus: filters.value.persistenceStatus,
+            weakFingerprintOnly: filters.value.weakFingerprintOnly ? '1' : '0',
+            errorsOnly: filters.value.errorsOnly ? '1' : '0',
+            page: filters.value.page,
+            pageSize: filters.value.pageSize,
+          },
         },
-      })
+      )
       status.value = 'success'
     } catch (error: unknown) {
       const err = error as { data?: { statusMessage?: string }; message?: string }

@@ -56,9 +56,7 @@ function dedupeStrings(values: string[]) {
   return [...new Set(values.filter(Boolean))]
 }
 
-function coerceJsonRecord(
-  value: unknown,
-): Record<string, JsonValue> | null {
+function coerceJsonRecord(value: unknown): Record<string, JsonValue> | null {
   if (!value || typeof value !== 'object' || Array.isArray(value)) {
     return null
   }
@@ -66,9 +64,7 @@ function coerceJsonRecord(
   return value as Record<string, JsonValue>
 }
 
-function parseJsonRecord(
-  value: string | null | undefined,
-): Record<string, JsonValue> | null {
+function parseJsonRecord(value: string | null | undefined): Record<string, JsonValue> | null {
   if (!value) return null
 
   try {
@@ -223,10 +219,7 @@ function resolveDetailFollowUrl(
   }
 
   const href =
-    candidate.attr('href') ||
-    candidate.attr('data-href') ||
-    candidate.attr('data-url') ||
-    ''
+    candidate.attr('href') || candidate.attr('data-href') || candidate.attr('data-url') || ''
 
   return href ? toAbsoluteUrl(href, baseUrl) : null
 }
@@ -572,7 +565,11 @@ async function extractCandidateFromItem(
     assignFieldValue(candidate, field, readSelectionValues($page, item, field, pageUrl))
   }
 
-  if (candidate.url && draft.config.fetchDetailPages && (detailFields.length || detailFollowFields.length)) {
+  if (
+    candidate.url &&
+    draft.config.fetchDetailPages &&
+    (detailFields.length || detailFollowFields.length)
+  ) {
     const $detail = await getDetailDocument(candidate.url, allowedDomains, detailCache)
 
     for (const field of detailFields) {
@@ -885,16 +882,18 @@ export async function storeCrawlJobListingAudit(
     discoveredOnPage: params.listing.pageNumber ?? existing?.discoveredOnPage ?? null,
     firstSeenAt: existing?.firstSeenAt ?? now,
     lastUpdatedAt: now,
-    duplicateDecision:
-      (params.listing.duplicateDecision ||
-        existing?.duplicateDecision ||
-        'new') as ScraperDuplicateDecision,
-    detailStatus:
-      (params.listing.detailStatus || existing?.detailStatus || 'not_attempted') as ScraperDetailStatus,
+    duplicateDecision: (params.listing.duplicateDecision ||
+      existing?.duplicateDecision ||
+      'new') as ScraperDuplicateDecision,
+    detailStatus: (params.listing.detailStatus ||
+      existing?.detailStatus ||
+      'not_attempted') as ScraperDetailStatus,
     detailAttempts: Math.max(existing?.detailAttempts ?? 0, params.listing.detailAttempts),
     retryQueued: params.listing.retryQueued || toBoolean(existing?.retryQueued),
     persistenceStatus:
-      params.persistenceStatus ?? (existing?.persistenceStatus as ScraperPersistenceStatus | null) ?? 'not_attempted',
+      params.persistenceStatus ??
+      (existing?.persistenceStatus as ScraperPersistenceStatus | null) ??
+      'not_attempted',
     persistedBoatId: params.persistedBoatId ?? existing?.persistedBoatId ?? null,
     finalImageCount: params.listing.finalImageCount ?? existing?.finalImageCount ?? null,
     finalHasStructuredDetails:
@@ -905,11 +904,7 @@ export async function storeCrawlJobListingAudit(
   }
 
   if (existing) {
-    await db
-      .update(crawlJobListings)
-      .set(values)
-      .where(eq(crawlJobListings.id, existing.id))
-      .run()
+    await db.update(crawlJobListings).set(values).where(eq(crawlJobListings.id, existing.id)).run()
   } else {
     await db.insert(crawlJobListings).values(values).run()
   }
@@ -943,12 +938,7 @@ async function markPendingCrawlJobListingsStopped(
       continue
     }
 
-    const mergedAudit = mergeAuditJson(
-      parseJsonRecord(row.auditJson),
-      null,
-      [],
-      params.message,
-    )
+    const mergedAudit = mergeAuditJson(parseJsonRecord(row.auditJson), null, [], params.message)
 
     await db
       .update(crawlJobListings)
@@ -1001,24 +991,20 @@ function buildDefaultJobAuditFilters(
 ): ScraperJobAuditListingFilters {
   return {
     duplicateDecision:
-      input.duplicateDecision && (
-        input.duplicateDecision === 'all' ||
-        SCRAPER_DUPLICATE_DECISIONS.includes(input.duplicateDecision)
-      )
+      input.duplicateDecision &&
+      (input.duplicateDecision === 'all' ||
+        SCRAPER_DUPLICATE_DECISIONS.includes(input.duplicateDecision))
         ? input.duplicateDecision
         : 'all',
     detailStatus:
-      input.detailStatus && (
-        input.detailStatus === 'all' ||
-        SCRAPER_DETAIL_STATUSES.includes(input.detailStatus)
-      )
+      input.detailStatus &&
+      (input.detailStatus === 'all' || SCRAPER_DETAIL_STATUSES.includes(input.detailStatus))
         ? input.detailStatus
         : 'all',
     persistenceStatus:
-      input.persistenceStatus && (
-        input.persistenceStatus === 'all' ||
-        SCRAPER_PERSISTENCE_STATUSES.includes(input.persistenceStatus)
-      )
+      input.persistenceStatus &&
+      (input.persistenceStatus === 'all' ||
+        SCRAPER_PERSISTENCE_STATUSES.includes(input.persistenceStatus))
         ? input.persistenceStatus
         : 'all',
     weakFingerprintOnly: Boolean(input.weakFingerprintOnly),
@@ -1037,12 +1023,7 @@ export async function getCrawlJobAuditDetail(
 ): Promise<ScraperJobAuditDetail> {
   const db = useAppDatabase(event)
   const filters = buildDefaultJobAuditFilters(params.filters)
-  const job = await db
-    .select()
-    .from(crawlJobs)
-    .where(eq(crawlJobs.id, params.jobId))
-    .limit(1)
-    .get()
+  const job = await db.select().from(crawlJobs).where(eq(crawlJobs.id, params.jobId)).limit(1).get()
   const eventsRows = await db
     .select()
     .from(crawlJobEvents)
@@ -1083,7 +1064,9 @@ export async function getCrawlJobAuditDetail(
   }
 
   if (filters.errorsOnly) {
-    conditions.push(and(isNotNull(crawlJobListings.errorMessage), sql`${crawlJobListings.errorMessage} <> ''`)! )
+    conditions.push(
+      and(isNotNull(crawlJobListings.errorMessage), sql`${crawlJobListings.errorMessage} <> ''`)!,
+    )
   }
 
   const whereClause = conditions.length > 1 ? and(...conditions) : conditions[0]
@@ -1162,7 +1145,10 @@ export async function persistScraperBrowserRecord(
   },
 ) {
   const candidate = fromBrowserRunRecord(params.record, params.draft.boatSource)
-  const persisted = await upsertBoatSourceListing(event, toBoatInsertValues(candidate, new Date().toISOString()))
+  const persisted = await upsertBoatSourceListing(
+    event,
+    toBoatInsertValues(candidate, new Date().toISOString()),
+  )
 
   return {
     candidate,

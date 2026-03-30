@@ -1,6 +1,9 @@
 import { defineAdminMutation, withValidatedBody } from '#layer/server/utils/mutation'
 import { scraperPipelineStreamRecordSchema } from '~~/lib/scraperPipeline'
-import { persistScraperBrowserRecord, storeCrawlJobListingAudit } from '#server/utils/scraperPipelineEngine'
+import {
+  persistScraperBrowserRecord,
+  storeCrawlJobListingAudit,
+} from '#server/utils/scraperPipelineEngine'
 
 export default defineAdminMutation(
   {
@@ -24,10 +27,10 @@ export default defineAdminMutation(
         finalImageCount: body.record.images.length,
         finalHasStructuredDetails: Boolean(
           body.record.contactInfo ||
-            body.record.otherDetails ||
-            body.record.features ||
-            body.record.propulsion ||
-            body.record.specifications,
+          body.record.otherDetails ||
+          body.record.features ||
+          body.record.propulsion ||
+          body.record.specifications,
         ),
         error: null,
         auditJson: {

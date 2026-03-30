@@ -40,13 +40,12 @@ const {
   hasUnsavedChanges,
   activeFilterChips,
   resultsLabel,
-  resultsContext,
   applyFilters,
   clearFilters,
   removeFilter,
   setSort,
   goToPage,
-} = useBoatInventorySearch({ limit: 100 })
+} = useBoatInventorySearch({ limit: 100, geoMode: 'matched' })
 
 const filtersOpen = shallowRef(false)
 const sortOpen = shallowRef(false)
@@ -61,6 +60,27 @@ const listViewTo = computed(() => ({
 const errorMessage = computed(() => {
   const fetchError = error.value as { data?: { statusMessage?: string }; message?: string } | null
   return fetchError?.data?.statusMessage || fetchError?.message || null
+})
+
+const mapResultsLabel = computed(() => {
+  if (!total.value && hasActiveFilters.value) return 'No map-ready boats match the current filters'
+  if (!total.value) return 'No map-ready boats available yet'
+
+  return resultsLabel.value.endsWith(' boats')
+    ? `${resultsLabel.value.slice(0, -' boats'.length)} map-ready boats`
+    : resultsLabel.value
+})
+
+const mapResultsContext = computed(() => {
+  if (!total.value && hasActiveFilters.value) {
+    return 'Widen the location, price, or length filters, or switch back to list view to inspect boats without verified coordinates.'
+  }
+
+  if (!total.value) {
+    return 'This inventory slice does not have verified coordinates yet. Return after the next geo backfill or use list view for the raw listings.'
+  }
+
+  return 'Map-ready inventory only. Use the floating bar to sort or filter the map at any time.'
 })
 
 function scrollResultsIntoView() {
@@ -155,8 +175,8 @@ watch(
           :error-message="errorMessage"
           :has-active-filters="hasActiveFilters"
           :active-filter-chips="activeFilterChips"
-          :results-label="resultsLabel"
-          :results-context="resultsContext"
+          :results-label="mapResultsLabel"
+          :results-context="mapResultsContext"
           :total="total"
           :current-page="currentPage"
           :page-count="pageCount"
@@ -173,7 +193,7 @@ watch(
       :current-sort="currentSort"
       :active-filter-count="activeFilterChips.length"
       :has-unsaved-changes="hasUnsavedChanges"
-      :results-label="resultsLabel"
+      :results-label="mapResultsLabel"
       alternate-view-label="List"
       :alternate-view-to="listViewTo"
       alternate-view-icon="i-lucide-list"

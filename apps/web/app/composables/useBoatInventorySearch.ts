@@ -120,7 +120,9 @@ function queriesMatch(a: BoatInventoryFilters, b: BoatInventoryFilters) {
   return JSON.stringify(filtersToQuery(a)) === JSON.stringify(filtersToQuery(b))
 }
 
-export function useBoatInventorySearch(options: { limit?: number } = {}) {
+export function useBoatInventorySearch(
+  options: { limit?: number; geoMode?: 'all' | 'matched' } = {},
+) {
   const route = useRoute()
   const router = useRouter()
   const limit = options.limit ?? 48
@@ -151,6 +153,7 @@ export function useBoatInventorySearch(options: { limit?: number } = {}) {
     limit: String(limit),
     offset: String(currentOffset.value),
     sort: currentSort.value,
+    geoMode: options.geoMode ?? 'all',
   }))
 
   const { data, status, error, refresh } = useFetch<BoatInventorySearchResponse>('/api/boats', {

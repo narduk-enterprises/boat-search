@@ -1,6 +1,20 @@
 import { z } from 'zod'
 import { boats } from '~~/server/database/schema'
-import { and, asc, desc, gt, gte, isNull, like, lte, or, sql, type SQL } from 'drizzle-orm'
+import {
+  and,
+  asc,
+  desc,
+  eq,
+  gt,
+  gte,
+  isNotNull,
+  isNull,
+  like,
+  lte,
+  or,
+  sql,
+  type SQL,
+} from 'drizzle-orm'
 import type { DrizzleD1Database } from 'drizzle-orm/d1'
 import type { BoatInventorySort } from '~~/app/types/boat-inventory'
 import type * as schema from '~~/server/database/schema'
@@ -58,11 +72,23 @@ export function boatFilterConditions(filter: BoatSearchFilter): SQL[] {
 
 type AppDb = DrizzleD1Database<typeof schema>
 
-function buildBoatWhereClause(filter: BoatSearchFilter, updatedAfter?: string) {
+function buildBoatWhereClause(
+  filter: BoatSearchFilter,
+  options: {
+    updatedAfter?: string
+    matchedOnly?: boolean
+  } = {},
+) {
   const conditions = boatFilterConditions(filter)
 
-  if (updatedAfter) {
-    conditions.push(gt(boats.updatedAt, updatedAfter))
+  if (options.updatedAfter) {
+    conditions.push(gt(boats.updatedAt, options.updatedAfter))
+  }
+
+  if (options.matchedOnly) {
+    conditions.push(eq(boats.geoStatus, 'matched'))
+    conditions.push(isNotNull(boats.geoLat))
+    conditions.push(isNotNull(boats.geoLng))
   }
 
   return and(isNull(boats.supersededByBoatId), ...(conditions.length > 0 ? conditions : []))
@@ -104,11 +130,15 @@ export async function selectBoatsWithFilters(
     offset?: number
     updatedAfter?: string
     sort?: BoatInventorySort
+    matchedOnly?: boolean
   } = {},
 ) {
   const limit = options.limit ?? 200
   const offset = options.offset ?? 0
-  const where = buildBoatWhereClause(filter, options.updatedAfter)
+  const where = buildBoatWhereClause(filter, {
+    updatedAfter: options.updatedAfter,
+    matchedOnly: options.matchedOnly,
+  })
 
   return db
     .select(INVENTORY_BOAT_SELECT)
@@ -122,9 +152,12 @@ export async function selectBoatsWithFilters(
 export async function countBoatsWithFilters(
   db: AppDb,
   filter: BoatSearchFilter,
-  options: { updatedAfter?: string } = {},
+  options: { updatedAfter?: string; matchedOnly?: boolean } = {},
 ) {
-  const where = buildBoatWhereClause(filter, options.updatedAfter)
+  const where = buildBoatWhereClause(filter, {
+    updatedAfter: options.updatedAfter,
+    matchedOnly: options.matchedOnly,
+  })
   const result = await db
     .select({
       total: sql<number>`COUNT(*)`,

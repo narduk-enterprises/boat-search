@@ -99,7 +99,10 @@ export const scraperPipelineConfigSchema = z
       })
     }
 
-    if (config.fields.some((field) => field.scope !== 'item') && config.fetchDetailPages === false) {
+    if (
+      config.fields.some((field) => field.scope !== 'item') &&
+      config.fetchDetailPages === false
+    ) {
       ctx.addIssue({
         code: 'custom',
         message:
@@ -341,7 +344,9 @@ export const scraperPipelineStreamProgressSchema = z.object({
   inserted: z.number().int().min(0),
   updated: z.number().int().min(0),
   progress: scraperBrowserRunProgressSchema,
-  eventType: z.enum(['progress', 'detail_retry_started', 'detail_retry_finished']).default('progress'),
+  eventType: z
+    .enum(['progress', 'detail_retry_started', 'detail_retry_finished'])
+    .default('progress'),
   message: scraperNullableStringField,
   pageNumber: z.number().int().min(1).nullable().optional().default(null),
   searchUrl: z.string().url().nullable().optional().default(null),
