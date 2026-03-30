@@ -1,14 +1,25 @@
 import type { BoatBrowseLink } from '~~/app/types/boat-inventory'
 
 export const BOAT_INVENTORY_SEARCH_PATH = '/boats-for-sale'
+export const BOAT_INVENTORY_MAP_PATH = '/boats-for-sale/map'
 export const BOAT_INVENTORY_RESULTS_ID = 'inventory-results'
 export const BOAT_INVENTORY_RESULTS_HASH = `#${BOAT_INVENTORY_RESULTS_ID}`
 
-export function makeInventoryResultsRoute(query?: Record<string, string>) {
+export function makeInventoryResultsRoute(
+  query?: Record<string, string>,
+  path: string = BOAT_INVENTORY_SEARCH_PATH,
+) {
   return {
-    path: BOAT_INVENTORY_SEARCH_PATH,
+    path,
     query,
     hash: BOAT_INVENTORY_RESULTS_HASH,
+  }
+}
+
+export function makeInventoryMapRoute(query?: Record<string, string>) {
+  return {
+    path: BOAT_INVENTORY_MAP_PATH,
+    query,
   }
 }
 

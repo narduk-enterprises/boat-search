@@ -6,6 +6,7 @@ interface NavLink {
   to: RouteLocationRaw
   icon: string
   matchPrefixes: string[]
+  excludePrefixes?: string[]
 }
 
 const route = useRoute()
@@ -21,6 +22,13 @@ const navLinks = computed<NavLink[]>(() => {
       to: '/boats-for-sale',
       icon: 'i-lucide-search',
       matchPrefixes: ['/boats-for-sale', '/boats'],
+      excludePrefixes: ['/boats-for-sale/map'],
+    },
+    {
+      label: 'Map',
+      to: '/boats-for-sale/map',
+      icon: 'i-lucide-map',
+      matchPrefixes: ['/boats-for-sale/map'],
     },
     {
       label: 'AI Boat Finder',
@@ -80,6 +88,14 @@ watch(
 
 function isActiveLink(link: NavLink) {
   if (typeof link.to !== 'string') return false
+
+  if (
+    link.excludePrefixes?.some(
+      (prefix) => route.path === prefix || route.path.startsWith(`${prefix}/`),
+    )
+  ) {
+    return false
+  }
 
   return link.matchPrefixes.some(
     (prefix) => route.path === prefix || route.path.startsWith(`${prefix}/`),
@@ -213,6 +229,7 @@ function isActiveLink(link: NavLink) {
               <p class="text-xs font-semibold uppercase tracking-[0.2em] text-dimmed">Explore</p>
               <div class="flex flex-col gap-2">
                 <NuxtLink :class="footerLinkClass" to="/boats-for-sale">Live inventory</NuxtLink>
+                <NuxtLink :class="footerLinkClass" to="/boats-for-sale/map">Inventory map</NuxtLink>
                 <NuxtLink :class="footerLinkClass" to="/ai-boat-finder">AI Boat Finder</NuxtLink>
               </div>
             </div>

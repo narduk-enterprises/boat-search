@@ -30,6 +30,10 @@ export function boatFilterConditions(filter: BoatSearchFilter): SQL[] {
     const needle = `%${filter.location}%`
     conditions.push(
       or(
+        like(boats.normalizedLocation, needle),
+        like(boats.normalizedCity, needle),
+        like(boats.normalizedState, needle),
+        like(boats.normalizedCountry, needle),
         like(boats.location, needle),
         like(boats.city, needle),
         like(boats.state, needle),

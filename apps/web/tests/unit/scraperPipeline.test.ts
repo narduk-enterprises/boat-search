@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   createEmptyScraperPipelineDraft,
   multilineToList,
+  scraperBrowserRunListingAuditSchema,
   scraperBrowserRunRecordSchema,
   scraperPipelineDraftSchema,
 } from '../../lib/scraperPipeline'
@@ -27,6 +28,31 @@ describe('scraper pipeline draft schema', () => {
     draft.config.startUrls = ['https://example.com/listings']
     draft.config.itemSelector = '.listing'
     draft.config.fetchDetailPages = false
+
+    const parsed = scraperPipelineDraftSchema.safeParse(draft)
+
+    expect(parsed.success).toBe(false)
+  })
+
+  it('requires a follow-page selector when a field targets detail-follow scope', () => {
+    const draft = createEmptyScraperPipelineDraft()
+    draft.name = 'Photo backfill pipeline'
+    draft.boatSource = 'YachtWorld'
+    draft.config.startUrls = ['https://example.com/listings']
+    draft.config.itemSelector = '.listing'
+    draft.config.detailFollowLinkSelector = ''
+    draft.config.fields.push({
+      key: 'images',
+      scope: 'detail-follow',
+      selector: 'img',
+      extract: 'attr',
+      attribute: 'src',
+      multiple: true,
+      joinWith: '\n',
+      transform: 'url',
+      regex: '',
+      required: false,
+    })
 
     const parsed = scraperPipelineDraftSchema.safeParse(draft)
 
@@ -90,5 +116,34 @@ describe('scraper pipeline draft schema', () => {
     expect(parsed.contactInfo).toContain('Matt Nader')
     expect(parsed.engineMake).toBe('Yamaha')
     expect(parsed.fuelTank).toBe('67 gal')
+  })
+
+  it('accepts listing-level browser run audit payloads', () => {
+    const parsed = scraperBrowserRunListingAuditSchema.parse({
+      runId: 22,
+      identityKey: 'https://www.yachtworld.com/yacht/2024-mastercraft-x24-9617758/',
+      source: 'YachtWorld',
+      listingId: '9617758',
+      listingUrl: 'https://www.yachtworld.com/yacht/2024-mastercraft-x24-9617758/',
+      detailUrl: 'https://www.yachtworld.com/yacht/2024-mastercraft-x24-9617758/',
+      pageNumber: 3,
+      duplicateDecision: 'weak_existing_refresh',
+      detailStatus: 'retry_queued',
+      detailAttempts: 1,
+      retryQueued: true,
+      weakFingerprint: true,
+      finalImageCount: 1,
+      finalHasStructuredDetails: false,
+      error: null,
+      warnings: ['Weak detail fingerprint detected'],
+      auditJson: {
+        stage: 'detail',
+        pageUrl: 'https://www.yachtworld.com/boats-for-sale/page-3/',
+      },
+    })
+
+    expect(parsed.detailStatus).toBe('retry_queued')
+    expect(parsed.retryQueued).toBe(true)
+    expect(parsed.auditJson.pageUrl).toBe('https://www.yachtworld.com/boats-for-sale/page-3/')
   })
 })

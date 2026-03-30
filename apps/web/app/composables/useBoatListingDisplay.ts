@@ -1,3 +1,5 @@
+import { formatNormalizedBoatLocation } from '~~/lib/boatGeo'
+
 export type SourceBadgeColor =
   | 'error'
   | 'info'
@@ -14,6 +16,9 @@ interface BoatTitleInput {
 }
 
 interface BoatLocationInput {
+  normalizedCity?: string | null
+  normalizedState?: string | null
+  normalizedCountry?: string | null
   city: string | null
   state: string | null
   location: string | null
@@ -34,8 +39,7 @@ export function useBoatListingDisplay() {
   }
 
   function formatLocation(location: BoatLocationInput) {
-    const cityState = [location.city, location.state].filter(Boolean).join(', ')
-    return cityState || location.location || 'Location unlisted'
+    return formatNormalizedBoatLocation(location)
   }
 
   function formatListingTitle(boat: BoatTitleInput) {

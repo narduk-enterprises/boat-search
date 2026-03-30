@@ -22,10 +22,67 @@ export default defineEventHandler(async (event) => {
       source: boats.source,
       count: sql<number>`COUNT(*)`,
       latestUpdatedAt: sql<string | null>`MAX(${boats.updatedAt})`,
+      mapReadyBoats: sql<number>`SUM(CASE WHEN ${boats.geoStatus} = 'matched' THEN 1 ELSE 0 END)`,
+      pendingBoats: sql<number>`SUM(CASE WHEN ${boats.geoStatus} = 'pending' THEN 1 ELSE 0 END)`,
+      ambiguousBoats: sql<number>`SUM(CASE WHEN ${boats.geoStatus} = 'ambiguous' THEN 1 ELSE 0 END)`,
+      skippedBoats: sql<number>`SUM(CASE WHEN ${boats.geoStatus} = 'skipped' THEN 1 ELSE 0 END)`,
+      failedBoats: sql<number>`SUM(CASE WHEN ${boats.geoStatus} = 'failed' THEN 1 ELSE 0 END)`,
     })
     .from(boats)
     .where(isNull(boats.supersededByBoatId))
     .groupBy(boats.source)
+
+  const [geoCoverageRow] = await db
+    .select({
+      mapReadyBoats: sql<number>`SUM(CASE WHEN ${boats.geoStatus} = 'matched' THEN 1 ELSE 0 END)`,
+      pendingBoats: sql<number>`SUM(CASE WHEN ${boats.geoStatus} = 'pending' THEN 1 ELSE 0 END)`,
+      ambiguousBoats: sql<number>`SUM(CASE WHEN ${boats.geoStatus} = 'ambiguous' THEN 1 ELSE 0 END)`,
+      skippedBoats: sql<number>`SUM(CASE WHEN ${boats.geoStatus} = 'skipped' THEN 1 ELSE 0 END)`,
+      failedBoats: sql<number>`SUM(CASE WHEN ${boats.geoStatus} = 'failed' THEN 1 ELSE 0 END)`,
+      lastGeocodedAt: sql<string | null>`MAX(${boats.geoUpdatedAt})`,
+    })
+    .from(boats)
+    .where(isNull(boats.supersededByBoatId))
+
+  const [pipeIssueRow, stateIssueRow, prefixedCityIssueRow, skippedIssueRow] = await Promise.all([
+    db
+      .select({
+        count: sql<number>`SUM(CASE WHEN ${boats.city} LIKE '%|%' THEN 1 ELSE 0 END)`,
+      })
+      .from(boats)
+      .where(isNull(boats.supersededByBoatId))
+      .get(),
+    db
+      .select({
+        count: sql<number>`SUM(CASE WHEN ${boats.state} = 'United States' THEN 1 ELSE 0 END)`,
+      })
+      .from(boats)
+      .where(isNull(boats.supersededByBoatId))
+      .get(),
+    db
+      .select({
+        count: sql<number>`SUM(CASE WHEN ${boats.city} GLOB '[0-9]*ft*' THEN 1 ELSE 0 END)`,
+      })
+      .from(boats)
+      .where(isNull(boats.supersededByBoatId))
+      .get(),
+    db
+      .select({
+        count: sql<number>`SUM(CASE WHEN ${boats.geoStatus} = 'skipped' THEN 1 ELSE 0 END)`,
+      })
+      .from(boats)
+      .where(isNull(boats.supersededByBoatId))
+      .get(),
+  ])
+
+  const normalizationIssues = [
+    { issue: 'city_pipe_suffix_used', count: pipeIssueRow?.count ?? 0 },
+    { issue: 'state_was_country', count: stateIssueRow?.count ?? 0 },
+    { issue: 'city_length_prefixed', count: prefixedCityIssueRow?.count ?? 0 },
+    { issue: 'missing_city_or_state_after_normalization', count: skippedIssueRow?.count ?? 0 },
+  ]
+    .filter((issue) => issue.count > 0)
+    .sort((left, right) => right.count - left.count)
 
   const recentCrawls = await db
     .select({
@@ -66,8 +123,22 @@ export default defineEventHandler(async (event) => {
         source: source.source,
         count: source.count,
         latestUpdatedAt: source.latestUpdatedAt,
+        mapReadyBoats: source.mapReadyBoats,
+        pendingBoats: source.pendingBoats,
+        ambiguousBoats: source.ambiguousBoats,
+        skippedBoats: source.skippedBoats,
+        failedBoats: source.failedBoats,
       }))
       .sort((left, right) => right.count - left.count),
+    geoCoverage: {
+      mapReadyBoats: geoCoverageRow?.mapReadyBoats ?? 0,
+      pendingBoats: geoCoverageRow?.pendingBoats ?? 0,
+      ambiguousBoats: geoCoverageRow?.ambiguousBoats ?? 0,
+      skippedBoats: geoCoverageRow?.skippedBoats ?? 0,
+      failedBoats: geoCoverageRow?.failedBoats ?? 0,
+      lastGeocodedAt: geoCoverageRow?.lastGeocodedAt ?? null,
+      normalizationIssues,
+    },
     recentCrawls,
   }
 })

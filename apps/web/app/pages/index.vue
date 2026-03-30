@@ -17,7 +17,7 @@ useWebPageSchema({
 
 <template>
   <UPage>
-    <UPageSection :ui="{ wrapper: 'py-4 sm:py-6' }">
+    <UPageSection :ui="{ container: 'py-4 sm:py-6' }">
       <div class="mx-auto flex min-h-[calc(100dvh-20rem)] max-w-5xl items-center justify-center">
         <div
           class="brand-surface flex w-full max-w-4xl flex-col items-center gap-8 rounded-[2rem] px-6 py-10 text-center shadow-card sm:px-10 sm:py-12"
@@ -32,7 +32,7 @@ useWebPageSchema({
             </p>
           </div>
 
-          <div class="grid w-full max-w-3xl grid-cols-1 gap-4 sm:grid-cols-2">
+          <div class="grid w-full max-w-4xl grid-cols-1 gap-4 sm:grid-cols-3">
             <UButton
               to="/boats-for-sale"
               label="View Live Inventory"
@@ -40,10 +40,18 @@ useWebPageSchema({
               class="min-h-18 w-full justify-center rounded-[1.4rem] px-6 py-5 text-lg font-semibold sm:text-xl"
             />
             <UButton
+              to="/boats-for-sale/map"
+              label="Open Inventory Map"
+              color="neutral"
+              variant="soft"
+              icon="i-lucide-map"
+              class="min-h-18 w-full justify-center rounded-[1.4rem] px-6 py-5 text-lg font-semibold sm:text-xl"
+            />
+            <UButton
               to="/login"
               label="AI Tailored Boat Suggestions"
               color="neutral"
-              variant="soft"
+              variant="ghost"
               icon="i-lucide-sparkles"
               class="min-h-18 w-full justify-center rounded-[1.4rem] px-6 py-5 text-lg font-semibold sm:text-xl"
             />

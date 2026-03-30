@@ -21,6 +21,14 @@ interface Boat {
   city: string | null
   state: string | null
   country: string | null
+  normalizedLocation: string | null
+  normalizedCity: string | null
+  normalizedState: string | null
+  normalizedCountry: string | null
+  geoLat: number | null
+  geoLng: number | null
+  geoPrecision: string | null
+  geoStatus: string | null
   description: string | null
   sellerType: string | null
   listingType: string | null

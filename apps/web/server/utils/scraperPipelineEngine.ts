@@ -1,14 +1,28 @@
-import { desc, eq } from 'drizzle-orm'
+import { and, asc, count, desc, eq, isNotNull, lt, sql } from 'drizzle-orm'
 import type { H3Event } from 'h3'
 import { load, type CheerioAPI } from 'cheerio'
 import {
+  SCRAPER_DETAIL_STATUSES,
+  SCRAPER_DUPLICATE_DECISIONS,
   SCRAPER_EXTRA_RECORD_TEXT_KEYS,
+  SCRAPER_PERSISTENCE_STATUSES,
   scraperPipelineDraftSchema,
+  type JsonValue,
   type ScraperExtraRecordTextKey,
+  type ScraperBrowserRunListingAudit,
   type ScraperBrowserRunProgress,
   type ScraperBrowserRunRecord,
   type ScraperBrowserRunSummary,
+  type ScraperCrawlJobEventType,
+  type ScraperDetailStatus,
+  type ScraperDuplicateDecision,
   type ScraperFieldRule,
+  type ScraperJobAuditDetail,
+  type ScraperJobAuditEvent,
+  type ScraperJobAuditListing,
+  type ScraperJobAuditListingFilters,
+  type ScraperJobAuditOverview,
+  type ScraperPersistenceStatus,
   type ScraperPipelineDraft,
   type ScraperRunRecord,
   type ScraperRunSummary,
@@ -16,7 +30,7 @@ import {
 import { cleanBoatDescription } from '#server/utils/boatInventory'
 import { rebuildBoatDedupeState, upsertBoatSourceListing } from '#server/utils/boatDedupe'
 import { useAppDatabase } from '#server/utils/database'
-import { crawlJobs } from '#server/database/schema'
+import { crawlJobEvents, crawlJobListings, crawlJobs } from '#server/database/schema'
 import { markScraperPipelineRun } from '#server/utils/scraperPipelineStore'
 
 type SelectorContext = ReturnType<CheerioAPI>
@@ -30,8 +44,81 @@ const FETCH_HEADERS = {
     'Mozilla/5.0 (compatible; BoatSearchPipeline/1.0; +https://boat-search.nard.uk/admin/scraper-pipeline)',
 }
 
+const SCRAPE_AUDIT_RETENTION_DAYS = 30
+const SCRAPE_AUDIT_RETENTION_MS = SCRAPE_AUDIT_RETENTION_DAYS * 24 * 60 * 60 * 1000
+const PENDING_DETAIL_STATUSES = new Set<ScraperDetailStatus>([
+  'not_attempted',
+  'queued',
+  'retry_queued',
+])
+
 function dedupeStrings(values: string[]) {
   return [...new Set(values.filter(Boolean))]
+}
+
+function coerceJsonRecord(
+  value: unknown,
+): Record<string, JsonValue> | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return null
+  }
+
+  return value as Record<string, JsonValue>
+}
+
+function parseJsonRecord(
+  value: string | null | undefined,
+): Record<string, JsonValue> | null {
+  if (!value) return null
+
+  try {
+    return coerceJsonRecord(JSON.parse(value))
+  } catch {
+    return null
+  }
+}
+
+function uniqueStringArrayFromUnknown(value: unknown) {
+  if (!Array.isArray(value)) {
+    return [] as string[]
+  }
+
+  return dedupeStrings(value.filter((entry): entry is string => typeof entry === 'string'))
+}
+
+function mergeAuditJson(
+  existing: Record<string, JsonValue> | null,
+  next: Record<string, JsonValue> | null,
+  warnings: string[],
+  errorMessage: string | null,
+) {
+  const merged = {
+    ...(existing ?? {}),
+    ...(next ?? {}),
+  } satisfies Record<string, JsonValue>
+  const mergedWarnings = dedupeStrings([
+    ...uniqueStringArrayFromUnknown(existing?.warnings),
+    ...uniqueStringArrayFromUnknown(next?.warnings),
+    ...warnings,
+  ])
+
+  if (mergedWarnings.length) {
+    merged.warnings = mergedWarnings
+  } else {
+    delete merged.warnings
+  }
+
+  if (errorMessage) {
+    merged.error = errorMessage
+  } else {
+    delete merged.error
+  }
+
+  return Object.keys(merged).length ? merged : null
+}
+
+function toBoolean(value: boolean | number | null | undefined) {
+  return Boolean(value)
 }
 
 function normalizeWhitespace(value: string) {
@@ -117,6 +204,31 @@ function toAbsoluteUrl(value: string, baseUrl: string) {
   } catch {
     return null
   }
+}
+
+function resolveDetailFollowUrl(
+  $: CheerioAPI,
+  context: SelectorContext,
+  selector: string,
+  baseUrl: string,
+) {
+  const normalizedSelector = selector.trim()
+  if (!normalizedSelector) {
+    return null
+  }
+
+  const candidate = context.find(normalizedSelector).first()
+  if (!candidate.length) {
+    return null
+  }
+
+  const href =
+    candidate.attr('href') ||
+    candidate.attr('data-href') ||
+    candidate.attr('data-url') ||
+    ''
+
+  return href ? toAbsoluteUrl(href, baseUrl) : null
 }
 
 function applyTransform(value: string, field: ScraperFieldRule, baseUrl: string) {
@@ -454,19 +566,41 @@ async function extractCandidateFromItem(
   const candidate = createEmptyCandidate(draft.boatSource)
   const itemFields = draft.config.fields.filter((field) => field.scope === 'item')
   const detailFields = draft.config.fields.filter((field) => field.scope === 'detail')
+  const detailFollowFields = draft.config.fields.filter((field) => field.scope === 'detail-follow')
 
   for (const field of itemFields) {
     assignFieldValue(candidate, field, readSelectionValues($page, item, field, pageUrl))
   }
 
-  if (candidate.url && draft.config.fetchDetailPages && detailFields.length) {
+  if (candidate.url && draft.config.fetchDetailPages && (detailFields.length || detailFollowFields.length)) {
     const $detail = await getDetailDocument(candidate.url, allowedDomains, detailCache)
+
     for (const field of detailFields) {
       assignFieldValue(
         candidate,
         field,
         readSelectionValues($detail, $detail.root(), field, candidate.url),
       )
+    }
+
+    if (detailFollowFields.length && draft.config.detailFollowLinkSelector) {
+      const detailFollowUrl = resolveDetailFollowUrl(
+        $detail,
+        $detail.root(),
+        draft.config.detailFollowLinkSelector,
+        candidate.url,
+      )
+
+      if (detailFollowUrl) {
+        const $detailFollow = await getDetailDocument(detailFollowUrl, allowedDomains, detailCache)
+        for (const field of detailFollowFields) {
+          assignFieldValue(
+            candidate,
+            field,
+            readSelectionValues($detailFollow, $detailFollow.root(), field, detailFollowUrl),
+          )
+        }
+      }
     }
   }
 
@@ -655,6 +789,371 @@ function toFinalRunSummary(
   }
 }
 
+async function pruneExpiredCrawlJobAudit(event: H3Event) {
+  const db = useAppDatabase(event)
+  const cutoff = new Date(Date.now() - SCRAPE_AUDIT_RETENTION_MS).toISOString()
+
+  await db.delete(crawlJobEvents).where(lt(crawlJobEvents.createdAt, cutoff)).run()
+  await db.delete(crawlJobListings).where(lt(crawlJobListings.firstSeenAt, cutoff)).run()
+}
+
+async function appendCrawlJobEvent(
+  event: H3Event,
+  params: {
+    jobId: number
+    eventType: ScraperCrawlJobEventType
+    status: string
+    message?: string | null
+    pageNumber?: number | null
+    searchUrl?: string | null
+    payload?: Record<string, JsonValue> | null
+    createdAt?: string
+  },
+) {
+  const db = useAppDatabase(event)
+  await db
+    .insert(crawlJobEvents)
+    .values({
+      crawlJobId: params.jobId,
+      eventType: params.eventType,
+      status: params.status,
+      message: params.message ?? null,
+      pageNumber: params.pageNumber ?? null,
+      searchUrl: params.searchUrl ?? null,
+      payloadJson: params.payload ? JSON.stringify(params.payload) : null,
+      createdAt: params.createdAt ?? new Date().toISOString(),
+    })
+    .run()
+}
+
+function resolvePersistenceStatus(
+  persisted: Awaited<ReturnType<typeof upsertBoatSourceListing>>,
+): ScraperPersistenceStatus {
+  if (persisted.inserted > 0) {
+    return 'inserted'
+  }
+
+  if (persisted.updated > 0) {
+    return 'updated'
+  }
+
+  return 'unchanged'
+}
+
+export async function storeCrawlJobListingAudit(
+  event: H3Event,
+  params: {
+    jobId: number
+    listing: ScraperBrowserRunListingAudit
+    persistenceStatus?: ScraperPersistenceStatus
+    persistedBoatId?: number | null
+    errorMessage?: string | null
+  },
+) {
+  const db = useAppDatabase(event)
+  const now = new Date().toISOString()
+  const existing = await db
+    .select()
+    .from(crawlJobListings)
+    .where(
+      and(
+        eq(crawlJobListings.crawlJobId, params.jobId),
+        eq(crawlJobListings.identityKey, params.listing.identityKey),
+      ),
+    )
+    .limit(1)
+    .get()
+  const existingAudit = parseJsonRecord(existing?.auditJson)
+  const mergedAudit = mergeAuditJson(
+    existingAudit,
+    coerceJsonRecord(params.listing.auditJson),
+    params.listing.warnings,
+    params.errorMessage ?? params.listing.error ?? null,
+  )
+  const values = {
+    crawlJobId: params.jobId,
+    identityKey: params.listing.identityKey,
+    source: params.listing.source || existing?.source || 'unknown',
+    listingId: params.listing.listingId ?? existing?.listingId ?? null,
+    listingUrl: params.listing.listingUrl ?? existing?.listingUrl ?? null,
+    detailUrl:
+      params.listing.detailUrl ??
+      params.listing.listingUrl ??
+      existing?.detailUrl ??
+      existing?.listingUrl ??
+      null,
+    discoveredOnPage: params.listing.pageNumber ?? existing?.discoveredOnPage ?? null,
+    firstSeenAt: existing?.firstSeenAt ?? now,
+    lastUpdatedAt: now,
+    duplicateDecision:
+      (params.listing.duplicateDecision ||
+        existing?.duplicateDecision ||
+        'new') as ScraperDuplicateDecision,
+    detailStatus:
+      (params.listing.detailStatus || existing?.detailStatus || 'not_attempted') as ScraperDetailStatus,
+    detailAttempts: Math.max(existing?.detailAttempts ?? 0, params.listing.detailAttempts),
+    retryQueued: params.listing.retryQueued || toBoolean(existing?.retryQueued),
+    persistenceStatus:
+      params.persistenceStatus ?? (existing?.persistenceStatus as ScraperPersistenceStatus | null) ?? 'not_attempted',
+    persistedBoatId: params.persistedBoatId ?? existing?.persistedBoatId ?? null,
+    finalImageCount: params.listing.finalImageCount ?? existing?.finalImageCount ?? null,
+    finalHasStructuredDetails:
+      params.listing.finalHasStructuredDetails || toBoolean(existing?.finalHasStructuredDetails),
+    weakFingerprint: params.listing.weakFingerprint,
+    errorMessage: params.errorMessage ?? params.listing.error ?? existing?.errorMessage ?? null,
+    auditJson: mergedAudit ? JSON.stringify(mergedAudit) : null,
+  }
+
+  if (existing) {
+    await db
+      .update(crawlJobListings)
+      .set(values)
+      .where(eq(crawlJobListings.id, existing.id))
+      .run()
+  } else {
+    await db.insert(crawlJobListings).values(values).run()
+  }
+}
+
+export async function markCrawlJobStopRequested(
+  event: H3Event,
+  params: { jobId: number; message: string },
+) {
+  await appendCrawlJobEvent(event, {
+    jobId: params.jobId,
+    eventType: 'stop_requested',
+    status: 'stopping',
+    message: params.message,
+  })
+}
+
+async function markPendingCrawlJobListingsStopped(
+  event: H3Event,
+  params: { jobId: number; message: string },
+) {
+  const db = useAppDatabase(event)
+  const pendingRows = await db
+    .select()
+    .from(crawlJobListings)
+    .where(eq(crawlJobListings.crawlJobId, params.jobId))
+    .all()
+
+  for (const row of pendingRows) {
+    if (!PENDING_DETAIL_STATUSES.has(row.detailStatus as ScraperDetailStatus)) {
+      continue
+    }
+
+    const mergedAudit = mergeAuditJson(
+      parseJsonRecord(row.auditJson),
+      null,
+      [],
+      params.message,
+    )
+
+    await db
+      .update(crawlJobListings)
+      .set({
+        detailStatus: 'stopped',
+        lastUpdatedAt: new Date().toISOString(),
+        errorMessage: params.message,
+        auditJson: mergedAudit ? JSON.stringify(mergedAudit) : null,
+      })
+      .where(eq(crawlJobListings.id, row.id))
+      .run()
+  }
+}
+
+function parseWarningsFromAudit(audit: Record<string, JsonValue> | null) {
+  return uniqueStringArrayFromUnknown(audit?.warnings)
+}
+
+function toAuditListing(row: typeof crawlJobListings.$inferSelect): ScraperJobAuditListing {
+  const audit = parseJsonRecord(row.auditJson)
+
+  return {
+    id: row.id,
+    crawlJobId: row.crawlJobId,
+    identityKey: row.identityKey,
+    source: row.source,
+    listingId: row.listingId,
+    listingUrl: row.listingUrl,
+    detailUrl: row.detailUrl,
+    discoveredOnPage: row.discoveredOnPage,
+    firstSeenAt: row.firstSeenAt,
+    lastUpdatedAt: row.lastUpdatedAt,
+    duplicateDecision: row.duplicateDecision as ScraperDuplicateDecision,
+    detailStatus: row.detailStatus as ScraperDetailStatus,
+    detailAttempts: row.detailAttempts,
+    retryQueued: row.retryQueued,
+    persistenceStatus: row.persistenceStatus as ScraperPersistenceStatus,
+    persistedBoatId: row.persistedBoatId,
+    finalImageCount: row.finalImageCount,
+    finalHasStructuredDetails: row.finalHasStructuredDetails,
+    weakFingerprint: row.weakFingerprint,
+    errorMessage: row.errorMessage,
+    warnings: parseWarningsFromAudit(audit),
+    audit,
+  }
+}
+
+function buildDefaultJobAuditFilters(
+  input: Partial<ScraperJobAuditListingFilters> = {},
+): ScraperJobAuditListingFilters {
+  return {
+    duplicateDecision:
+      input.duplicateDecision && (
+        input.duplicateDecision === 'all' ||
+        SCRAPER_DUPLICATE_DECISIONS.includes(input.duplicateDecision)
+      )
+        ? input.duplicateDecision
+        : 'all',
+    detailStatus:
+      input.detailStatus && (
+        input.detailStatus === 'all' ||
+        SCRAPER_DETAIL_STATUSES.includes(input.detailStatus)
+      )
+        ? input.detailStatus
+        : 'all',
+    persistenceStatus:
+      input.persistenceStatus && (
+        input.persistenceStatus === 'all' ||
+        SCRAPER_PERSISTENCE_STATUSES.includes(input.persistenceStatus)
+      )
+        ? input.persistenceStatus
+        : 'all',
+    weakFingerprintOnly: Boolean(input.weakFingerprintOnly),
+    errorsOnly: Boolean(input.errorsOnly),
+    page: Math.max(1, input.page ?? 1),
+    pageSize: Math.min(100, Math.max(1, input.pageSize ?? 25)),
+  }
+}
+
+export async function getCrawlJobAuditDetail(
+  event: H3Event,
+  params: {
+    jobId: number
+    filters?: Partial<ScraperJobAuditListingFilters>
+  },
+): Promise<ScraperJobAuditDetail> {
+  const db = useAppDatabase(event)
+  const filters = buildDefaultJobAuditFilters(params.filters)
+  const job = await db
+    .select()
+    .from(crawlJobs)
+    .where(eq(crawlJobs.id, params.jobId))
+    .limit(1)
+    .get()
+  const eventsRows = await db
+    .select()
+    .from(crawlJobEvents)
+    .where(eq(crawlJobEvents.crawlJobId, params.jobId))
+    .orderBy(asc(crawlJobEvents.createdAt), asc(crawlJobEvents.id))
+    .all()
+  const overviewRow = await db
+    .select({
+      totalListings: sql<number>`COUNT(*)`,
+      duplicateSkipped: sql<number>`SUM(CASE WHEN ${crawlJobListings.duplicateDecision} = 'known_duplicate_skipped' THEN 1 ELSE 0 END)`,
+      weakRefreshes: sql<number>`SUM(CASE WHEN ${crawlJobListings.duplicateDecision} = 'weak_existing_refresh' THEN 1 ELSE 0 END)`,
+      retriesQueued: sql<number>`SUM(CASE WHEN ${crawlJobListings.retryQueued} = 1 THEN 1 ELSE 0 END)`,
+      retriesCompleted: sql<number>`SUM(CASE WHEN ${crawlJobListings.detailStatus} = 'retry_scraped' THEN 1 ELSE 0 END)`,
+      persistenceFailed: sql<number>`SUM(CASE WHEN ${crawlJobListings.persistenceStatus} = 'failed' THEN 1 ELSE 0 END)`,
+      detailFailed: sql<number>`SUM(CASE WHEN ${crawlJobListings.detailStatus} = 'failed' THEN 1 ELSE 0 END)`,
+      stoppedListings: sql<number>`SUM(CASE WHEN ${crawlJobListings.detailStatus} = 'stopped' THEN 1 ELSE 0 END)`,
+      weakFingerprintListings: sql<number>`SUM(CASE WHEN ${crawlJobListings.weakFingerprint} = 1 THEN 1 ELSE 0 END)`,
+    })
+    .from(crawlJobListings)
+    .where(eq(crawlJobListings.crawlJobId, params.jobId))
+    .get()
+  const conditions = [eq(crawlJobListings.crawlJobId, params.jobId)]
+
+  if (filters.duplicateDecision !== 'all') {
+    conditions.push(eq(crawlJobListings.duplicateDecision, filters.duplicateDecision))
+  }
+
+  if (filters.detailStatus !== 'all') {
+    conditions.push(eq(crawlJobListings.detailStatus, filters.detailStatus))
+  }
+
+  if (filters.persistenceStatus !== 'all') {
+    conditions.push(eq(crawlJobListings.persistenceStatus, filters.persistenceStatus))
+  }
+
+  if (filters.weakFingerprintOnly) {
+    conditions.push(eq(crawlJobListings.weakFingerprint, true))
+  }
+
+  if (filters.errorsOnly) {
+    conditions.push(and(isNotNull(crawlJobListings.errorMessage), sql`${crawlJobListings.errorMessage} <> ''`)! )
+  }
+
+  const whereClause = conditions.length > 1 ? and(...conditions) : conditions[0]
+  const totalRow = await db
+    .select({ total: count() })
+    .from(crawlJobListings)
+    .where(whereClause)
+    .get()
+  const offset = (filters.page - 1) * filters.pageSize
+  const listingRows = await db
+    .select()
+    .from(crawlJobListings)
+    .where(whereClause)
+    .orderBy(desc(crawlJobListings.lastUpdatedAt), desc(crawlJobListings.id))
+    .limit(filters.pageSize)
+    .offset(offset)
+    .all()
+  const total = totalRow?.total ?? 0
+  const pageCount = Math.max(1, Math.ceil(total / filters.pageSize))
+  const overview: ScraperJobAuditOverview = {
+    totalListings: overviewRow?.totalListings ?? 0,
+    duplicateSkipped: overviewRow?.duplicateSkipped ?? 0,
+    weakRefreshes: overviewRow?.weakRefreshes ?? 0,
+    retriesQueued: overviewRow?.retriesQueued ?? 0,
+    retriesCompleted: overviewRow?.retriesCompleted ?? 0,
+    persistenceFailed: overviewRow?.persistenceFailed ?? 0,
+    detailFailed: overviewRow?.detailFailed ?? 0,
+    stoppedListings: overviewRow?.stoppedListings ?? 0,
+    weakFingerprintListings: overviewRow?.weakFingerprintListings ?? 0,
+  }
+
+  return {
+    job: job
+      ? {
+          id: job.id,
+          status: job.status,
+          startedAt: job.startedAt,
+          completedAt: job.completedAt,
+          boatsFound: job.boatsFound,
+          boatsScraped: job.boatsScraped,
+          pagesVisited: job.pagesVisited,
+          error: job.error,
+          summary: parseJsonRecord(job.resultJson) as ScraperRunSummary | null,
+        }
+      : null,
+    events: eventsRows.map(
+      (row): ScraperJobAuditEvent => ({
+        id: row.id,
+        crawlJobId: row.crawlJobId,
+        eventType: row.eventType as ScraperCrawlJobEventType,
+        status: row.status,
+        message: row.message,
+        pageNumber: row.pageNumber,
+        searchUrl: row.searchUrl,
+        payload: parseJsonRecord(row.payloadJson),
+        createdAt: row.createdAt,
+      }),
+    ),
+    overview,
+    listings: {
+      items: listingRows.map((row) => toAuditListing(row)),
+      total,
+      page: Math.min(filters.page, pageCount),
+      pageSize: filters.pageSize,
+      pageCount,
+    },
+    filters,
+  }
+}
+
 export async function persistScraperBrowserRecord(
   event: H3Event,
   params: {
@@ -663,12 +1162,15 @@ export async function persistScraperBrowserRecord(
   },
 ) {
   const candidate = fromBrowserRunRecord(params.record, params.draft.boatSource)
-  const persisted = await persistCandidates(event, [candidate], { rebuildAfter: false })
+  const persisted = await upsertBoatSourceListing(event, toBoatInsertValues(candidate, new Date().toISOString()))
 
   return {
     candidate,
+    boatId: persisted.boatId,
+    persistenceStatus: resolvePersistenceStatus(persisted),
     imagesUploaded: 0,
-    ...persisted,
+    inserted: persisted.inserted,
+    updated: persisted.updated,
   }
 }
 
@@ -694,6 +1196,7 @@ export async function createRunningCrawlJob(
     warnings: [],
     records: [],
   } satisfies ScraperRunSummary
+  await pruneExpiredCrawlJobAudit(event)
 
   await db
     .insert(crawlJobs)
@@ -728,6 +1231,15 @@ export async function createRunningCrawlJob(
     })
   }
 
+  await appendCrawlJobEvent(event, {
+    jobId: job.id,
+    eventType: 'started',
+    status: 'running',
+    searchUrl: params.searchUrl,
+    payload: coerceJsonRecord(initialSummary),
+    createdAt: params.startedAt,
+  })
+
   return job.id
 }
 
@@ -761,6 +1273,14 @@ export async function completeScraperPipelineJob(
     .where(eq(crawlJobs.id, params.jobId))
     .run()
 
+  await appendCrawlJobEvent(event, {
+    jobId: params.jobId,
+    eventType: 'completed',
+    status: 'completed',
+    payload: coerceJsonRecord(finalSummary),
+    createdAt: completedAt,
+  })
+
   await markScraperPipelineRun(event, params.pipelineId, completedAt)
 
   return {
@@ -777,10 +1297,18 @@ export async function storeRunningScraperPipelineJobProgress(
     progress: ScraperBrowserRunProgress
     inserted: number
     updated: number
+    eventType?: 'progress' | 'detail_retry_started' | 'detail_retry_finished'
+    message?: string | null
+    pageNumber?: number | null
+    searchUrl?: string | null
   },
 ) {
   const db = useAppDatabase(event)
   const partialSummary = toFinalRunSummary(params.summary, [], params.inserted, params.updated)
+  const payload = coerceJsonRecord({
+    ...partialSummary,
+    progress: params.progress,
+  })
 
   await db
     .update(crawlJobs)
@@ -791,13 +1319,20 @@ export async function storeRunningScraperPipelineJobProgress(
       pagesVisited: partialSummary.pagesVisited,
       completedAt: null,
       error: null,
-      resultJson: JSON.stringify({
-        ...partialSummary,
-        progress: params.progress,
-      }),
+      resultJson: JSON.stringify(payload),
     })
     .where(eq(crawlJobs.id, params.jobId))
     .run()
+
+  await appendCrawlJobEvent(event, {
+    jobId: params.jobId,
+    eventType: params.eventType ?? 'progress',
+    status: 'running',
+    message: params.message ?? null,
+    pageNumber: params.pageNumber ?? null,
+    searchUrl: params.searchUrl ?? params.progress.currentUrl ?? null,
+    payload,
+  })
 
   return {
     jobId: params.jobId,
@@ -813,17 +1348,19 @@ export async function failScraperPipelineJob(
     inserted: number
     updated: number
     error: string
+    stopped?: boolean
   },
 ) {
   const db = useAppDatabase(event)
   const completedAt = new Date().toISOString()
   await rebuildBoatDedupeState(event)
   const finalSummary = toFinalRunSummary(params.summary, [], params.inserted, params.updated)
+  const stopped = params.stopped ?? /stopped by user/i.test(params.error)
 
   await db
     .update(crawlJobs)
     .set({
-      status: 'failed',
+      status: stopped ? 'stopped' : 'failed',
       boatsFound: finalSummary.itemsSeen,
       boatsScraped: finalSummary.itemsExtracted,
       pagesVisited: finalSummary.pagesVisited,
@@ -833,6 +1370,22 @@ export async function failScraperPipelineJob(
     })
     .where(eq(crawlJobs.id, params.jobId))
     .run()
+
+  if (stopped) {
+    await markPendingCrawlJobListingsStopped(event, {
+      jobId: params.jobId,
+      message: params.error,
+    })
+  }
+
+  await appendCrawlJobEvent(event, {
+    jobId: params.jobId,
+    eventType: stopped ? 'stopped' : 'failed',
+    status: stopped ? 'stopped' : 'failed',
+    message: params.error,
+    payload: coerceJsonRecord(finalSummary),
+    createdAt: completedAt,
+  })
 
   return {
     jobId: params.jobId,

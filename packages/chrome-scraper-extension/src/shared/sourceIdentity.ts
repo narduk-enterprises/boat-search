@@ -3,6 +3,8 @@ import type { BrowserScrapeRecord, ExtensionKnownBoatIdentities } from '@/shared
 export type BrowserRunIdentityState = {
   knownListingIds: Set<string>
   knownNormalizedUrls: Set<string>
+  refreshableListingIds: Set<string>
+  refreshableNormalizedUrls: Set<string>
 }
 
 function normalizeListingId(value: string | null | undefined) {
@@ -26,6 +28,7 @@ export function normalizeBoatSourceUrl(value: string | null | undefined) {
 
 export function createBrowserRunIdentityState(
   existingBoatIdentities: ExtensionKnownBoatIdentities | null | undefined,
+  refreshableBoatIdentities: ExtensionKnownBoatIdentities | null | undefined = null,
 ): BrowserRunIdentityState {
   return {
     knownListingIds: new Set(
@@ -35,6 +38,16 @@ export function createBrowserRunIdentityState(
     ),
     knownNormalizedUrls: new Set(
       (existingBoatIdentities?.normalizedUrls || [])
+        .map((url) => normalizeBoatSourceUrl(url))
+        .filter(Boolean),
+    ),
+    refreshableListingIds: new Set(
+      (refreshableBoatIdentities?.listingIds || [])
+        .map((listingId) => normalizeListingId(listingId))
+        .filter(Boolean),
+    ),
+    refreshableNormalizedUrls: new Set(
+      (refreshableBoatIdentities?.normalizedUrls || [])
         .map((url) => normalizeBoatSourceUrl(url))
         .filter(Boolean),
     ),
@@ -52,6 +65,20 @@ export function hasKnownBoatIdentity(
 
   const normalizedUrl = normalizeBoatSourceUrl(record.url)
   return Boolean(normalizedUrl && state.knownNormalizedUrls.has(normalizedUrl))
+}
+
+export function consumeRefreshableBoatIdentity(
+  state: BrowserRunIdentityState,
+  record: Pick<BrowserScrapeRecord, 'listingId' | 'url'>,
+) {
+  const listingId = normalizeListingId(record.listingId)
+  const normalizedUrl = normalizeBoatSourceUrl(record.url)
+  const matchedByListingId = listingId ? state.refreshableListingIds.delete(listingId) : false
+  const matchedByUrl = normalizedUrl
+    ? state.refreshableNormalizedUrls.delete(normalizedUrl)
+    : false
+
+  return matchedByListingId || matchedByUrl
 }
 
 export function rememberBoatIdentity(

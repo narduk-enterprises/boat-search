@@ -12,7 +12,24 @@ interface InventoryHealthResponse {
     source: string
     count: number
     latestUpdatedAt: string | null
+    mapReadyBoats: number
+    pendingBoats: number
+    ambiguousBoats: number
+    skippedBoats: number
+    failedBoats: number
   }[]
+  geoCoverage: {
+    mapReadyBoats: number
+    pendingBoats: number
+    ambiguousBoats: number
+    skippedBoats: number
+    failedBoats: number
+    lastGeocodedAt: string | null
+    normalizationIssues: {
+      issue: string
+      count: number
+    }[]
+  }
   recentCrawls: {
     id: number
     searchUrl: string

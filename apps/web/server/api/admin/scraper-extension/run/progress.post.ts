@@ -18,5 +18,9 @@ export default defineAdminMutation(
       progress: body.progress,
       inserted: body.inserted,
       updated: body.updated,
+      eventType: body.eventType,
+      message: body.message,
+      pageNumber: body.pageNumber,
+      searchUrl: body.searchUrl,
     }),
 )

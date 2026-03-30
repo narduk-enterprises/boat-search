@@ -42,8 +42,9 @@ const {
 } = useBoatFitSummary(numericBoatId, fitSummarySessionId)
 
 const pageTitle = boat.value ? formatListingTitle(boat.value) : 'Boat details'
+const pageLocation = boat.value ? formatLocation(boat.value) : 'Location unlisted'
 const seoDescription = boat.value
-  ? `${pageTitle} — ${formatLength(boat.value.length)} fishing boat${boat.value.location ? ` in ${boat.value.location}` : ''}.`
+  ? `${pageTitle} — ${formatLength(boat.value.length)} fishing boat${pageLocation !== 'Location unlisted' ? ` in ${pageLocation}` : ''}.`
   : 'Fishing boat listing details on Boat Search.'
 
 useSeo({
@@ -144,11 +145,23 @@ const marketLinks = computed(() => {
     })
   }
 
-  if (boat.value.location || boat.value.state || boat.value.city) {
+  if (
+    boat.value.location ||
+    boat.value.state ||
+    boat.value.city ||
+    boat.value.normalizedState ||
+    boat.value.normalizedCity
+  ) {
     links.push({
       label: 'Nearby inventory',
       to: makeInventoryResultsRoute({
-        location: boat.value.state || boat.value.city || boat.value.location || '',
+        location:
+          boat.value.normalizedState ||
+          boat.value.normalizedCity ||
+          boat.value.state ||
+          boat.value.city ||
+          boat.value.location ||
+          '',
       }),
       icon: 'i-lucide-map-pinned',
     })

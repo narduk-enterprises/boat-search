@@ -458,8 +458,10 @@ function previewField(request: FieldPreviewRequest): FieldPreviewResult {
     request.mode === 'itemSelector'
       ? { border: '#7c3aed', fill: 'rgba(124, 58, 237, 0.12)', badge: '#4c1d95' }
       : request.field.scope === 'detail'
-      ? { border: '#059669', fill: 'rgba(5, 150, 105, 0.16)', badge: '#064e3b' }
-      : { border: '#0284c7', fill: 'rgba(2, 132, 199, 0.15)', badge: '#0f172a' }
+        ? { border: '#059669', fill: 'rgba(5, 150, 105, 0.16)', badge: '#064e3b' }
+        : request.field.scope === 'detail-follow'
+          ? { border: '#c2410c', fill: 'rgba(194, 65, 12, 0.14)', badge: '#7c2d12' }
+          : { border: '#0284c7', fill: 'rgba(2, 132, 199, 0.15)', badge: '#0f172a' }
 
   const container = document.createElement('div')
   container.style.position = 'fixed'
@@ -502,7 +504,7 @@ function previewField(request: FieldPreviewRequest): FieldPreviewResult {
   const legendPrefix =
     request.mode === 'itemSelector'
       ? 'Listing cards'
-      : `${request.field.scope === 'detail' ? 'Detail' : 'Search'} field · ${formatFieldKey(request.field.key)}`
+      : `${request.field.scope === 'detail' ? 'Detail' : request.field.scope === 'detail-follow' ? 'Follow page' : 'Search'} field · ${formatFieldKey(request.field.key)}`
   const visibleSuffix =
     highlightedMatches.length < uniqueMatches.length
       ? ` · showing ${highlightedMatches.length} visible now`

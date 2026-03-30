@@ -3,31 +3,27 @@ import type { BoatInventoryFilterKey, BoatInventorySort } from '~~/app/types/boa
 import { BOAT_INVENTORY_SORT_OPTIONS } from '~~/app/types/boat-inventory'
 import BoatInventoryBottomBar from '~~/app/components/boats/BoatInventoryBottomBar.vue'
 import BoatInventoryFilters from '~~/app/components/boats/BoatInventoryFilters.vue'
-import BoatInventoryResults from '~~/app/components/boats/BoatInventoryResults.vue'
+import BoatInventoryMapView from '~~/app/components/boats/BoatInventoryMapView.vue'
 import { BOAT_INVENTORY_RESULTS_HASH, BOAT_INVENTORY_RESULTS_ID } from '~~/app/utils/boatBrowse'
 
 definePageMeta({ layout: 'wide' })
 
 useSeo({
-  title: 'Boats for Sale | Search Inventory by Make, Price, Length, and Location',
+  title: 'Boats for Sale Map | Explore Inventory by Verified Boat Location',
   description:
-    'Search live aggregated boat listings by make, price, length, and location, then open the original source listing when a match is worth deeper review.',
+    'View live boat listings on a map, filter by make, budget, length, and region, and open the strongest matches directly from the sidebar.',
   ogImage: {
-    title: 'Boats for Sale',
-    description: 'Public inventory search with structured filters and source attribution.',
-    icon: '⛵',
+    title: 'Boat inventory map',
+    description: 'Map-first boat inventory search with a live sidebar.',
+    icon: '🗺️',
   },
 })
 useWebPageSchema({
-  name: 'Boats for Sale',
-  description: 'Public inventory search for aggregated boat listings.',
+  name: 'Boats for Sale Map',
+  description: 'Map-first public inventory search for aggregated boat listings.',
 })
 
 const route = useRoute()
-const mapViewTo = computed(() => ({
-  path: '/boats-for-sale/map',
-  query: route.query,
-}))
 
 const {
   boats,
@@ -50,12 +46,17 @@ const {
   removeFilter,
   setSort,
   goToPage,
-  retry,
-} = useBoatInventorySearch({ limit: 24 })
+} = useBoatInventorySearch({ limit: 100 })
 
 const filtersOpen = shallowRef(false)
 const sortOpen = shallowRef(false)
 const resultsSection = useTemplateRef<HTMLDivElement>('resultsSection')
+
+const listViewTo = computed(() => ({
+  path: '/boats-for-sale',
+  query: route.query,
+  hash: BOAT_INVENTORY_RESULTS_HASH,
+}))
 
 const errorMessage = computed(() => {
   const fetchError = error.value as { data?: { statusMessage?: string }; message?: string } | null
@@ -104,10 +105,6 @@ async function handlePageChange(page: number) {
   scrollResultsIntoView()
 }
 
-async function handleRetry() {
-  await retry()
-}
-
 watch(
   () => route.fullPath,
   async () => {
@@ -130,16 +127,16 @@ watch(
           class="inline-flex rounded-full border border-default bg-default/80 p-1 shadow-card backdrop-blur-sm"
         >
           <UButton
-            color="primary"
-            variant="solid"
+            :to="listViewTo"
+            color="neutral"
+            variant="ghost"
             icon="i-lucide-list"
             label="List"
             class="rounded-full"
           />
           <UButton
-            :to="mapViewTo"
-            color="neutral"
-            variant="ghost"
+            color="primary"
+            variant="solid"
             icon="i-lucide-map"
             label="Map"
             class="rounded-full"
@@ -152,25 +149,22 @@ watch(
         ref="resultsSection"
         class="mx-auto max-w-6xl scroll-mt-24"
       >
-        <BoatInventoryResults
+        <BoatInventoryMapView
           :boats="boats"
           :status="status"
           :error-message="errorMessage"
           :has-active-filters="hasActiveFilters"
-          :has-unsaved-changes="hasUnsavedChanges"
           :active-filter-chips="activeFilterChips"
           :results-label="resultsLabel"
           :results-context="resultsContext"
           :total="total"
           :current-page="currentPage"
           :page-count="pageCount"
-          :current-sort="currentSort"
           :has-next-page="hasNextPage"
           :has-previous-page="hasPreviousPage"
           @clear-filters="handleClearFilters"
           @remove-filter="handleRemoveFilter"
           @change-page="handlePageChange"
-          @retry="handleRetry"
         />
       </div>
     </UPageSection>
@@ -180,17 +174,17 @@ watch(
       :active-filter-count="activeFilterChips.length"
       :has-unsaved-changes="hasUnsavedChanges"
       :results-label="resultsLabel"
-      alternate-view-label="Map"
-      :alternate-view-to="mapViewTo"
-      alternate-view-icon="i-lucide-map"
+      alternate-view-label="List"
+      :alternate-view-to="listViewTo"
+      alternate-view-icon="i-lucide-list"
       @open-sort="sortOpen = true"
       @open-filters="filtersOpen = true"
     />
 
     <USlideover
       v-model:open="filtersOpen"
-      title="Filter boats"
-      description="Adjust the draft filters, then apply them when the list looks right."
+      title="Filter map results"
+      description="Adjust the draft filters, then apply them when the map looks right."
       side="right"
     >
       <template #body>
@@ -209,7 +203,7 @@ watch(
       <template #header>
         <div class="space-y-1">
           <p class="text-xs font-semibold uppercase tracking-[0.18em] text-dimmed">Sort</p>
-          <h2 class="text-lg font-semibold text-default">Choose list order</h2>
+          <h2 class="text-lg font-semibold text-default">Choose sidebar order</h2>
           <p class="text-sm text-muted">Default sort is newest listings first.</p>
         </div>
       </template>

@@ -1,4 +1,4 @@
-import { and, eq, inArray, isNull, or, type SQL } from 'drizzle-orm'
+import { and, eq, inArray, isNull, or, sql, type SQL } from 'drizzle-orm'
 import type { H3Event } from 'h3'
 import type { DrizzleD1Database } from 'drizzle-orm/d1'
 import type { BoatDedupeInput, BoatDedupeRecord, BoatEntityDraft } from '~~/lib/boatDedupe'
@@ -9,6 +9,7 @@ import {
 } from '~~/lib/boatDedupe'
 import type * as schema from '~~/server/database/schema'
 import { boatDedupeCandidates, boatEntities, boats } from '~~/server/database/schema'
+import { resolveBoatGeoWriteFields } from '#server/utils/boatGeo'
 import { useAppDatabase } from '#server/utils/database'
 
 type AppDb = DrizzleD1Database<typeof schema>
@@ -27,6 +28,19 @@ const BOAT_DEDUPE_SELECT = {
   city: boats.city,
   state: boats.state,
   country: boats.country,
+  normalizedLocation: boats.normalizedLocation,
+  normalizedCity: boats.normalizedCity,
+  normalizedState: boats.normalizedState,
+  normalizedCountry: boats.normalizedCountry,
+  geoLat: boats.geoLat,
+  geoLng: boats.geoLng,
+  geoPrecision: boats.geoPrecision,
+  geoProvider: boats.geoProvider,
+  geoStatus: boats.geoStatus,
+  geoQuery: boats.geoQuery,
+  geoError: boats.geoError,
+  geoUpdatedAt: boats.geoUpdatedAt,
+  geoNormalizationVersion: boats.geoNormalizationVersion,
   contactInfo: boats.contactInfo,
   contactName: boats.contactName,
   contactPhone: boats.contactPhone,
@@ -50,6 +64,19 @@ type BoatDedupeSelectRow = {
   city: string | null
   state: string | null
   country: string | null
+  normalizedLocation: string | null
+  normalizedCity: string | null
+  normalizedState: string | null
+  normalizedCountry: string | null
+  geoLat: number | null
+  geoLng: number | null
+  geoPrecision: string | null
+  geoProvider: string | null
+  geoStatus: string | null
+  geoQuery: string | null
+  geoError: string | null
+  geoUpdatedAt: string | null
+  geoNormalizationVersion: number | null
   contactInfo: string | null
   contactName: string | null
   contactPhone: string | null
@@ -164,10 +191,17 @@ export async function upsertBoatSourceListing(
   )
 
   if (match) {
+    const matchedRow = identityCandidates.find((candidate) => candidate.id === match.id) ?? null
+    const nextGeoFields = await resolveBoatGeoWriteFields(db, values, {
+      existing: matchedRow,
+      now: values.updatedAt ?? new Date().toISOString(),
+    })
+
     await db
       .update(boats)
       .set({
         ...values,
+        ...(nextGeoFields ?? {}),
         supersededByBoatId: null,
       })
       .where(eq(boats.id, match.id))
@@ -176,10 +210,16 @@ export async function upsertBoatSourceListing(
     return { boatId: match.id, inserted: 0, updated: 1 }
   }
 
+  const nextGeoFields = await resolveBoatGeoWriteFields(db, values, {
+    existing: null,
+    now: values.updatedAt ?? new Date().toISOString(),
+  })
+
   await db
     .insert(boats)
     .values({
       ...values,
+      ...(nextGeoFields ?? {}),
       entityId: null,
       supersededByBoatId: null,
       dedupeMethod: null,
@@ -251,6 +291,60 @@ export async function listActiveBoatSourceListingIdentities(event: H3Event, sour
     })
     .from(boats)
     .where(and(eq(boats.source, source), isNull(boats.supersededByBoatId)))
+    .all()
+
+  const listingIds = new Set<string>()
+  const normalizedUrls = new Set<string>()
+
+  for (const row of rows) {
+    const listingId = row.listingId?.trim()
+    if (listingId) {
+      listingIds.add(listingId)
+    }
+
+    const normalizedUrl = normalizeBoatUrl(row.url)
+    if (normalizedUrl) {
+      normalizedUrls.add(normalizedUrl)
+    }
+  }
+
+  return {
+    listingIds: [...listingIds],
+    normalizedUrls: [...normalizedUrls],
+  }
+}
+
+function buildWeakSourceListingCondition() {
+  return and(
+    or(
+      isNull(boats.images),
+      sql`trim(${boats.images}) = ''`,
+      sql`trim(${boats.images}) = '[]'`,
+      sql`(json_valid(${boats.images}) AND json_array_length(${boats.images}) <= 1)`,
+    )!,
+    isNull(boats.contactInfo),
+    isNull(boats.otherDetails),
+    isNull(boats.features),
+    isNull(boats.propulsion),
+    isNull(boats.specifications),
+  )!
+}
+
+export async function listRefreshableBoatSourceListingIdentities(event: H3Event, source: string) {
+  const db = useAppDatabase(event)
+  const rows = await db
+    .select({
+      listingId: boats.listingId,
+      url: boats.url,
+    })
+    .from(boats)
+    .where(
+      and(
+        eq(boats.source, source),
+        isNull(boats.supersededByBoatId),
+        buildWeakSourceListingCondition(),
+      ),
+    )
     .all()
 
   const listingIds = new Set<string>()

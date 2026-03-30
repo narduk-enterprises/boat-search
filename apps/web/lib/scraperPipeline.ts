@@ -21,7 +21,7 @@ export const SCRAPER_FIELD_KEYS = [
   'fullText',
 ] as const
 
-export const SCRAPER_FIELD_SCOPES = ['item', 'detail'] as const
+export const SCRAPER_FIELD_SCOPES = ['item', 'detail', 'detail-follow'] as const
 export const SCRAPER_FIELD_EXTRACT_TYPES = ['text', 'attr', 'html'] as const
 export const SCRAPER_FIELD_TRANSFORMS = ['text', 'price', 'year', 'integer', 'url'] as const
 export const SCRAPER_PIPELINE_MAX_PAGES = 500
@@ -84,6 +84,7 @@ export const scraperPipelineConfigSchema = z
     allowedDomains: z.array(z.string().trim().min(1)).default([]),
     itemSelector: z.string().trim().min(1, 'Item selector is required'),
     nextPageSelector: z.string().trim().optional().default(''),
+    detailFollowLinkSelector: z.string().trim().optional().default(''),
     maxPages: z.number().int().min(1).max(SCRAPER_PIPELINE_MAX_PAGES).default(1),
     maxItemsPerRun: z.number().int().min(1).max(SCRAPER_PIPELINE_MAX_ITEMS_PER_RUN).default(50),
     fetchDetailPages: z.boolean().default(false),
@@ -98,14 +99,23 @@ export const scraperPipelineConfigSchema = z
       })
     }
 
+    if (config.fields.some((field) => field.scope !== 'item') && config.fetchDetailPages === false) {
+      ctx.addIssue({
+        code: 'custom',
+        message:
+          'Turn on detail-page fetching when any rule targets detail or detail-follow scope.',
+        path: ['fetchDetailPages'],
+      })
+    }
+
     if (
-      config.fields.some((field) => field.scope === 'detail') &&
-      config.fetchDetailPages === false
+      config.fields.some((field) => field.scope === 'detail-follow') &&
+      !config.detailFollowLinkSelector
     ) {
       ctx.addIssue({
         code: 'custom',
-        message: 'Turn on detail-page fetching when any rule targets detail scope.',
-        path: ['fetchDetailPages'],
+        message: 'Add a follow-page selector when any rule targets detail-follow scope.',
+        path: ['detailFollowLinkSelector'],
       })
     }
   })
@@ -234,6 +244,72 @@ export const scraperBrowserRunProgressSchema = z.object({
   imagesUploaded: z.number().int().min(0),
 })
 
+export const SCRAPER_CRAWL_JOB_EVENT_TYPES = [
+  'started',
+  'progress',
+  'detail_retry_started',
+  'detail_retry_finished',
+  'stop_requested',
+  'stopped',
+  'completed',
+  'failed',
+] as const
+
+export const SCRAPER_DUPLICATE_DECISIONS = [
+  'new',
+  'known_duplicate_skipped',
+  'weak_existing_refresh',
+] as const
+
+export const SCRAPER_DETAIL_STATUSES = [
+  'not_attempted',
+  'queued',
+  'scraped',
+  'retry_queued',
+  'retry_scraped',
+  'failed',
+  'stopped',
+] as const
+
+export const SCRAPER_PERSISTENCE_STATUSES = [
+  'not_attempted',
+  'inserted',
+  'updated',
+  'unchanged',
+  'failed',
+] as const
+
+const scraperJsonValueSchema: z.ZodType<JsonValue> = z.lazy(() =>
+  z.union([
+    z.string(),
+    z.number(),
+    z.boolean(),
+    z.null(),
+    z.array(scraperJsonValueSchema),
+    z.record(z.string(), scraperJsonValueSchema),
+  ]),
+)
+
+export const scraperBrowserRunListingAuditSchema = z.object({
+  runId: z.number().int().positive(),
+  identityKey: z.string().trim().min(1).max(500),
+  source: z.string().trim().min(1).max(80),
+  listingId: scraperNullableStringField,
+  listingUrl: z.string().url().nullable(),
+  detailUrl: z.string().url().nullable(),
+  pageNumber: z.number().int().min(1).nullable().optional().default(null),
+  duplicateDecision: z.enum(SCRAPER_DUPLICATE_DECISIONS),
+  detailStatus: z.enum(SCRAPER_DETAIL_STATUSES),
+  detailAttempts: z.number().int().min(0).default(0),
+  retryQueued: z.boolean().default(false),
+  weakFingerprint: z.boolean().default(false),
+  finalImageCount: z.number().int().min(0).nullable().optional().default(null),
+  finalHasStructuredDetails: z.boolean().default(false),
+  error: scraperNullableStringField,
+  warnings: z.array(z.string()).default([]),
+  auditJson: z.record(z.string(), scraperJsonValueSchema).optional().default({}),
+})
+
 export const scraperPipelineBrowserRunSchema = z.object({
   draft: scraperPipelineDraftSchema,
   records: z.array(scraperBrowserRunRecordSchema),
@@ -248,7 +324,14 @@ export const scraperPipelineStreamRecordSchema = z.object({
   pipelineId: z.number().int().positive(),
   jobId: z.number().int().positive(),
   draft: scraperPipelineDraftSchema,
+  listing: scraperBrowserRunListingAuditSchema,
   record: scraperBrowserRunRecordSchema,
+})
+
+export const scraperPipelineStreamListingSchema = z.object({
+  pipelineId: z.number().int().positive(),
+  jobId: z.number().int().positive(),
+  listing: scraperBrowserRunListingAuditSchema,
 })
 
 export const scraperPipelineStreamProgressSchema = z.object({
@@ -258,6 +341,10 @@ export const scraperPipelineStreamProgressSchema = z.object({
   inserted: z.number().int().min(0),
   updated: z.number().int().min(0),
   progress: scraperBrowserRunProgressSchema,
+  eventType: z.enum(['progress', 'detail_retry_started', 'detail_retry_finished']).default('progress'),
+  message: scraperNullableStringField,
+  pageNumber: z.number().int().min(1).nullable().optional().default(null),
+  searchUrl: z.string().url().nullable().optional().default(null),
 })
 
 export const scraperPipelineStreamCompleteSchema = z.object({
@@ -279,17 +366,38 @@ export const scraperPipelineStreamFailSchema = z.object({
   error: z.string().trim().min(1).max(500),
 })
 
+export const scraperPipelineStreamStopSchema = z.object({
+  pipelineId: z.number().int().positive(),
+  jobId: z.number().int().positive(),
+  message: z.string().trim().min(1).max(500),
+})
+
 export type ScraperFieldRule = z.infer<typeof scraperFieldSchema>
 export type ScraperPipelineConfig = z.infer<typeof scraperPipelineConfigSchema>
 export type ScraperPipelineDraft = z.infer<typeof scraperPipelineDraftSchema>
 export type ScraperBrowserRunRecord = z.infer<typeof scraperBrowserRunRecordSchema>
 export type ScraperBrowserRunSummary = z.infer<typeof scraperBrowserRunSummarySchema>
 export type ScraperBrowserRunProgress = z.infer<typeof scraperBrowserRunProgressSchema>
+export type ScraperBrowserRunListingAudit = z.infer<typeof scraperBrowserRunListingAuditSchema>
 export type ScraperPipelineStreamStart = z.infer<typeof scraperPipelineStreamStartSchema>
 export type ScraperPipelineStreamRecord = z.infer<typeof scraperPipelineStreamRecordSchema>
+export type ScraperPipelineStreamListing = z.infer<typeof scraperPipelineStreamListingSchema>
 export type ScraperPipelineStreamProgress = z.infer<typeof scraperPipelineStreamProgressSchema>
 export type ScraperPipelineStreamComplete = z.infer<typeof scraperPipelineStreamCompleteSchema>
 export type ScraperPipelineStreamFail = z.infer<typeof scraperPipelineStreamFailSchema>
+export type ScraperPipelineStreamStop = z.infer<typeof scraperPipelineStreamStopSchema>
+export type ScraperCrawlJobEventType = (typeof SCRAPER_CRAWL_JOB_EVENT_TYPES)[number]
+export type ScraperDuplicateDecision = (typeof SCRAPER_DUPLICATE_DECISIONS)[number]
+export type ScraperDetailStatus = (typeof SCRAPER_DETAIL_STATUSES)[number]
+export type ScraperPersistenceStatus = (typeof SCRAPER_PERSISTENCE_STATUSES)[number]
+
+export type JsonValue =
+  | string
+  | number
+  | boolean
+  | null
+  | JsonValue[]
+  | { [key: string]: JsonValue }
 
 export interface ScraperRunRecord {
   source: string
@@ -390,6 +498,81 @@ export interface ScraperPipelineRecord extends ScraperPipelineDraft {
   lastJob: ScraperJobSummary | null
 }
 
+export interface ScraperJobAuditEvent {
+  id: number
+  crawlJobId: number
+  eventType: ScraperCrawlJobEventType
+  status: string
+  message: string | null
+  pageNumber: number | null
+  searchUrl: string | null
+  payload: Record<string, JsonValue> | null
+  createdAt: string
+}
+
+export interface ScraperJobAuditListing {
+  id: number
+  crawlJobId: number
+  identityKey: string
+  source: string
+  listingId: string | null
+  listingUrl: string | null
+  detailUrl: string | null
+  discoveredOnPage: number | null
+  firstSeenAt: string
+  lastUpdatedAt: string
+  duplicateDecision: ScraperDuplicateDecision
+  detailStatus: ScraperDetailStatus
+  detailAttempts: number
+  retryQueued: boolean
+  persistenceStatus: ScraperPersistenceStatus
+  persistedBoatId: number | null
+  finalImageCount: number | null
+  finalHasStructuredDetails: boolean
+  weakFingerprint: boolean
+  errorMessage: string | null
+  warnings: string[]
+  audit: Record<string, JsonValue> | null
+}
+
+export interface ScraperJobAuditListingFilters {
+  duplicateDecision: ScraperDuplicateDecision | 'all'
+  detailStatus: ScraperDetailStatus | 'all'
+  persistenceStatus: ScraperPersistenceStatus | 'all'
+  weakFingerprintOnly: boolean
+  errorsOnly: boolean
+  page: number
+  pageSize: number
+}
+
+export interface ScraperJobAuditListPage {
+  items: ScraperJobAuditListing[]
+  total: number
+  page: number
+  pageSize: number
+  pageCount: number
+}
+
+export interface ScraperJobAuditOverview {
+  totalListings: number
+  duplicateSkipped: number
+  weakRefreshes: number
+  retriesQueued: number
+  retriesCompleted: number
+  persistenceFailed: number
+  detailFailed: number
+  stoppedListings: number
+  weakFingerprintListings: number
+}
+
+export interface ScraperJobAuditDetail {
+  job: ScraperJobSummary | null
+  events: ScraperJobAuditEvent[]
+  overview: ScraperJobAuditOverview
+  listings: ScraperJobAuditListPage
+  filters: ScraperJobAuditListingFilters
+}
+
 export function createDefaultScraperFieldRules(): ScraperFieldRule[] {
   return [
     {
@@ -478,6 +661,7 @@ export function createEmptyScraperPipelineDraft(): ScraperPipelineDraft {
       allowedDomains: [],
       itemSelector: '',
       nextPageSelector: '',
+      detailFollowLinkSelector: '',
       maxPages: 1,
       maxItemsPerRun: 40,
       fetchDetailPages: true,

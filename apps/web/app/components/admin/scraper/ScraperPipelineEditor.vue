@@ -165,7 +165,7 @@ const allowedDomainsText = computed({
         </UFormField>
       </div>
 
-      <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+      <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
         <UFormField label="Item selector" required>
           <UInput v-model="draft.config.itemSelector" class="w-full" placeholder=".listing-card" />
         </UFormField>
@@ -175,6 +175,14 @@ const allowedDomainsText = computed({
             v-model="draft.config.nextPageSelector"
             class="w-full"
             placeholder="a[rel='next']"
+          />
+        </UFormField>
+
+        <UFormField label="Follow-page selector">
+          <UInput
+            v-model="draft.config.detailFollowLinkSelector"
+            class="w-full"
+            placeholder="a[href*='/photos/']"
           />
         </UFormField>
 
@@ -195,7 +203,7 @@ const allowedDomainsText = computed({
       <div class="rounded-xl border border-default bg-elevated px-4 py-3">
         <UCheckbox
           v-model="draft.config.fetchDetailPages"
-          label="Fetch detail pages for any rule using detail scope"
+          label="Fetch detail and follow pages for any rule using detail scopes"
         />
       </div>
     </UCard>

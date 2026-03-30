@@ -146,6 +146,7 @@ describe('site presets', () => {
     )
     expect(draft.config.itemSelector).toBe(analysis.itemSelector)
     expect(draft.config.nextPageSelector).toBe(analysis.nextPageSelector)
+    expect(draft.config.detailFollowLinkSelector).toContain('/photos/')
     expect(draft.config.fetchDetailPages).toBe(true)
     expect(draft.config.fields.map((field) => `${field.scope}:${field.key}`)).toEqual(
       expect.arrayContaining([
@@ -178,6 +179,7 @@ describe('site presets', () => {
         'detail:listingType',
         'detail:images',
         'detail:fullText',
+        'detail-follow:images',
       ]),
     )
   })

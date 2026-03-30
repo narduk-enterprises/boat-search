@@ -334,6 +334,26 @@ function toAbsoluteUrl(value: string, baseUrl: string) {
   }
 }
 
+function resolveDetailFollowUrl(document: Document, pageUrl: string, selector: string) {
+  const normalizedSelector = selector.trim()
+  if (!normalizedSelector) {
+    return null
+  }
+
+  const target = queryAll<HTMLElement>(document, normalizedSelector)[0] || null
+  if (!target) {
+    return null
+  }
+
+  const href =
+    target.getAttribute('href') ||
+    target.getAttribute('data-href') ||
+    target.getAttribute('data-url') ||
+    (target instanceof HTMLAnchorElement ? target.href : '')
+
+  return href ? toAbsoluteUrl(href, pageUrl) : null
+}
+
 function normalizeComparableUrl(value: string) {
   try {
     const url = new URL(value)
@@ -1447,11 +1467,26 @@ export function extractDetailPageDocument(
   request: DetailPageExtractRequest,
 ): DetailPageExtractResponse {
   const analysis = analyzeDocument(document, pageUrl)
-  const detailFields = request.draft.config.fields.filter((field) => field.scope === 'detail')
+  const scope = request.scope === 'detail-follow' ? 'detail-follow' : 'detail'
+  const detailFields = request.draft.config.fields.filter((field) => field.scope === scope)
   const record = createEmptyBrowserRecord(request.draft.boatSource)
+  const followPageUrl =
+    scope === 'detail'
+      ? resolveDetailFollowUrl(document, pageUrl, request.draft.config.detailFollowLinkSelector)
+      : null
 
   for (const field of detailFields) {
     assignFieldValue(record, field, readSelectionValues(document, field, pageUrl))
+  }
+
+  if (scope === 'detail-follow') {
+    return {
+      analysis,
+      pageUrl,
+      record,
+      followPageUrl,
+      warnings: uniqueStrings([...analysis.warnings, ...record.warnings]),
+    }
   }
 
   const normalizedRecord = normalizePresetRecord(request.presetId, record, {
@@ -1463,6 +1498,7 @@ export function extractDetailPageDocument(
     analysis,
     pageUrl,
     record: normalizedRecord,
+    followPageUrl,
     warnings: uniqueStrings([...analysis.warnings, ...normalizedRecord.warnings]),
   }
 }

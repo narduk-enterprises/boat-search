@@ -52,7 +52,7 @@ const { data: dedupeData, status: dedupeStatus } = useInventoryDedupe()
       </div>
     </UPageSection>
 
-    <UPageSection :ui="{ wrapper: 'py-4' }">
+    <UPageSection :ui="{ container: 'py-4' }">
       <div
         v-if="status === 'pending' || dedupeStatus === 'pending'"
         class="flex justify-center py-20"

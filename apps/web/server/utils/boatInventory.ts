@@ -26,6 +26,14 @@ type BoatRow = {
   city: string | null
   state: string | null
   country: string | null
+  normalizedLocation: string | null
+  normalizedCity: string | null
+  normalizedState: string | null
+  normalizedCountry: string | null
+  geoLat: number | null
+  geoLng: number | null
+  geoPrecision: string | null
+  geoStatus: string | null
   description: string | null
   contactInfo: string | null
   contactName: string | null
@@ -92,6 +100,14 @@ export interface InventoryBoat {
   city: string | null
   state: string | null
   country: string | null
+  normalizedLocation: string | null
+  normalizedCity: string | null
+  normalizedState: string | null
+  normalizedCountry: string | null
+  geoLat: number | null
+  geoLng: number | null
+  geoPrecision: string | null
+  geoStatus: string | null
   description: string | null
   contactInfo: string | null
   contactName: string | null
@@ -158,6 +174,14 @@ export const INVENTORY_BOAT_SELECT = {
   city: boats.city,
   state: boats.state,
   country: boats.country,
+  normalizedLocation: boats.normalizedLocation,
+  normalizedCity: boats.normalizedCity,
+  normalizedState: boats.normalizedState,
+  normalizedCountry: boats.normalizedCountry,
+  geoLat: boats.geoLat,
+  geoLng: boats.geoLng,
+  geoPrecision: boats.geoPrecision,
+  geoStatus: boats.geoStatus,
   description: boats.description,
   contactInfo: boats.contactInfo,
   contactName: boats.contactName,
@@ -360,9 +384,13 @@ export async function selectRecommendationCandidates(
     conditions.push(
       or(
         like(boats.location, pattern),
+        like(boats.normalizedLocation, pattern),
         like(boats.city, pattern),
+        like(boats.normalizedCity, pattern),
         like(boats.state, pattern),
+        like(boats.normalizedState, pattern),
         like(boats.country, pattern),
+        like(boats.normalizedCountry, pattern),
       )!,
     )
   }

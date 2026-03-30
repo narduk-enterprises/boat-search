@@ -227,6 +227,9 @@ describe('extension DOM analyzer', () => {
       draft,
       presetId: 'yachtworld-search',
     })
+    expect(result.followPageUrl).toBe(
+      'https://www.yachtworld.com/yacht/viking-52-convertible-1234567/photos/',
+    )
     expect(result.record.title).toContain('Viking 52 Convertible')
     expect(result.record.images).toHaveLength(4)
     expect(result.record.year).toBe(2008)
@@ -240,6 +243,30 @@ describe('extension DOM analyzer', () => {
     expect(result.record.listingType).toBe('used')
     expect(result.record.fullText).toContain('tournament-rigged sportfish')
     expect(result.record.country).toBeNull()
+  })
+
+  it('extracts follow-page gallery fields without rewriting the canonical listing url', () => {
+    const html = readFixture('tests', 'fixtures', 'yachtworld', 'detail-photos.html')
+    const document = createDocument(
+      html,
+      'https://www.yachtworld.com/yacht/viking-52-convertible-1234567/photos/',
+    )
+
+    const draft = buildPresetDraft('yachtworld-search', {
+      pageUrl: 'https://www.yachtworld.com/boats-for-sale/type-power/class-power-saltwater-fishing/',
+      analysis: null,
+    })
+
+    const result = extractDetailPageDocument(document, document.location.href, {
+      draft,
+      presetId: 'yachtworld-search',
+      scope: 'detail-follow',
+    })
+
+    expect(result.followPageUrl).toBeNull()
+    expect(result.record.url).toBeNull()
+    expect(result.record.images).toHaveLength(6)
+    expect(result.record.images).toContain('https://images.yachtworld.com/detail/viking-52-6.jpg')
   })
 
   it('captures serialized page HTML, metadata, and a fresh analysis snapshot', () => {

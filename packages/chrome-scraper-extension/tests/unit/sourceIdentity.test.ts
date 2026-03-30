@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  consumeRefreshableBoatIdentity,
   createBrowserRunIdentityState,
   hasKnownBoatIdentity,
   normalizeBoatSourceUrl,
@@ -53,6 +54,40 @@ describe('source identity', () => {
       hasKnownBoatIdentity(state, {
         listingId: 'new-456',
         url: 'https://example.com/listing/new-456',
+      }),
+    ).toBe(true)
+  })
+
+  it('refreshes weak existing identities only once per run', () => {
+    const state = createBrowserRunIdentityState(
+      {
+        listingIds: ['abc-123'],
+        normalizedUrls: ['https://example.com/listing/abc-123'],
+      },
+      {
+        listingIds: ['abc-123'],
+        normalizedUrls: ['https://example.com/listing/abc-123'],
+      },
+    )
+
+    expect(
+      consumeRefreshableBoatIdentity(state, {
+        listingId: 'abc-123',
+        url: 'https://example.com/listing/abc-123?from=search',
+      }),
+    ).toBe(true)
+
+    expect(
+      consumeRefreshableBoatIdentity(state, {
+        listingId: 'abc-123',
+        url: 'https://example.com/listing/abc-123?from=search',
+      }),
+    ).toBe(false)
+
+    expect(
+      hasKnownBoatIdentity(state, {
+        listingId: 'abc-123',
+        url: 'https://example.com/listing/abc-123',
       }),
     ).toBe(true)
   })

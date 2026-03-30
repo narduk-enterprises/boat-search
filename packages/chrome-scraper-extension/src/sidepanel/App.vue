@@ -23,6 +23,7 @@ const capturingFixture = computed(() => extension.capturingFixture.value)
 const fixtureCapturePendingOverride = computed(() => extension.fixtureCapturePendingOverride.value)
 const fixtureCaptureState = computed(() => session.value.fixtureCapture)
 const startingRemoteRun = computed(() => extension.startingRemoteRun.value)
+const stoppingRemoteRun = computed(() => extension.stoppingRemoteRun.value)
 const verifyingConnection = computed(() => extension.verifyingConnection.value)
 const debugCopyLabel = shallowRef('Copy debug snapshot')
 const expandedCompleteStepId = shallowRef<string | null>(null)
@@ -139,12 +140,16 @@ const runStatus = computed<WorkflowStatus>(() => {
 
   return 'ready'
 })
+const canStopRun = computed(() => Boolean(startingRemoteRun.value || browserRunProgress.value))
 const runNote = computed(() => {
   if (remoteRun.value) {
     return `Last run ${formatRunOutcome(remoteRun.value.summary)} boats.`
   }
 
   if (browserRunProgress.value) {
+    if (stoppingRemoteRun.value) {
+      return 'Stop requested. The scraper will halt after the current page step finishes.'
+    }
     const skippedSuffix =
       browserRunProgress.value.skippedExisting > 0
         ? ` and ${browserRunProgress.value.skippedExisting} existing skipped`
@@ -158,6 +163,10 @@ const runNote = computed(() => {
 
   if (!hasApiKey.value) {
     return 'Add a Boat Search API key before starting the browser scrape.'
+  }
+
+  if (stoppingRemoteRun.value) {
+    return 'Stop requested. Waiting for the active browser step to finish cleanly.'
   }
 
   return 'The preset draft is ready. Start the active-tab scrape, or open the same draft in Boat Search for a closer look.'
@@ -593,6 +602,15 @@ onMounted(async () => {
           @click="extension.startScrapeInBoatSearch"
         >
           {{ startingRemoteRun ? 'Running scrape…' : 'Start browser scrape' }}
+        </button>
+        <button
+          type="button"
+          class="secondary"
+          :disabled="!canStopRun || stoppingRemoteRun"
+          data-testid="stop-browser-scrape-button"
+          @click="extension.stopScrapeInBoatSearch"
+        >
+          {{ stoppingRemoteRun ? 'Stopping…' : 'Stop scrape' }}
         </button>
         <button
           type="button"

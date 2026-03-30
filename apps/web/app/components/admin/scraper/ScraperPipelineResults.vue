@@ -146,5 +146,7 @@ const activeSummary = computed(() => props.runSummary || props.previewSummary)
         </div>
       </div>
     </UCard>
+
+    <ScraperPipelineRunAudit :job-id="props.runningJobId" />
   </div>
 </template>

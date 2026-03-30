@@ -25,6 +25,7 @@ import {
   normalizePresetRecord,
 } from '@/shared/sitePresets'
 import {
+  consumeRefreshableBoatIdentity,
   createBrowserRunIdentityState,
   hasKnownBoatIdentity,
   rememberBoatIdentity,
@@ -54,14 +55,18 @@ import type {
   BrowserScrapeRecord,
   BrowserScrapeSummary,
   DetailPageExtractResponse,
+  ExtensionDetailStatus,
   ExtensionAuthStatusResponse,
   FixtureCaptureResponse,
   FixtureCaptureSummary,
   FixtureCaptureTemplate,
   ExtensionRunCompleteResponse,
+  ExtensionRunListingAudit,
+  ExtensionRunListingResponse,
   ExtensionRunProgressResponse,
   ExtensionRunRecordResponse,
   ExtensionRunStartResponse,
+  ExtensionRunStopResponse,
   FieldPreviewResult,
   SearchPageExtractResponse,
   PickerProgress,
@@ -116,6 +121,31 @@ type RemoteRunState = {
   jobId: number | null
   summary: RemoteRunSummary
 } | null
+
+type ActiveRemoteRunMeta = {
+  pipelineId: number
+  jobId: number
+} | null
+
+type ActiveBrowserRunController = {
+  stopRequested: boolean
+}
+
+const BROWSER_RUN_STOP_MESSAGE = 'Browser scrape stopped by user.'
+
+class BrowserRunStoppedError extends Error {
+  constructor() {
+    super(BROWSER_RUN_STOP_MESSAGE)
+    this.name = 'BrowserRunStoppedError'
+  }
+}
+
+function isBrowserRunStoppedError(error: unknown): error is BrowserRunStoppedError {
+  return error instanceof BrowserRunStoppedError || (
+    error instanceof Error &&
+    error.message === BROWSER_RUN_STOP_MESSAGE
+  )
+}
 
 type BrowserRunProgressState = BrowserScrapeProgress | null
 type SampleDetailRunRefState = SampleDetailRunState | null
@@ -389,6 +419,10 @@ function normalizeDraft(draft: unknown, fallback: ScraperPipelineDraft): Scraper
       ...rawConfig,
       startUrls: toStringArray(rawConfig.startUrls),
       allowedDomains: toStringArray(rawConfig.allowedDomains),
+      detailFollowLinkSelector:
+        typeof rawConfig.detailFollowLinkSelector === 'string'
+          ? rawConfig.detailFollowLinkSelector
+          : fallback.config.detailFollowLinkSelector,
       maxPages: toBoundedInteger(
         rawConfig.maxPages,
         fallback.config.maxPages,
@@ -589,13 +623,16 @@ export function useExtensionSession() {
   const itemSelectorTraining = shallowRef<ItemSelectorTrainingState>(null)
   const itemSelectorPreview = shallowRef<ItemSelectorPreviewState>(null)
   const remoteRun = shallowRef<RemoteRunState>(null)
+  const activeRemoteRunMeta = shallowRef<ActiveRemoteRunMeta>(null)
   const browserRunProgress = shallowRef<BrowserRunProgressState>(null)
   const sampleDetailRun = shallowRef<SampleDetailRunRefState>(null)
   const fixtureCapturePendingOverride = shallowRef<FixtureCaptureOverrideState>(null)
   const capturingFixture = shallowRef(false)
   const startingRemoteRun = shallowRef(false)
+  const stoppingRemoteRun = shallowRef(false)
   const verifyingConnection = shallowRef(false)
   const debugEvents = shallowRef<ExtensionDebugEvent[]>([])
+  const activeBrowserRunController = shallowRef<ActiveBrowserRunController | null>(null)
   let previewSequence = 0
 
   async function loadSession() {
@@ -815,6 +852,14 @@ export function useExtensionSession() {
     get: () => session.value.draft.config.fields.filter((field) => field.scope === 'detail'),
     set: (fields) => {
       setFieldsForScope('detail', fields)
+    },
+  })
+
+  const detailFollowFields = computed({
+    get: () =>
+      session.value.draft.config.fields.filter((field) => field.scope === 'detail-follow'),
+    set: (fields) => {
+      setFieldsForScope('detail-follow', fields)
     },
   })
 
@@ -1420,26 +1465,16 @@ export function useExtensionSession() {
   function addField(scope: ScraperFieldScope) {
     const nextKey = scope === 'item' ? 'price' : 'description'
     const nextField = createFieldRule(nextKey, scope, '')
-    if (scope === 'item') {
-      itemFields.value = [...itemFields.value, nextField]
-      return
-    }
-
-    detailFields.value = [...detailFields.value, nextField]
+    const scopedFields = session.value.draft.config.fields.filter((field) => field.scope === scope)
+    setFieldsForScope(scope, [...scopedFields, nextField])
   }
 
   function removeField(scope: ScraperFieldScope, index: number) {
-    if (scope === 'item') {
-      if (itemFields.value.length <= 1) return
-      const nextFields = [...itemFields.value]
-      nextFields.splice(index, 1)
-      itemFields.value = nextFields
-      return
-    }
-
-    const nextFields = [...detailFields.value]
+    const scopedFields = session.value.draft.config.fields.filter((field) => field.scope === scope)
+    if (scopedFields.length <= 1) return
+    const nextFields = [...scopedFields]
     nextFields.splice(index, 1)
-    detailFields.value = nextFields
+    setFieldsForScope(scope, nextFields)
   }
 
   async function openSampleDetailPage() {
@@ -1801,6 +1836,55 @@ export function useExtensionSession() {
     return record.url || record.listingId || `${record.source}:${record.title || ''}:${record.location || ''}`
   }
 
+  function hasStructuredDetailFields(record: Partial<BrowserScrapeRecord>) {
+    return Boolean(
+      record.contactInfo ||
+        record.otherDetails ||
+        record.features ||
+        record.propulsion ||
+        record.specifications,
+    )
+  }
+
+  function shouldRetryWeakDetailRecord(record: BrowserScrapeRecord) {
+    return record.images.length <= 1 && !hasStructuredDetailFields(record)
+  }
+
+  function buildListingAuditFromRecord(
+    runId: number,
+    record: BrowserScrapeRecord,
+    options: {
+      pageNumber: number | null
+      duplicateDecision: ExtensionRunListingAudit['duplicateDecision']
+      detailStatus: ExtensionDetailStatus
+      detailAttempts: number
+      retryQueued: boolean
+      error?: string | null
+      warnings?: string[]
+      auditJson?: Record<string, unknown>
+    },
+  ): ExtensionRunListingAudit {
+    return {
+      runId,
+      identityKey: buildBrowserRecordIdentity(record),
+      source: record.source,
+      listingId: record.listingId,
+      listingUrl: record.url,
+      detailUrl: record.url,
+      pageNumber: options.pageNumber,
+      duplicateDecision: options.duplicateDecision,
+      detailStatus: options.detailStatus,
+      detailAttempts: options.detailAttempts,
+      retryQueued: options.retryQueued,
+      weakFingerprint: shouldRetryWeakDetailRecord(record),
+      finalImageCount: record.images.length,
+      finalHasStructuredDetails: hasStructuredDetailFields(record),
+      error: options.error ?? null,
+      warnings: uniqueStrings([...(options.warnings || []), ...record.warnings]),
+      auditJson: options.auditJson,
+    }
+  }
+
   function upsertBrowserRunRecord(records: BrowserScrapeRecord[], record: BrowserScrapeRecord) {
     const identity = buildBrowserRecordIdentity(record)
     const existingIndex = records.findIndex(
@@ -2005,6 +2089,7 @@ export function useExtensionSession() {
       imagesUploaded: 0,
       skippedExisting: 0,
     }
+    const localRunController: ActiveBrowserRunController = { stopRequested: false }
 
     statusMessage.value = 'Boat Search is unavailable, so the helper is scraping locally and preparing a CSV...'
     recordDebugEvent(
@@ -2017,15 +2102,18 @@ export function useExtensionSession() {
     )
 
     const browserRun = await crawlDraftInBrowser(
+      1,
       draft,
       presetId,
       localRunState,
       createBrowserRunIdentityState(null),
-      async (record) => {
+      localRunController,
+      async (record: BrowserScrapeRecord) => {
         upsertBrowserRunRecord(localRecords, cloneSerializableValue(record))
         localRunState.recordsPersisted = localRecords.length
       },
-      async (_summary, progress) => {
+      async () => {},
+      async (_summary: BrowserScrapeSummary, progress: BrowserScrapeProgress) => {
         browserRunProgress.value = {
           ...progress,
           recordsPersisted: localRecords.length,
@@ -2153,6 +2241,7 @@ export function useExtensionSession() {
   async function persistBrowserRecordToBoatSearch(
     run: ExtensionRunStartResponse,
     draft: ScraperPipelineDraft,
+    listing: ExtensionRunListingAudit,
     record: BrowserScrapeRecord,
   ) {
     return await fetchBoatSearchJson<ExtensionRunRecordResponse>(
@@ -2163,7 +2252,25 @@ export function useExtensionSession() {
           pipelineId: run.pipelineId,
           jobId: run.jobId,
           draft,
+          listing,
           record,
+        }),
+      },
+    )
+  }
+
+  async function persistBrowserListingAuditToBoatSearch(
+    run: ExtensionRunStartResponse,
+    listing: ExtensionRunListingAudit,
+  ) {
+    return await fetchBoatSearchJson<ExtensionRunListingResponse>(
+      '/api/admin/scraper-extension/run/listing',
+      {
+        method: 'POST',
+        body: JSON.stringify({
+          pipelineId: run.pipelineId,
+          jobId: run.jobId,
+          listing,
         }),
       },
     )
@@ -2180,6 +2287,12 @@ export function useExtensionSession() {
       imagesUploaded: number
       skippedExisting: number
     },
+    options: {
+      eventType?: 'progress' | 'detail_retry_started' | 'detail_retry_finished'
+      message?: string | null
+      pageNumber?: number | null
+      searchUrl?: string | null
+    } = {},
   ) {
     return await fetchBoatSearchJson<ExtensionRunProgressResponse>(
       '/api/admin/scraper-extension/run/progress',
@@ -2192,9 +2305,28 @@ export function useExtensionSession() {
           inserted: runState.inserted,
           updated: runState.updated,
           progress,
+          eventType: options.eventType || 'progress',
+          message: options.message ?? null,
+          pageNumber: options.pageNumber ?? null,
+          searchUrl: options.searchUrl ?? progress.currentUrl ?? null,
         }),
       },
     )
+  }
+
+  async function persistBrowserRunStopToBoatSearch(meta: ActiveRemoteRunMeta, message: string) {
+    if (!meta) {
+      return
+    }
+
+    await fetchBoatSearchJson<ExtensionRunStopResponse>('/api/admin/scraper-extension/run/stop', {
+      method: 'POST',
+      body: JSON.stringify({
+        pipelineId: meta.pipelineId,
+        jobId: meta.jobId,
+        message,
+      }),
+    })
   }
 
   function buildBrowserScrapeSummarySnapshot(
@@ -2219,15 +2351,44 @@ export function useExtensionSession() {
   }
 
   async function crawlDraftInBrowser(
+    runId: number,
     draft: ScraperPipelineDraft,
     presetId: SitePresetId | null,
     runState: { recordsPersisted: number; imagesUploaded: number; skippedExisting: number },
     existingIdentityState: ReturnType<typeof createBrowserRunIdentityState>,
-    onRecord: (record: BrowserScrapeRecord) => Promise<void>,
-    onProgress: (summary: BrowserScrapeSummary, progress: BrowserScrapeProgress) => Promise<void>,
+    controller: ActiveBrowserRunController,
+    onRecord: (record: BrowserScrapeRecord, listing: ExtensionRunListingAudit) => Promise<void>,
+    onListingAudit: (listing: ExtensionRunListingAudit) => Promise<void>,
+    onProgress: (
+      summary: BrowserScrapeSummary,
+      progress: BrowserScrapeProgress,
+      options?: {
+        eventType?: 'progress' | 'detail_retry_started' | 'detail_retry_finished'
+        message?: string | null
+        pageNumber?: number | null
+        searchUrl?: string | null
+      },
+    ) => Promise<void>,
   ) {
     let detailPagesCompleted = 0
     let detailPagesTotal = 0
+    const detailRetryQueue: string[] = []
+    const queuedDetailRetryIdentities = new Set<string>()
+    const listingDuplicateDecisions = new Map<
+      string,
+      ExtensionRunListingAudit['duplicateDecision']
+    >()
+    const listingPageNumbers = new Map<string, number | null>()
+
+    function queueDetailRetry(record: BrowserScrapeRecord) {
+      const identity = buildBrowserRecordIdentity(record)
+      if (!identity || queuedDetailRetryIdentities.has(identity)) {
+        return
+      }
+
+      queuedDetailRetryIdentities.add(identity)
+      detailRetryQueue.push(identity)
+    }
 
     function assignSearchBrowserRunProgress(pageUrl: string) {
       browserRunProgress.value = {
@@ -2244,7 +2405,15 @@ export function useExtensionSession() {
       }
     }
 
-    async function emitBrowserRunProgress() {
+    async function emitBrowserRunProgress(
+      options: {
+        eventType?: 'progress' | 'detail_retry_started' | 'detail_retry_finished'
+        message?: string | null
+        pageNumber?: number | null
+        searchUrl?: string | null
+      } = {},
+    ) {
+      throwIfBrowserRunStopped(controller)
       if (!browserRunProgress.value) {
         return
       }
@@ -2259,12 +2428,133 @@ export function useExtensionSession() {
           runState.skippedExisting,
         ),
         cloneSerializableValue(browserRunProgress.value),
+        options,
       )
     }
 
-    async function persistBrowserRunRecord(record: BrowserScrapeRecord) {
-      await onRecord(record)
+    async function persistBrowserRunRecord(
+      record: BrowserScrapeRecord,
+      listingAudit: ExtensionRunListingAudit,
+    ) {
+      throwIfBrowserRunStopped(controller)
+      await onListingAudit(listingAudit)
+      throwIfBrowserRunStopped(controller)
+      await onRecord(record, listingAudit)
+      throwIfBrowserRunStopped(controller)
       await emitBrowserRunProgress()
+    }
+
+    async function scrapeDetailPage(
+      crawlTabId: number,
+      record: BrowserScrapeRecord,
+      options: { pass: 'initial' | 'retry' },
+    ) {
+      throwIfBrowserRunStopped(controller)
+      let recordToPersist = record
+      const hasDetailFollowFields = draft.config.fields.some(
+        (field) => field.scope === 'detail-follow',
+      )
+
+      try {
+        const readyTab = await navigateTab(crawlTabId, record.url!, {
+          timeoutMs: DETAIL_PAGE_NAV_TIMEOUT_MS,
+          allowPartialLoad: true,
+        })
+        const detailResult = await sendToTab<DetailPageExtractResponse>(readyTab, {
+          type: 'EXTENSION_EXTRACT_DETAIL_PAGE',
+          request: { draft, presetId },
+        })
+
+        recordDebugEvent(
+          options.pass === 'retry'
+            ? 'browser-scrape-detail-page-retry'
+            : 'browser-scrape-detail-page',
+          options.pass === 'retry'
+            ? 'Retried a detail page in the browser run.'
+            : 'Scraped a detail page in the browser run.',
+          {
+            url: detailResult.pageUrl,
+            pageState: detailResult.analysis.pageState,
+            imageCount: detailResult.analysis.stats.distinctImageCount,
+            fieldCount: detailResult.analysis.fields.length,
+          },
+        )
+
+        if (detailResult.analysis.pageState === 'challenge') {
+          throw new Error(
+            detailResult.analysis.stateMessage ||
+              `The browser scrape hit a challenge page while opening ${record.url}.`,
+          )
+        }
+
+        recordToPersist = mergeBrowserRecord(record, detailResult.record)
+        searchWarnings.push(...detailResult.warnings)
+
+        if (
+          hasDetailFollowFields &&
+          detailResult.followPageUrl &&
+          isAllowedDomainUrl(detailResult.followPageUrl, allowedDomains)
+        ) {
+          const followTab = await navigateTab(crawlTabId, detailResult.followPageUrl, {
+            timeoutMs: DETAIL_PAGE_NAV_TIMEOUT_MS,
+            allowPartialLoad: true,
+          })
+          const followResult = await sendToTab<DetailPageExtractResponse>(followTab, {
+            type: 'EXTENSION_EXTRACT_DETAIL_PAGE',
+            request: { draft, presetId, scope: 'detail-follow' },
+          })
+
+          recordDebugEvent(
+            options.pass === 'retry'
+              ? 'browser-scrape-detail-follow-page-retry'
+              : 'browser-scrape-detail-follow-page',
+            options.pass === 'retry'
+              ? 'Retried a follow page in the browser run.'
+              : 'Scraped a follow page in the browser run.',
+            {
+              url: followResult.pageUrl,
+              pageState: followResult.analysis.pageState,
+              imageCount: followResult.analysis.stats.distinctImageCount,
+              fieldCount: followResult.analysis.fields.length,
+            },
+          )
+
+          if (followResult.analysis.pageState === 'challenge') {
+            throw new Error(
+              followResult.analysis.stateMessage ||
+                `The browser scrape hit a challenge page while opening ${detailResult.followPageUrl}.`,
+            )
+          }
+
+          recordToPersist = mergeBrowserRecord(recordToPersist, followResult.record)
+          searchWarnings.push(...followResult.warnings)
+        } else if (
+          hasDetailFollowFields &&
+          detailResult.followPageUrl &&
+          !isAllowedDomainUrl(detailResult.followPageUrl, allowedDomains)
+        ) {
+          searchWarnings.push(
+            `Blocked cross-domain follow page during browser scrape: ${detailResult.followPageUrl}`,
+          )
+        }
+
+        recordToPersist = normalizePresetRecord(presetId, recordToPersist, {
+          context: 'detail',
+          pageUrl: detailResult.pageUrl,
+        })
+      } catch (error: unknown) {
+        searchWarnings.push(
+          error instanceof Error
+            ? error.message
+            : `Could not scrape the detail page for ${record.url}.`,
+        )
+      }
+
+      if (options.pass === 'initial' && shouldRetryWeakDetailRecord(recordToPersist)) {
+        queueDetailRetry(recordToPersist)
+      }
+
+      return recordToPersist
     }
     if (!draft.config.startUrls.length) {
       throw new Error('Add at least one start URL before starting a browser scrape.')
@@ -2304,6 +2594,7 @@ export function useExtensionSession() {
           maxItemsPerRun: draft.config.maxItemsPerRun,
         })
       ) {
+        throwIfBrowserRunStopped(controller)
         if (!isAllowedDomainUrl(currentUrl, allowedDomains)) {
           searchWarnings.push(`Blocked cross-domain page during browser scrape: ${currentUrl}`)
           break
@@ -2349,6 +2640,7 @@ export function useExtensionSession() {
         visitedUrls.push(pageResult.pageUrl)
         pagesVisited += 1
         pageIndex += 1
+        const currentPageNumber = pageIndex
         itemsSeen += pageResult.itemCount
         searchWarnings.push(...pageResult.warnings)
         assignSearchBrowserRunProgress(pageResult.pageUrl)
@@ -2366,6 +2658,7 @@ export function useExtensionSession() {
         let skippedExistingOnPage = 0
         const pageRecordIndexes: number[] = []
         for (const record of pageResult.records) {
+          throwIfBrowserRunStopped(controller)
           if (
             !shouldContinueBrowserSearchPagination({
               fetchDetailPages: draft.config.fetchDetailPages,
@@ -2376,9 +2669,27 @@ export function useExtensionSession() {
             break
           }
 
-          if (hasKnownBoatIdentity(existingIdentityState, record)) {
+          const shouldRefreshExisting = consumeRefreshableBoatIdentity(
+            existingIdentityState,
+            record,
+          )
+
+          if (hasKnownBoatIdentity(existingIdentityState, record) && !shouldRefreshExisting) {
             runState.skippedExisting += 1
             skippedExistingOnPage += 1
+            await onListingAudit(
+              buildListingAuditFromRecord(runId, record, {
+                pageNumber: currentPageNumber,
+                duplicateDecision: 'known_duplicate_skipped',
+                detailStatus: 'not_attempted',
+                detailAttempts: 0,
+                retryQueued: false,
+                auditJson: {
+                  pageUrl: pageResult.pageUrl,
+                  stage: 'search',
+                },
+              }),
+            )
             continue
           }
 
@@ -2386,6 +2697,23 @@ export function useExtensionSession() {
           searchRecords.push(record)
           const recordIndex = searchRecords.length - 1
           pageRecordIndexes.push(recordIndex)
+          const duplicateDecision = shouldRefreshExisting ? 'weak_existing_refresh' : 'new'
+          const recordIdentity = buildBrowserRecordIdentity(record)
+          listingDuplicateDecisions.set(recordIdentity, duplicateDecision)
+          listingPageNumbers.set(recordIdentity, currentPageNumber)
+          await onListingAudit(
+            buildListingAuditFromRecord(runId, record, {
+              pageNumber: currentPageNumber,
+              duplicateDecision,
+              detailStatus: draft.config.fetchDetailPages ? 'queued' : 'scraped',
+              detailAttempts: 0,
+              retryQueued: false,
+              auditJson: {
+                pageUrl: pageResult.pageUrl,
+                stage: 'search',
+              },
+            }),
+          )
           recordDebugEvent(
             'browser-scrape-listing-url',
             'Extracted a listing URL during the browser run.',
@@ -2399,7 +2727,21 @@ export function useExtensionSession() {
           }
 
           assignSearchBrowserRunProgress(pageResult.pageUrl)
-          await persistBrowserRunRecord(record)
+          await persistBrowserRunRecord(
+            record,
+            buildListingAuditFromRecord(runId, record, {
+              pageNumber: currentPageNumber,
+              duplicateDecision,
+              detailStatus: 'scraped',
+              detailAttempts: 0,
+              retryQueued: false,
+              auditJson: {
+                pageUrl: pageResult.pageUrl,
+                stage: 'search',
+                persistedWithoutDetailPage: true,
+              },
+            }),
+          )
         }
 
         if (skippedExistingOnPage > 0) {
@@ -2424,14 +2766,32 @@ export function useExtensionSession() {
           await emitBrowserRunProgress()
 
           for (const recordIndex of pageRecordIndexes) {
+            throwIfBrowserRunStopped(controller)
             const record = searchRecords[recordIndex]
             if (!record) {
               continue
             }
+            const recordIdentity = buildBrowserRecordIdentity(record)
+            const duplicateDecision = listingDuplicateDecisions.get(recordIdentity) || 'new'
+            const discoveredOnPage = listingPageNumbers.get(recordIdentity) ?? currentPageNumber
 
             if (!record.url) {
               assignSearchBrowserRunProgress(pageResult.pageUrl)
-              await persistBrowserRunRecord(record)
+              await persistBrowserRunRecord(
+                record,
+                buildListingAuditFromRecord(runId, record, {
+                  pageNumber: discoveredOnPage,
+                  duplicateDecision,
+                  detailStatus: 'not_attempted',
+                  detailAttempts: 0,
+                  retryQueued: false,
+                  auditJson: {
+                    pageUrl: pageResult.pageUrl,
+                    stage: 'detail',
+                    reason: 'missing-detail-url',
+                  },
+                }),
+              )
               continue
             }
 
@@ -2456,7 +2816,22 @@ export function useExtensionSession() {
                 recordsPersisted: runState.recordsPersisted,
                 imagesUploaded: runState.imagesUploaded,
               }
-              await persistBrowserRunRecord(record)
+              await persistBrowserRunRecord(
+                record,
+                buildListingAuditFromRecord(runId, record, {
+                  pageNumber: discoveredOnPage,
+                  duplicateDecision,
+                  detailStatus: 'failed',
+                  detailAttempts: 1,
+                  retryQueued: false,
+                  error: `Blocked cross-domain detail page during browser scrape: ${record.url}`,
+                  auditJson: {
+                    pageUrl: pageResult.pageUrl,
+                    stage: 'detail',
+                    blockedDetailUrl: record.url,
+                  },
+                }),
+              )
               continue
             }
 
@@ -2473,54 +2848,11 @@ export function useExtensionSession() {
               imagesUploaded: runState.imagesUploaded,
             }
             statusMessage.value = `Scraping detail page ${detailPagesCompleted + 1} of ${detailPagesTotal} in the active tab: ${record.url}`
-
-            let recordToPersist = record
-
-            try {
-              const readyTab = await navigateTab(crawlTab.id, record.url, {
-                timeoutMs: DETAIL_PAGE_NAV_TIMEOUT_MS,
-                allowPartialLoad: true,
-              })
-              const detailResult = await sendToTab<DetailPageExtractResponse>(readyTab, {
-                type: 'EXTENSION_EXTRACT_DETAIL_PAGE',
-                request: { draft, presetId },
-              })
-
-              recordDebugEvent(
-                'browser-scrape-detail-page',
-                'Scraped a detail page in the browser run.',
-                {
-                  url: detailResult.pageUrl,
-                  pageState: detailResult.analysis.pageState,
-                  imageCount: detailResult.analysis.stats.distinctImageCount,
-                  fieldCount: detailResult.analysis.fields.length,
-                },
-              )
-
-              if (detailResult.analysis.pageState === 'challenge') {
-                throw new Error(
-                  detailResult.analysis.stateMessage ||
-                    `The browser scrape hit a challenge page while opening ${record.url}.`,
-                )
-              }
-
-              recordToPersist = normalizePresetRecord(
-                presetId,
-                mergeBrowserRecord(record, detailResult.record),
-                {
-                  context: 'detail',
-                  pageUrl: detailResult.pageUrl,
-                },
-              )
-              searchRecords.splice(recordIndex, 1, recordToPersist)
-              searchWarnings.push(...detailResult.warnings)
-            } catch (error: unknown) {
-              searchWarnings.push(
-                error instanceof Error
-                  ? error.message
-                  : `Could not scrape the detail page for ${record.url}.`,
-              )
-            }
+            const recordToPersist = await scrapeDetailPage(crawlTab.id, record, {
+              pass: 'initial',
+            })
+            searchRecords.splice(recordIndex, 1, recordToPersist)
+            const retryQueued = detailRetryQueue.includes(buildBrowserRecordIdentity(recordToPersist))
 
             detailPagesCompleted += 1
             browserRunProgress.value = {
@@ -2535,13 +2867,110 @@ export function useExtensionSession() {
               recordsPersisted: runState.recordsPersisted,
               imagesUploaded: runState.imagesUploaded,
             }
-            await persistBrowserRunRecord(recordToPersist)
+            await persistBrowserRunRecord(
+              recordToPersist,
+              buildListingAuditFromRecord(runId, recordToPersist, {
+                pageNumber: discoveredOnPage,
+                duplicateDecision,
+                detailStatus: retryQueued ? 'retry_queued' : 'scraped',
+                detailAttempts: 1,
+                retryQueued,
+                auditJson: {
+                  pageUrl: pageResult.pageUrl,
+                  stage: 'detail',
+                  followPageAttempted: draft.config.fields.some(
+                    (field) => field.scope === 'detail-follow',
+                  ),
+                },
+              }),
+            )
           }
         } else {
           await emitBrowserRunProgress()
         }
 
         currentUrl = pageResult.nextPageUrl
+      }
+    }
+
+    if (detailRetryQueue.length) {
+      detailPagesTotal += detailRetryQueue.length
+
+      for (const identity of detailRetryQueue) {
+        throwIfBrowserRunStopped(controller)
+        const recordIndex = searchRecords.findIndex(
+          (record) => buildBrowserRecordIdentity(record) === identity,
+        )
+        const record = recordIndex >= 0 ? searchRecords[recordIndex] : null
+
+        if (!record?.url) {
+          continue
+        }
+        const duplicateDecision = listingDuplicateDecisions.get(identity) || 'new'
+        const discoveredOnPage = listingPageNumbers.get(identity) ?? null
+
+        browserRunProgress.value = {
+          stage: 'detail',
+          currentUrl: record.url,
+          pagesVisited,
+          itemsSeen,
+          itemsExtracted: searchRecords.length,
+          skippedExisting: runState.skippedExisting,
+          detailPagesCompleted,
+          detailPagesTotal,
+          recordsPersisted: runState.recordsPersisted,
+          imagesUploaded: runState.imagesUploaded,
+        }
+        statusMessage.value = `Retrying weak detail page ${detailPagesCompleted + 1} of ${detailPagesTotal} in the active tab: ${record.url}`
+        await emitBrowserRunProgress({
+          eventType: 'detail_retry_started',
+          message: `Retrying weak detail page for ${record.url}`,
+          pageNumber: discoveredOnPage,
+          searchUrl: record.url,
+        })
+
+        const refreshedRecord = await scrapeDetailPage(crawlTab.id, record, {
+          pass: 'retry',
+        })
+        searchRecords.splice(recordIndex, 1, refreshedRecord)
+
+        if (shouldRetryWeakDetailRecord(refreshedRecord)) {
+          searchWarnings.push(`Detail retry still produced a weak record for ${record.url}.`)
+        }
+
+        detailPagesCompleted += 1
+        browserRunProgress.value = {
+          stage: 'detail',
+          currentUrl: record.url,
+          pagesVisited,
+          itemsSeen,
+          itemsExtracted: searchRecords.length,
+          skippedExisting: runState.skippedExisting,
+          detailPagesCompleted,
+          detailPagesTotal,
+          recordsPersisted: runState.recordsPersisted,
+          imagesUploaded: runState.imagesUploaded,
+        }
+        await persistBrowserRunRecord(
+          refreshedRecord,
+          buildListingAuditFromRecord(runId, refreshedRecord, {
+            pageNumber: discoveredOnPage,
+            duplicateDecision,
+            detailStatus: 'retry_scraped',
+            detailAttempts: 2,
+            retryQueued: false,
+            auditJson: {
+              stage: 'detail-retry',
+              pageUrl: record.url,
+            },
+          }),
+        )
+        await emitBrowserRunProgress({
+          eventType: 'detail_retry_finished',
+          message: `Finished retrying detail page for ${record.url}`,
+          pageNumber: discoveredOnPage,
+          searchUrl: record.url,
+        })
       }
     }
 
@@ -2612,12 +3041,42 @@ export function useExtensionSession() {
     }
   }
 
+  function throwIfBrowserRunStopped(controller: ActiveBrowserRunController | null) {
+    if (controller?.stopRequested) {
+      throw new BrowserRunStoppedError()
+    }
+  }
+
+  function stopScrapeInBoatSearch() {
+    const controller = activeBrowserRunController.value
+    if (!controller || (!startingRemoteRun.value && !browserRunProgress.value)) {
+      return
+    }
+
+    if (controller.stopRequested) {
+      return
+    }
+
+    controller.stopRequested = true
+    stoppingRemoteRun.value = true
+    errorMessage.value = ''
+    statusMessage.value = 'Stopping browser scrape after the current step finishes...'
+    void persistBrowserRunStopToBoatSearch(activeRemoteRunMeta.value, BROWSER_RUN_STOP_MESSAGE).catch(
+      () => {},
+    )
+    recordDebugEvent('browser-scrape-stop-requested', 'User requested that the browser scrape stop.')
+  }
+
   async function startScrapeInBoatSearch() {
     errorMessage.value = ''
     startingRemoteRun.value = true
+    stoppingRemoteRun.value = false
     remoteRun.value = null
+    activeRemoteRunMeta.value = null
     browserRunProgress.value = null
     statusMessage.value = 'Verifying the Boat Search connection...'
+    const runController: ActiveBrowserRunController = { stopRequested: false }
+    activeBrowserRunController.value = runController
     let activeRun: ExtensionRunStartResponse | null = null
     let activeDraft: ScraperPipelineDraft | null = null
     let activePresetId: SitePresetId | null = null
@@ -2633,6 +3092,7 @@ export function useExtensionSession() {
 
     try {
       await ensureTrustedPresetLoaded()
+      throwIfBrowserRunStopped(runController)
 
       if (!session.value.connection.apiKey.trim()) {
         throw new Error('Add a Boat Search API key before starting a browser scrape.')
@@ -2655,6 +3115,7 @@ export function useExtensionSession() {
         )
       }
       const authStatus = await verifyBoatSearchConnection(true)
+      throwIfBrowserRunStopped(runController)
       const imageUploadEnabled = Boolean(authStatus?.imageUploadEnabled)
 
       const run = await fetchBoatSearchJson<ExtensionRunStartResponse>(
@@ -2665,7 +3126,15 @@ export function useExtensionSession() {
         },
       )
       activeRun = run
-      const existingIdentityState = createBrowserRunIdentityState(run.existingBoatIdentities)
+      activeRemoteRunMeta.value = {
+        pipelineId: run.pipelineId,
+        jobId: run.jobId,
+      }
+      throwIfBrowserRunStopped(runController)
+      const existingIdentityState = createBrowserRunIdentityState(
+        run.existingBoatIdentities,
+        run.refreshableBoatIdentities,
+      )
       recordDebugEvent(
         'browser-scrape-started',
         'Boat Search accepted the browser scrape run.',
@@ -2674,6 +3143,8 @@ export function useExtensionSession() {
           jobId: run.jobId,
           knownListingIds: existingIdentityState.knownListingIds.size,
           knownNormalizedUrls: existingIdentityState.knownNormalizedUrls.size,
+          refreshableListingIds: existingIdentityState.refreshableListingIds.size,
+          refreshableNormalizedUrls: existingIdentityState.refreshableNormalizedUrls.size,
         },
       )
       if (!imageUploadEnabled) {
@@ -2684,13 +3155,17 @@ export function useExtensionSession() {
       }
       statusMessage.value = 'Scraping the site in the active browser tab...'
       const browserRun = await crawlDraftInBrowser(
+        run.jobId,
         draft,
         activePresetId,
         runState,
         existingIdentityState,
-        async (record) => {
+        runController,
+        async (record, listing) => {
+          throwIfBrowserRunStopped(runController)
           upsertBrowserRunRecord(scrapedRecords, cloneSerializableValue(record))
-          const persisted = await persistBrowserRecordToBoatSearch(run, draft, record)
+          const persisted = await persistBrowserRecordToBoatSearch(run, draft, listing, record)
+          throwIfBrowserRunStopped(runController)
           runState.imagesUploaded += persisted.imagesUploaded
           runState.inserted += persisted.inserted
           runState.updated += persisted.updated
@@ -2707,10 +3182,16 @@ export function useExtensionSession() {
               }
             : null
         },
-        async (summary, progress) => {
-          await persistBrowserRunProgressToBoatSearch(run, summary, progress, runState)
+        async (listing) => {
+          throwIfBrowserRunStopped(runController)
+          await persistBrowserListingAuditToBoatSearch(run, listing)
+        },
+        async (summary, progress, options) => {
+          throwIfBrowserRunStopped(runController)
+          await persistBrowserRunProgressToBoatSearch(run, summary, progress, runState, options)
         },
       )
+      throwIfBrowserRunStopped(runController)
       const summary = {
         ...browserRun.summary,
         warnings: imageUploadEnabled
@@ -2761,6 +3242,7 @@ export function useExtensionSession() {
         jobId: response.jobId,
         summary: response.summary,
       }
+      activeRemoteRunMeta.value = null
       browserRunProgress.value = null
       statusMessage.value =
         response.summary.skippedExisting > 0
@@ -2782,6 +3264,50 @@ export function useExtensionSession() {
       )
       return
     } catch (error: unknown) {
+      if (isBrowserRunStoppedError(error)) {
+        const progressSnapshot = browserRunProgress.value
+        if (activeRun && activeDraft) {
+          try {
+            await fetchBoatSearchJson('/api/admin/scraper-extension/run/fail', {
+              method: 'POST',
+              body: JSON.stringify({
+                pipelineId: activeRun.pipelineId,
+                jobId: activeRun.jobId,
+                draft: activeDraft,
+                summary: {
+                  pagesVisited: browserRunProgress.value?.pagesVisited ?? 0,
+                  itemsSeen: browserRunProgress.value?.itemsSeen ?? 0,
+                  itemsExtracted: browserRunProgress.value?.itemsExtracted ?? 0,
+                  skippedExisting: browserRunProgress.value?.skippedExisting ?? runState.skippedExisting,
+                  visitedUrls: [],
+                  warnings: [],
+                },
+                inserted: runState.inserted,
+                updated: runState.updated,
+                error: BROWSER_RUN_STOP_MESSAGE,
+              }),
+            })
+          } catch {
+            // Ignore stop-finalization issues and surface the local stop state.
+          }
+        }
+
+        browserRunProgress.value = null
+        remoteRun.value = null
+        activeRemoteRunMeta.value = null
+        errorMessage.value = ''
+        statusMessage.value = 'Browser scrape stopped.'
+        recordDebugEvent('browser-scrape-stopped', BROWSER_RUN_STOP_MESSAGE, {
+          pagesVisited: progressSnapshot?.pagesVisited ?? 0,
+          itemsSeen: progressSnapshot?.itemsSeen ?? 0,
+          itemsExtracted: progressSnapshot?.itemsExtracted ?? 0,
+          skippedExisting: progressSnapshot?.skippedExisting ?? runState.skippedExisting,
+          recordsPersisted: runState.recordsPersisted,
+          imagesUploaded: runState.imagesUploaded,
+        })
+        return
+      }
+
       const fallbackDraft = activeDraft ? cloneSerializableValue(activeDraft) : cloneSerializableValue(session.value.draft)
       if (isBoatSearchRequestError(error)) {
         try {
@@ -2857,7 +3383,10 @@ export function useExtensionSession() {
         imagesUploaded: runState.imagesUploaded,
       })
     } finally {
+      activeRemoteRunMeta.value = null
+      activeBrowserRunController.value = null
       startingRemoteRun.value = false
+      stoppingRemoteRun.value = false
     }
   }
 
@@ -2881,10 +3410,13 @@ export function useExtensionSession() {
     itemSelectorTraining.value = null
     itemSelectorPreview.value = null
     remoteRun.value = null
+    activeRemoteRunMeta.value = null
     browserRunProgress.value = null
     sampleDetailRun.value = null
     fixtureCapturePendingOverride.value = null
     capturingFixture.value = false
+    stoppingRemoteRun.value = false
+    activeBrowserRunController.value = null
     void clearFieldPreview()
   }
 
@@ -3002,6 +3534,7 @@ export function useExtensionSession() {
     activeTab,
     itemFields,
     detailFields,
+    detailFollowFields,
     pendingPicker,
     fieldPreview,
     itemSelectorTraining,
@@ -3013,6 +3546,7 @@ export function useExtensionSession() {
     fixtureCapturePendingOverride,
     capturingFixture,
     startingRemoteRun,
+    stoppingRemoteRun,
     verifyingConnection,
     statusMessage,
     errorMessage,
@@ -3044,6 +3578,7 @@ export function useExtensionSession() {
     clearScrapeState,
     forgetBoatSearchConnection,
     startScrapeInBoatSearch,
+    stopScrapeInBoatSearch,
     openBoatSearchAccountSettings,
     handoffToBoatSearch,
     resetSession,

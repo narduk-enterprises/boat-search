@@ -6,7 +6,10 @@ import {
   updateScraperPipeline,
 } from '#server/utils/scraperPipelineStore'
 import { createRunningCrawlJob } from '#server/utils/scraperPipelineEngine'
-import { listActiveBoatSourceListingIdentities } from '#server/utils/boatDedupe'
+import {
+  listActiveBoatSourceListingIdentities,
+  listRefreshableBoatSourceListingIdentities,
+} from '#server/utils/boatDedupe'
 
 export default defineAdminMutation(
   {
@@ -39,6 +42,10 @@ export default defineAdminMutation(
       event,
       pipeline.boatSource,
     )
+    const refreshableBoatIdentities = await listRefreshableBoatSourceListingIdentities(
+      event,
+      pipeline.boatSource,
+    )
 
     return {
       pipelineId: pipeline.id,
@@ -46,6 +53,7 @@ export default defineAdminMutation(
       jobId,
       startedAt,
       existingBoatIdentities,
+      refreshableBoatIdentities,
     }
   },
 )

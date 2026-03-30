@@ -19,7 +19,7 @@ export const FIELD_KEYS = [
   'fullText',
 ] as const
 
-export const FIELD_SCOPES = ['item', 'detail'] as const
+export const FIELD_SCOPES = ['item', 'detail', 'detail-follow'] as const
 export const FIELD_EXTRACT_TYPES = ['text', 'attr', 'html'] as const
 export const FIELD_TRANSFORMS = ['text', 'price', 'year', 'integer', 'url'] as const
 
@@ -64,6 +64,7 @@ export interface ScraperPipelineDraft {
     allowedDomains: string[]
     itemSelector: string
     nextPageSelector: string
+    detailFollowLinkSelector: string
     maxPages: number
     maxItemsPerRun: number
     fetchDetailPages: boolean
@@ -204,12 +205,14 @@ export interface SearchPageExtractResponse {
 export interface DetailPageExtractRequest {
   draft: ScraperPipelineDraft
   presetId?: SitePresetId | null
+  scope?: 'detail' | 'detail-follow'
 }
 
 export interface DetailPageExtractResponse {
   analysis: AutoDetectedAnalysis
   pageUrl: string
   record: Partial<BrowserScrapeRecord>
+  followPageUrl?: string | null
   warnings: string[]
 }
 
@@ -233,6 +236,40 @@ export interface BrowserScrapeProgress {
   detailPagesTotal: number
   recordsPersisted: number
   imagesUploaded: number
+}
+
+export type ExtensionDuplicateDecision =
+  | 'new'
+  | 'known_duplicate_skipped'
+  | 'weak_existing_refresh'
+
+export type ExtensionDetailStatus =
+  | 'not_attempted'
+  | 'queued'
+  | 'scraped'
+  | 'retry_queued'
+  | 'retry_scraped'
+  | 'failed'
+  | 'stopped'
+
+export interface ExtensionRunListingAudit {
+  runId: number
+  identityKey: string
+  source: string
+  listingId: string | null
+  listingUrl: string | null
+  detailUrl: string | null
+  pageNumber: number | null
+  duplicateDecision: ExtensionDuplicateDecision
+  detailStatus: ExtensionDetailStatus
+  detailAttempts: number
+  retryQueued: boolean
+  weakFingerprint: boolean
+  finalImageCount: number | null
+  finalHasStructuredDetails: boolean
+  error: string | null
+  warnings: string[]
+  auditJson?: Record<string, unknown>
 }
 
 export type SampleDetailRunStatus = 'opening' | 'opened' | 'scanned' | 'error'
@@ -391,13 +428,20 @@ export interface ExtensionRunStartResponse {
   jobId: number
   startedAt: string
   existingBoatIdentities: ExtensionKnownBoatIdentities
+  refreshableBoatIdentities: ExtensionKnownBoatIdentities
 }
 
 export interface ExtensionRunRecordResponse {
   inserted: number
   updated: number
+  boatId: number | null
+  persistenceStatus: 'inserted' | 'updated' | 'unchanged' | 'failed'
   imagesUploaded: number
   warnings: string[]
+}
+
+export interface ExtensionRunListingResponse {
+  ok: true
 }
 
 export interface ExtensionRunProgressResponse {
@@ -426,6 +470,10 @@ export interface ExtensionRunCompleteResponse {
     visitedUrls: string[]
     warnings: string[]
   }
+}
+
+export interface ExtensionRunStopResponse {
+  ok: true
 }
 
 export interface PickerProgress {

@@ -1,4 +1,12 @@
-import { sqliteTable, text, integer, index, primaryKey } from 'drizzle-orm/sqlite-core'
+import {
+  sqliteTable,
+  text,
+  integer,
+  index,
+  primaryKey,
+  real,
+  uniqueIndex,
+} from 'drizzle-orm/sqlite-core'
 
 /**
  * App-specific database schema.
@@ -33,6 +41,19 @@ export const boats = sqliteTable(
     city: text('city'),
     state: text('state'),
     country: text('country').default('US'),
+    normalizedLocation: text('normalized_location'),
+    normalizedCity: text('normalized_city'),
+    normalizedState: text('normalized_state'),
+    normalizedCountry: text('normalized_country'),
+    geoLat: real('geo_lat'),
+    geoLng: real('geo_lng'),
+    geoPrecision: text('geo_precision'),
+    geoProvider: text('geo_provider'),
+    geoStatus: text('geo_status'),
+    geoQuery: text('geo_query'),
+    geoError: text('geo_error'),
+    geoUpdatedAt: text('geo_updated_at'),
+    geoNormalizationVersion: integer('geo_normalization_version'),
     description: text('description'),
     contactInfo: text('contact_info'),
     contactName: text('contact_name'),
@@ -97,6 +118,28 @@ export const boats = sqliteTable(
     index('idx_boats_year').on(table.year),
     index('idx_boats_price').on(table.price),
     index('idx_boats_state').on(table.state),
+    index('idx_boats_normalized_state').on(table.normalizedState),
+    index('idx_boats_geo_status').on(table.geoStatus),
+    index('idx_boats_geo_query').on(table.geoQuery),
+  ],
+)
+
+export const geocodeCache = sqliteTable(
+  'geocode_cache',
+  {
+    query: text('query').primaryKey(),
+    provider: text('provider').notNull(),
+    precision: text('precision').notNull(),
+    status: text('status').notNull(),
+    lat: real('lat'),
+    lng: real('lng'),
+    error: text('error'),
+    createdAt: text('created_at').notNull(),
+    updatedAt: text('updated_at').notNull(),
+  },
+  (table) => [
+    index('idx_geocode_cache_status').on(table.status),
+    index('idx_geocode_cache_updated_at').on(table.updatedAt),
   ],
 )
 
@@ -143,6 +186,62 @@ export const crawlJobs = sqliteTable('crawl_jobs', {
   error: text('error'),
   resultJson: text('result_json'),
 })
+
+export const crawlJobEvents = sqliteTable(
+  'crawl_job_events',
+  {
+    id: integer('id').primaryKey({ autoIncrement: true }),
+    crawlJobId: integer('crawl_job_id').notNull(),
+    eventType: text('event_type').notNull(),
+    status: text('status').notNull(),
+    message: text('message'),
+    pageNumber: integer('page_number'),
+    searchUrl: text('search_url'),
+    payloadJson: text('payload_json'),
+    createdAt: text('created_at').notNull(),
+  },
+  (table) => [
+    index('idx_crawl_job_events_job_created_at').on(table.crawlJobId, table.createdAt),
+    index('idx_crawl_job_events_created_at').on(table.createdAt),
+  ],
+)
+
+export const crawlJobListings = sqliteTable(
+  'crawl_job_listings',
+  {
+    id: integer('id').primaryKey({ autoIncrement: true }),
+    crawlJobId: integer('crawl_job_id').notNull(),
+    identityKey: text('identity_key').notNull(),
+    source: text('source').notNull(),
+    listingId: text('listing_id'),
+    listingUrl: text('listing_url'),
+    detailUrl: text('detail_url'),
+    discoveredOnPage: integer('discovered_on_page'),
+    firstSeenAt: text('first_seen_at').notNull(),
+    lastUpdatedAt: text('last_updated_at').notNull(),
+    duplicateDecision: text('duplicate_decision').notNull(),
+    detailStatus: text('detail_status').notNull(),
+    detailAttempts: integer('detail_attempts').notNull().default(0),
+    retryQueued: integer('retry_queued', { mode: 'boolean' }).notNull().default(false),
+    persistenceStatus: text('persistence_status').notNull().default('not_attempted'),
+    persistedBoatId: integer('persisted_boat_id'),
+    finalImageCount: integer('final_image_count'),
+    finalHasStructuredDetails: integer('final_has_structured_details', { mode: 'boolean' })
+      .notNull()
+      .default(false),
+    weakFingerprint: integer('weak_fingerprint', { mode: 'boolean' }).notNull().default(false),
+    errorMessage: text('error_message'),
+    auditJson: text('audit_json'),
+  },
+  (table) => [
+    uniqueIndex('uidx_crawl_job_listings_job_identity').on(table.crawlJobId, table.identityKey),
+    index('idx_crawl_job_listings_job_updated_at').on(table.crawlJobId, table.lastUpdatedAt),
+    index('idx_crawl_job_listings_detail_status').on(table.detailStatus),
+    index('idx_crawl_job_listings_persistence_status').on(table.persistenceStatus),
+    index('idx_crawl_job_listings_weak_fingerprint').on(table.weakFingerprint),
+    index('idx_crawl_job_listings_first_seen_at').on(table.firstSeenAt),
+  ],
+)
 
 export const xaiAnalyses = sqliteTable('xai_analyses', {
   id: integer('id').primaryKey({ autoIncrement: true }),

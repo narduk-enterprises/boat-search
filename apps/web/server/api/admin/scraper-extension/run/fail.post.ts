@@ -18,5 +18,6 @@ export default defineAdminMutation(
       inserted: body.inserted,
       updated: body.updated,
       error: body.error,
+      stopped: /stopped by user/i.test(body.error),
     }),
 )

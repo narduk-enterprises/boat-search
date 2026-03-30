@@ -106,10 +106,17 @@ const discoverySteps = [
               class="brand-button-shadow"
             />
             <UButton
+              to="/boats-for-sale/map"
+              label="Open inventory map"
+              color="neutral"
+              variant="soft"
+              icon="i-lucide-map"
+            />
+            <UButton
               to="/ai-boat-finder"
               label="Use the buyer brief"
               color="neutral"
-              variant="soft"
+              variant="ghost"
               icon="i-lucide-sparkles"
             />
           </div>
@@ -143,7 +150,7 @@ const discoverySteps = [
       </div>
     </UPageSection>
 
-    <UPageSection :ui="{ wrapper: 'py-0' }">
+    <UPageSection :ui="{ container: 'py-0' }">
       <div class="grid gap-6 xl:grid-cols-[1fr_0.92fr]">
         <UCard class="brand-surface" :ui="{ body: 'p-6 space-y-4' }">
           <div class="space-y-2">
@@ -210,7 +217,7 @@ const discoverySteps = [
       </div>
     </UPageSection>
 
-    <UPageSection :ui="{ wrapper: 'py-6' }">
+    <UPageSection :ui="{ container: 'py-6' }">
       <div class="grid gap-6 xl:grid-cols-2">
         <UCard class="brand-surface" :ui="{ body: 'p-6 space-y-4' }">
           <div class="space-y-2">
@@ -279,7 +286,7 @@ const discoverySteps = [
       </div>
     </UPageSection>
 
-    <UPageSection :ui="{ wrapper: 'py-0' }">
+    <UPageSection :ui="{ container: 'py-0' }">
       <UCard class="brand-surface" :ui="{ body: 'p-6 space-y-4' }">
         <div class="space-y-2">
           <h2 class="text-2xl font-semibold text-highlighted">Boat classes</h2>

@@ -1,6 +1,6 @@
 import { defineAdminMutation, withValidatedBody } from '#layer/server/utils/mutation'
 import { scraperPipelineStreamRecordSchema } from '~~/lib/scraperPipeline'
-import { persistScraperBrowserRecord } from '#server/utils/scraperPipelineEngine'
+import { persistScraperBrowserRecord, storeCrawlJobListingAudit } from '#server/utils/scraperPipelineEngine'
 
 export default defineAdminMutation(
   {
@@ -16,8 +16,33 @@ export default defineAdminMutation(
       draft: body.draft,
       record: body.record,
     })
+    await storeCrawlJobListingAudit(event, {
+      jobId: body.jobId,
+      listing: {
+        ...body.listing,
+        warnings: result.candidate.warnings,
+        finalImageCount: body.record.images.length,
+        finalHasStructuredDetails: Boolean(
+          body.record.contactInfo ||
+            body.record.otherDetails ||
+            body.record.features ||
+            body.record.propulsion ||
+            body.record.specifications,
+        ),
+        error: null,
+        auditJson: {
+          ...(body.listing.auditJson || {}),
+          lastPersistedAt: new Date().toISOString(),
+          rawFieldCount: Object.keys(body.record.rawFields || {}).length,
+        },
+      },
+      persistenceStatus: result.persistenceStatus,
+      persistedBoatId: result.boatId,
+    })
 
     return {
+      boatId: result.boatId,
+      persistenceStatus: result.persistenceStatus,
       inserted: result.inserted,
       updated: result.updated,
       imagesUploaded: result.imagesUploaded,

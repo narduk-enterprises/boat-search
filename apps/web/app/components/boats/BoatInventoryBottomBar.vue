@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import type { RouteLocationRaw } from 'vue-router'
 import type { BoatInventorySort } from '~~/app/types/boat-inventory'
 import { BOAT_INVENTORY_SORT_OPTIONS } from '~~/app/types/boat-inventory'
 
@@ -8,10 +9,16 @@ const props = withDefaults(
     activeFilterCount?: number
     hasUnsavedChanges?: boolean
     resultsLabel: string
+    alternateViewLabel?: string
+    alternateViewTo?: RouteLocationRaw | null
+    alternateViewIcon?: string
   }>(),
   {
     activeFilterCount: 0,
     hasUnsavedChanges: false,
+    alternateViewLabel: undefined,
+    alternateViewTo: null,
+    alternateViewIcon: 'i-lucide-map',
   },
 )
 
@@ -49,6 +56,14 @@ const filtersLabel = computed(() => {
         </p>
       </div>
 
+      <UButton
+        v-if="props.alternateViewLabel && props.alternateViewTo"
+        color="neutral"
+        variant="ghost"
+        :icon="props.alternateViewIcon"
+        :label="props.alternateViewLabel"
+        :to="props.alternateViewTo"
+      />
       <UButton
         color="neutral"
         variant="soft"

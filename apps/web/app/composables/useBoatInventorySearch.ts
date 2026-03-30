@@ -124,6 +124,7 @@ export function useBoatInventorySearch(options: { limit?: number } = {}) {
   const route = useRoute()
   const router = useRouter()
   const limit = options.limit ?? 48
+  const inventoryPath = computed(() => route.path || BOAT_INVENTORY_SEARCH_PATH)
 
   const draftFilters = ref<BoatInventoryFilters>(createEmptyFilters())
 
@@ -176,7 +177,7 @@ export function useBoatInventorySearch(options: { limit?: number } = {}) {
     }
 
     await router.push({
-      path: BOAT_INVENTORY_SEARCH_PATH,
+      path: inventoryPath.value || BOAT_INVENTORY_SEARCH_PATH,
       query,
       hash: route.hash || undefined,
     })

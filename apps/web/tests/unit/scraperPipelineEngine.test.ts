@@ -24,6 +24,7 @@ function createDraft(): ScraperPipelineDraft {
       allowedDomains: ['www.yachtworld.com', 'images.yachtworld.com'],
       itemSelector: 'div.grid-item',
       nextPageSelector: 'a[rel="next"]',
+      detailFollowLinkSelector: '',
       maxPages: 1,
       maxItemsPerRun: 50,
       fetchDetailPages: true,
@@ -154,6 +155,8 @@ describe('persistScraperBrowserRecord', () => {
     )
     expect(rebuildBoatDedupeState).not.toHaveBeenCalled()
     expect(result.imagesUploaded).toBe(0)
+    expect(result.boatId).toBe(101)
+    expect(result.persistenceStatus).toBe('inserted')
     expect(result.candidate.images).toEqual([
       'https://images.yachtworld.com/example-1.jpg',
       'https://images.yachtworld.com/example-2.jpg',

@@ -51,6 +51,7 @@ export function createEmptyDraft(): ScraperPipelineDraft {
       allowedDomains: [],
       itemSelector: '',
       nextPageSelector: '',
+      detailFollowLinkSelector: '',
       maxPages: DEFAULT_BROWSER_SCRAPE_MAX_PAGES,
       maxItemsPerRun: DEFAULT_BROWSER_SCRAPE_MAX_ITEMS_PER_RUN,
       fetchDetailPages: true,
@@ -132,5 +133,7 @@ export function createDefaultSession(overrides: SessionDefaults = {}): Extension
 }
 
 export function getFieldTitle(field: ScraperFieldRule) {
-  return `${field.scope === 'detail' ? 'Detail' : 'Item'} · ${field.key}`
+  const scopeLabel =
+    field.scope === 'detail' ? 'Detail' : field.scope === 'detail-follow' ? 'Follow page' : 'Item'
+  return `${scopeLabel} · ${field.key}`
 }

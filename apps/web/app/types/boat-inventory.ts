@@ -8,7 +8,16 @@ export interface BoatInventoryBoat {
   length: string | null
   city: string | null
   state: string | null
+  country: string | null
   location: string | null
+  normalizedLocation: string | null
+  normalizedCity: string | null
+  normalizedState: string | null
+  normalizedCountry: string | null
+  geoLat: number | null
+  geoLng: number | null
+  geoPrecision: string | null
+  geoStatus: string | null
   price: number | null
   description: string | null
   sellerType: string | null

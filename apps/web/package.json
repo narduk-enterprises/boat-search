@@ -22,6 +22,7 @@
     "format:check": "prettier --check \"**/*.{ts,mts,vue,js,mjs,json,yaml,yml,css,md}\" --ignore-path ../../.gitignore",
     "db:verify": "node node_modules/@narduk-enterprises/narduk-nuxt-template-layer/testing/verify-local-db.mjs .",
     "yachtworld:csv-sql": "tsx scripts/yachtworld/csvToSql.ts",
+    "yachtworld:backfill-targets": "tsx scripts/yachtworld/exportBackfillTargets.ts",
     "predev": "pnpm run db:ready"
   },
   "dependencies": {

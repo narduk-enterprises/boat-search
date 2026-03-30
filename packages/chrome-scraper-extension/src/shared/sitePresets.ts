@@ -42,6 +42,12 @@ interface SitePresetDefinition {
 
 const YACHTWORLD_LABEL = 'YachtWorld Search'
 const YACHTWORLD_ALLOWED_DOMAINS = ['www.yachtworld.com', 'images.yachtworld.com']
+const YACHTWORLD_DETAIL_FOLLOW_LINK_SELECTOR = [
+  'a[data-testid="view-all-photos"]',
+  '.photo-gallery a[href*="/photos/"]',
+  'a[href*="/photos/"]',
+  'a[href*="/gallery/"]',
+].join(', ')
 const BOATS_COM_LABEL = 'Boats.com Search'
 const BOATS_COM_ALLOWED_DOMAINS = ['www.boats.com', 'images.boats.com']
 const EMPTY_DRAFT_FINGERPRINT = JSON.stringify(createEmptyDraft())
@@ -1191,6 +1197,23 @@ function getYachtWorldDetailFields() {
   ]
 }
 
+function getYachtWorldDetailFollowFields() {
+  return [
+    createFieldRule(
+      'images',
+      'detail-follow',
+      '.style-module_verticalImageGallery__aQsAd img, [data-testid="listing-gallery"] img, .vertical-image-gallery img, .photo-gallery img',
+      {
+        extract: 'attr',
+        attribute: 'src',
+        transform: 'url',
+        multiple: true,
+        required: false,
+      },
+    ),
+  ]
+}
+
 function buildYachtWorldDraft({ pageUrl, analysis }: PresetDraftOptions) {
   const draft = createEmptyDraft()
   const currentHost = (() => {
@@ -1215,11 +1238,13 @@ function buildYachtWorldDraft({ pageUrl, analysis }: PresetDraftOptions) {
     analysis?.pageType === 'search' && analysis.pageState === 'ok' && analysis.nextPageSelector
       ? analysis.nextPageSelector
       : 'a.next, a[rel="next"], a[aria-label*="next" i]'
+  draft.config.detailFollowLinkSelector = YACHTWORLD_DETAIL_FOLLOW_LINK_SELECTOR
   draft.config.maxPages = DEFAULT_BROWSER_SCRAPE_MAX_PAGES
   draft.config.fetchDetailPages = true
   draft.config.fields = [
     ...getYachtWorldSearchFields(analysis),
     ...getYachtWorldDetailFields(),
+    ...getYachtWorldDetailFollowFields(),
   ]
 
   return draft
@@ -1767,6 +1792,8 @@ export function buildRuntimePresetDraft(
       itemSelector: presetDraft.config.itemSelector || draft.config.itemSelector,
       nextPageSelector:
         presetDraft.config.nextPageSelector || draft.config.nextPageSelector,
+      detailFollowLinkSelector:
+        presetDraft.config.detailFollowLinkSelector || draft.config.detailFollowLinkSelector,
       fields: presetDraft.config.fields,
     },
   } satisfies ScraperPipelineDraft
