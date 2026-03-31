@@ -1,4 +1,4 @@
-(() => {
+;(() => {
   const MAX_CANDIDATES = 12
   const MAX_IMAGE_GROUPS = 10
 
@@ -22,7 +22,10 @@
   function stableClasses(element) {
     return [...element.classList]
       .filter((name) => /^[a-z][\w-]{1,}$/i.test(name))
-      .filter((name) => !/(active|selected|current|visible|hidden|loading|loaded|focus|hover)/i.test(name))
+      .filter(
+        (name) =>
+          !/(active|selected|current|visible|hidden|loading|loaded|focus|hover)/i.test(name),
+      )
       .slice(0, 2)
   }
 
@@ -114,13 +117,14 @@
 
   function visibleTextCandidates(selectors, predicate) {
     return uniqueBy(
-      selectors.flatMap((selector) =>
-        queryAll(selector).map((element) => ({
-          selector: cssPath(element),
-          text: normalizeText(element.textContent),
-          visible: isVisible(element),
-        })),
-      )
+      selectors
+        .flatMap((selector) =>
+          queryAll(selector).map((element) => ({
+            selector: cssPath(element),
+            text: normalizeText(element.textContent),
+            visible: isVisible(element),
+          })),
+        )
         .filter((entry) => entry.text)
         .filter((entry) => predicate(entry.text, entry.visible)),
       (entry) => `${entry.selector}:${entry.text}`,
@@ -182,14 +186,12 @@
       (entry) => `${entry.selector}:${entry.text.slice(0, 120)}`,
     )
 
-    return [...metaDescription, ...visibleBlocks]
-      .slice(0, MAX_CANDIDATES)
-      .map((entry) => ({
-        selector: entry.selector,
-        source: entry.source,
-        length: entry.length,
-        textPreview: entry.text.slice(0, 300),
-      }))
+    return [...metaDescription, ...visibleBlocks].slice(0, MAX_CANDIDATES).map((entry) => ({
+      selector: entry.selector,
+      source: entry.source,
+      length: entry.length,
+      textPreview: entry.text.slice(0, 300),
+    }))
   }
 
   function imageGroups() {
@@ -203,7 +205,9 @@
     const grouped = new Map()
     for (const image of images) {
       const container =
-        image.element.closest('[class*="gallery" i], [class*="carousel" i], [class*="slider" i], picture, figure, section, div') ||
+        image.element.closest(
+          '[class*="gallery" i], [class*="carousel" i], [class*="slider" i], picture, figure, section, div',
+        ) ||
         image.element.parentElement ||
         image.element
       const key = cssPath(container)
@@ -215,7 +219,12 @@
       }
 
       current.totalImages += 1
-      if (/^https?:\/\//i.test(image.src) && !/(\.svg\b|servedby|adbutler|doubleclick|googleads|google-analytics|facebook|pixel)/i.test(image.src)) {
+      if (
+        /^https?:\/\//i.test(image.src) &&
+        !/(\.svg\b|servedby|adbutler|doubleclick|googleads|google-analytics|facebook|pixel)/i.test(
+          image.src,
+        )
+      ) {
         current.httpImages.push(image.src)
       } else {
         current.ignoredImages.push(image.src)
@@ -233,7 +242,10 @@
         sampleIgnoredImages: uniqueBy(group.ignoredImages, (value) => value).slice(0, 4),
       }))
       .filter((group) => group.totalImages > 0)
-      .sort((left, right) => right.keptImageCount - left.keptImageCount || right.totalImages - left.totalImages)
+      .sort(
+        (left, right) =>
+          right.keptImageCount - left.keptImageCount || right.totalImages - left.totalImages,
+      )
       .slice(0, MAX_IMAGE_GROUPS)
   }
 

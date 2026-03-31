@@ -41,31 +41,31 @@ const emit = defineEmits<{
 }>()
 
 const templates = computed<FixtureCaptureCard[]>(() =>
-  ([
-    'search-ok',
-    'search-no-results',
-    'detail-ok',
-    'detail-gallery-noise',
-    'custom',
-  ] as const).map((template) => {
-    const definition = getFixtureCaptureTemplateDefinition(template)
-    const validation = evaluateFixtureCaptureTemplate(template, props.analysis, props.currentTabUrl)
-    const record = props.fixtureCapture.captured[template]
-    const resolvedLabel = resolveFixtureLabel(template, props.fixtureCapture.customLabel)
+  (['search-ok', 'search-no-results', 'detail-ok', 'detail-gallery-noise', 'custom'] as const).map(
+    (template) => {
+      const definition = getFixtureCaptureTemplateDefinition(template)
+      const validation = evaluateFixtureCaptureTemplate(
+        template,
+        props.analysis,
+        props.currentTabUrl,
+      )
+      const record = props.fixtureCapture.captured[template]
+      const resolvedLabel = resolveFixtureLabel(template, props.fixtureCapture.customLabel)
 
-    return {
-      ...definition,
-      capturedAt: record.capturedAt,
-      currentUrl: record.currentUrl,
-      files: record.files,
-      fileStem: record.fileStem,
-      matchStatus: validation.status,
-      matchNote: validation.note,
-      resolvedLabel,
-      selected: props.fixtureCapture.selectedTemplate === template,
-      pendingOverride: props.pendingOverrideTemplate === template,
-    }
-  }),
+      return {
+        ...definition,
+        capturedAt: record.capturedAt,
+        currentUrl: record.currentUrl,
+        files: record.files,
+        fileStem: record.fileStem,
+        matchStatus: validation.status,
+        matchNote: validation.note,
+        resolvedLabel,
+        selected: props.fixtureCapture.selectedTemplate === template,
+        pendingOverride: props.pendingOverrideTemplate === template,
+      }
+    },
+  ),
 )
 
 const lastCaptureLabel = computed(() => {
@@ -153,10 +153,7 @@ function onCustomLabelInput(event: Event) {
           </div>
         </header>
 
-        <div
-          v-if="template.id === 'custom'"
-          class="fixture-card__custom"
-        >
+        <div v-if="template.id === 'custom'" class="fixture-card__custom">
           <label class="fixture-card__label">
             <span class="fixture-card__label-text">Custom label</span>
             <input
@@ -167,17 +164,14 @@ function onCustomLabelInput(event: Event) {
               placeholder="search-consent-banner"
               @focus="emit('selectTemplate', 'custom')"
               @input="onCustomLabelInput"
-            >
+            />
           </label>
           <p class="fixture-card__resolved">
             Downloads as <code>{{ template.resolvedLabel }}</code>
           </p>
         </div>
 
-        <div
-          v-if="template.capturedAt"
-          class="fixture-card__capture-summary"
-        >
+        <div v-if="template.capturedAt" class="fixture-card__capture-summary">
           <strong>Captured</strong>
           <p>{{ template.fileStem }}</p>
           <p>{{ template.capturedAt }}</p>
@@ -210,10 +204,7 @@ function onCustomLabelInput(event: Event) {
       </article>
     </div>
 
-    <div
-      v-if="lastCaptureLabel"
-      class="fixture-capture__last"
-    >
+    <div v-if="lastCaptureLabel" class="fixture-capture__last">
       <strong>Last capture</strong>
       <p>{{ lastCaptureLabel }}</p>
       <p>

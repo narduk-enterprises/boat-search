@@ -147,7 +147,11 @@ function isActiveLink(link: NavLink) {
                   v-if="loggedIn"
                   class="hidden lg:block"
                   :menu-links="[
-                    { label: 'AI Boat Profiles', to: '/account/profile', icon: 'i-lucide-sparkles' },
+                    {
+                      label: 'AI Boat Profiles',
+                      to: '/account/profile',
+                      icon: 'i-lucide-sparkles',
+                    },
                     { label: 'Shortlist history', to: '/search', icon: 'i-lucide-ship-wheel' },
                     { label: 'Favorites', to: '/account/favorites', icon: 'i-lucide-heart' },
                   ]"

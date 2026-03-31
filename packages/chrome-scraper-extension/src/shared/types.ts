@@ -240,10 +240,7 @@ export interface BrowserScrapeProgress {
   imagesUploaded: number
 }
 
-export type ExtensionDuplicateDecision =
-  | 'new'
-  | 'known_duplicate_skipped'
-  | 'weak_existing_refresh'
+export type ExtensionDuplicateDecision = 'new' | 'known_duplicate_skipped' | 'weak_existing_refresh'
 
 export type ExtensionDetailStatus =
   | 'not_attempted'

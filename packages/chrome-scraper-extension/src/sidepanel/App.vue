@@ -39,10 +39,7 @@ const hasSampleDetail = computed(() =>
   Boolean(session.value.sampleDetailUrl || analysis.value?.sampleDetailUrl),
 )
 const appliedPresetLabel = computed(
-  () =>
-    session.value.preset.appliedPresetLabel ||
-    matchedPreset.value?.label ||
-    'Trusted preset',
+  () => session.value.preset.appliedPresetLabel || matchedPreset.value?.label || 'Trusted preset',
 )
 const fixtureCaptureCount = computed(
   () =>
@@ -193,11 +190,7 @@ const captureNote = computed(() => {
   return 'Solve the challenge, dismiss banners, scroll the tab into the exact state you want, then capture the page.'
 })
 
-function formatRunOutcome(summary: {
-  inserted: number
-  updated: number
-  skippedExisting: number
-}) {
+function formatRunOutcome(summary: { inserted: number; updated: number; skippedExisting: number }) {
   const parts = [`inserted ${summary.inserted}`, `updated ${summary.updated}`]
 
   if (summary.skippedExisting > 0) {
@@ -259,9 +252,7 @@ function summarizeDebugDetail(detail: ExtensionDebugEvent['detail']) {
     typeof detail.itemsSeen === 'number' ? `seen ${detail.itemsSeen}` : null,
     typeof detail.itemsExtracted === 'number' ? `extracted ${detail.itemsExtracted}` : null,
     typeof detail.skippedExisting === 'number' ? `skipped ${detail.skippedExisting}` : null,
-    typeof detail.recordsPersisted === 'number'
-      ? `written ${detail.recordsPersisted}`
-      : null,
+    typeof detail.recordsPersisted === 'number' ? `written ${detail.recordsPersisted}` : null,
   ].filter((value): value is string => Boolean(value))
 
   return parts.join(' · ')
@@ -335,8 +326,7 @@ function toggleStep(stepId: string, status: WorkflowStatus) {
     return
   }
 
-  expandedCompleteStepId.value =
-    expandedCompleteStepId.value === stepId ? null : stepId
+  expandedCompleteStepId.value = expandedCompleteStepId.value === stepId ? null : stepId
 }
 
 onMounted(async () => {
@@ -350,32 +340,21 @@ onMounted(async () => {
       <div class="toolbar__top">
         <div class="toolbar__identity">
           <div class="toolbar__meta">
-            <p class="eyebrow">
-              Preset scrape helper
-            </p>
+            <p class="eyebrow">Preset scrape helper</p>
             <span class="context-pill">{{ activePresetLabel }}</span>
-            <span
-              class="context-pill context-pill--muted"
-              data-testid="analysis-state-pill"
-            >
+            <span class="context-pill context-pill--muted" data-testid="analysis-state-pill">
               {{ analysisStateLabel }}
             </span>
           </div>
 
           <h1>Trusted preset workflow</h1>
 
-          <p
-            class="toolbar__summary"
-            data-testid="toolbar-status"
-          >
+          <p class="toolbar__summary" data-testid="toolbar-status">
             <strong>{{ extension.statusMessage.value || 'Ready' }}</strong>
             <span>{{ presetNote }}</span>
           </p>
 
-          <p
-            v-if="extension.errorMessage.value"
-            class="toolbar__error"
-          >
+          <p v-if="extension.errorMessage.value" class="toolbar__error">
             {{ extension.errorMessage.value }}
           </p>
         </div>
@@ -388,11 +367,7 @@ onMounted(async () => {
           >
             Scan current page
           </button>
-          <button
-            type="button"
-            class="secondary"
-            @click="extension.clearScrapeState"
-          >
+          <button type="button" class="secondary" @click="extension.clearScrapeState">
             Clear scrape state
           </button>
         </div>
@@ -434,11 +409,7 @@ onMounted(async () => {
       @toggle="toggleStep('connection', connectionStatus)"
     >
       <template #actions>
-        <button
-          type="button"
-          class="ghost"
-          @click="extension.openBoatSearchAccountSettings"
-        >
+        <button type="button" class="ghost" @click="extension.openBoatSearchAccountSettings">
           Open account settings
         </button>
         <button
@@ -469,7 +440,7 @@ onMounted(async () => {
             type="url"
             placeholder="https://boat-search.nard.uk"
             @input="onAppBaseUrlInput"
-          >
+          />
         </label>
 
         <label class="stack">
@@ -480,7 +451,7 @@ onMounted(async () => {
             type="password"
             placeholder="nk_..."
             @input="onApiKeyInput"
-          >
+          />
         </label>
       </div>
 
@@ -498,10 +469,7 @@ onMounted(async () => {
         }}
       </p>
 
-      <p
-        v-if="connection.verifiedAt"
-        class="context-note"
-      >
+      <p v-if="connection.verifiedAt" class="context-note">
         Last verified {{ connection.verifiedAt }}.
       </p>
     </WorkflowStepCard>
@@ -517,15 +485,14 @@ onMounted(async () => {
       @toggle="toggleStep('preset', presetStatus)"
     >
       <template #actions>
-        <button
-          type="button"
-          class="secondary"
-          @click="extension.analyzeCurrentPage"
-        >
+        <button type="button" class="secondary" @click="extension.analyzeCurrentPage">
           Scan current page
         </button>
         <button
-          v-if="matchedPreset?.context === 'search' && (!trustedPresetActive || shouldOfferMatchedPresetLoad)"
+          v-if="
+            matchedPreset?.context === 'search' &&
+            (!trustedPresetActive || shouldOfferMatchedPresetLoad)
+          "
           type="button"
           data-testid="load-matched-preset-button"
           @click="extension.applyMatchedPreset('manual')"
@@ -566,15 +533,8 @@ onMounted(async () => {
         {{ presetNote }}
       </p>
 
-      <div
-        v-if="analysisWarnings.length"
-        class="warning-strip"
-      >
-        <span
-          v-for="warning in analysisWarnings"
-          :key="warning"
-          class="warning-pill"
-        >
+      <div v-if="analysisWarnings.length" class="warning-strip">
+        <span v-for="warning in analysisWarnings" :key="warning" class="warning-pill">
           {{ warning }}
         </span>
       </div>
@@ -665,7 +625,7 @@ onMounted(async () => {
             type="checkbox"
             :checked="session.draft.config.detailBackfillMode"
             @change="onDetailBackfillToggle(($event.target as HTMLInputElement).checked)"
-          >
+          />
           <span>YachtWorld detail URL backfill</span>
         </label>
         <p class="context-note">
@@ -683,11 +643,7 @@ onMounted(async () => {
         />
       </div>
 
-      <div
-        v-if="browserRunProgress"
-        class="remote-run-card"
-        data-testid="browser-scrape-progress"
-      >
+      <div v-if="browserRunProgress" class="remote-run-card" data-testid="browser-scrape-progress">
         <div class="remote-run-card__grid">
           <div>
             <span>Stage</span>
@@ -695,7 +651,9 @@ onMounted(async () => {
           </div>
           <div>
             <span>{{
-              browserRunProgress.stage === 'detail_backfill' ? 'Search pages (unused)' : 'Search pages'
+              browserRunProgress.stage === 'detail_backfill'
+                ? 'Search pages (unused)'
+                : 'Search pages'
             }}</span>
             <strong>{{ browserRunProgress.pagesVisited }}</strong>
           </div>
@@ -733,11 +691,7 @@ onMounted(async () => {
         </div>
       </div>
 
-      <div
-        v-if="remoteRun"
-        class="remote-run-card"
-        data-testid="browser-scrape-result"
-      >
+      <div v-if="remoteRun" class="remote-run-card" data-testid="browser-scrape-result">
         <div class="remote-run-card__grid">
           <div>
             <span>Pipeline ID</span>
@@ -769,10 +723,7 @@ onMounted(async () => {
           </div>
         </div>
 
-        <p
-          v-if="remoteRun.summary.warnings.length"
-          class="remote-run-card__warnings"
-        >
+        <p v-if="remoteRun.summary.warnings.length" class="remote-run-card__warnings">
           {{ remoteRun.summary.warnings.join(' · ') }}
         </p>
       </div>
@@ -790,19 +741,12 @@ onMounted(async () => {
             <p>Keep this block when a run fails so you can see the last extension and API steps.</p>
           </div>
 
-          <button
-            type="button"
-            class="secondary"
-            @click="copyDebugSnapshot"
-          >
+          <button type="button" class="secondary" @click="copyDebugSnapshot">
             {{ debugCopyLabel }}
           </button>
         </div>
 
-        <p
-          v-if="extension.errorMessage.value"
-          class="scrape-debug-card__error"
-        >
+        <p v-if="extension.errorMessage.value" class="scrape-debug-card__error">
           {{ extension.errorMessage.value }}
         </p>
 

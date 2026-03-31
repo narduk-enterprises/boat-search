@@ -454,9 +454,7 @@ function finalizeCandidate(candidate: ExtractedBoatCandidate) {
   candidate.sourceImages = dedupeStrings(
     candidate.sourceImages.length
       ? candidate.sourceImages
-      : candidate.images.filter(
-          (image) => isHttpUrl(image) && !isAppHostedBoatImageUrl(image),
-        ),
+      : candidate.images.filter((image) => isHttpUrl(image) && !isAppHostedBoatImageUrl(image)),
   )
   deriveLocation(candidate)
   candidate.currency = candidate.currency || 'USD'

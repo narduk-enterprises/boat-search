@@ -1,11 +1,11 @@
 ---
 name: narduk-template-issues
-description: Use when a downstream app uncovers a likely defect, missing
-  guidance, or reusable improvement in
-  `narduk-enterprises/narduk-nuxt-template`, its shared layer,
-  `.template-reference`, or sync tooling. Searches existing GitHub issues with
-  `gh`, classifies ownership, and files or updates the upstream template issue
-  with a concise reproduction.
+description:
+  Use when a downstream app uncovers a likely defect, missing guidance, or
+  reusable improvement in `narduk-enterprises/narduk-nuxt-template`, its shared
+  layer, `.template-reference`, or sync tooling. Searches existing GitHub issues
+  with `gh`, classifies ownership, and files or updates the upstream template
+  issue with a concise reproduction.
 ---
 
 # Narduk Template Issues
@@ -38,9 +38,10 @@ Do not use this for one-off product bugs that only belong in the downstream app.
      `.template-reference`, `sync tooling`, or `docs`
 3. Search for existing issues first:
    - `gh issue list --repo narduk-enterprises/narduk-nuxt-template --search "<keywords>"`
-4. If a matching issue exists, add context there instead of creating a duplicate.
-5. Otherwise create a new issue with `gh issue create --repo
-   narduk-enterprises/narduk-nuxt-template ...`.
+4. If a matching issue exists, add context there instead of creating a
+   duplicate.
+5. Otherwise create a new issue with
+   `gh issue create --repo narduk-enterprises/narduk-nuxt-template ...`.
 6. Return the issue URL and a one-line summary of what was filed.
 
 ## Issue Shape

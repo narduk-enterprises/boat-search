@@ -110,7 +110,8 @@ function getStableClasses(document: Document, element: Element) {
       !isTransientClassName(className) &&
       !isVariantClassName(className) &&
       !isGeneratedClassName(className) &&
-      queryAll(document, `${element.tagName.toLowerCase()}.${getEscape(document)(className)}`).length > 1,
+      queryAll(document, `${element.tagName.toLowerCase()}.${getEscape(document)(className)}`)
+        .length > 1,
   )
 }
 
@@ -232,9 +233,7 @@ function hasGallerySignal(element: Element) {
     .filter(Boolean)
     .join(' ')
 
-  return /(gallery|carousel|slider|photo|media|thumb|image|swiper|flickity|rail)/i.test(
-    signalText,
-  )
+  return /(gallery|carousel|slider|photo|media|thumb|image|swiper|flickity|rail)/i.test(signalText)
 }
 
 function getImageDimension(image: HTMLImageElement, dimension: 'width' | 'height') {
@@ -395,11 +394,7 @@ function isSamePaginationFamily(currentUrl: string, candidateUrl: string) {
   return Boolean(currentKey && candidateKey && currentKey === candidateKey)
 }
 
-function collectPaginationCandidateUrls(
-  document: Document,
-  pageUrl: string,
-  selector: string,
-) {
+function collectPaginationCandidateUrls(document: Document, pageUrl: string, selector: string) {
   const selectorCandidates = selector.trim()
     ? queryAll<HTMLAnchorElement>(document, selector)
         .map((element) => toAbsoluteUrl(readAttributeValue(element, 'href'), pageUrl))
@@ -416,11 +411,7 @@ function collectPaginationCandidateUrls(
   }
 }
 
-function resolveNextPageUrl(
-  document: Document,
-  pageUrl: string,
-  selector: string,
-) {
+function resolveNextPageUrl(document: Document, pageUrl: string, selector: string) {
   const currentComparableUrl = normalizeComparableUrl(pageUrl)
   const currentPageNumber = extractPaginationPageNumber(pageUrl) ?? 1
   const { selectorCandidates, explicitPaginationCandidates } = collectPaginationCandidateUrls(
@@ -461,7 +452,9 @@ function resolveNextPageUrl(
       url: candidateUrl,
       comparableUrl: normalizeComparableUrl(candidateUrl),
     }))
-    .find((candidate) => candidate.comparableUrl && candidate.comparableUrl !== currentComparableUrl)
+    .find(
+      (candidate) => candidate.comparableUrl && candidate.comparableUrl !== currentComparableUrl,
+    )
 
   if (selectorFallback) {
     return selectorFallback.url
@@ -597,7 +590,9 @@ function resolveFieldTargets(root: Element | Document, selector: string) {
 
 function readSelectionValues(root: Element | Document, field: ScraperFieldRule, baseUrl: string) {
   const targets =
-    field.selector === ':root' && root instanceof Element ? [root] : resolveFieldTargets(root, field.selector)
+    field.selector === ':root' && root instanceof Element
+      ? [root]
+      : resolveFieldTargets(root, field.selector)
 
   if (!targets.length) {
     return null
@@ -722,7 +717,9 @@ function scoreContainerSelector(document: Document, selector: string) {
   const totalUniqueListings = Math.max(getUniqueDetailHrefCount(document), matches.length)
   const countDistance = Math.abs(matches.length - totalUniqueListings)
   const countScore = Math.max(0, 100 - countDistance * 5)
-  const mediaRichMatches = matches.filter((element) => queryAll(element, 'img[src]').length > 0).length
+  const mediaRichMatches = matches.filter(
+    (element) => queryAll(element, 'img[src]').length > 0,
+  ).length
 
   return countScore + mediaRichMatches * 3 - averageUniqueHrefs * 20 - selector.length / 10
 }
@@ -777,7 +774,8 @@ function detectRepeatedItemSelector(document: Document, anchors: HTMLAnchorEleme
 function findBestTitleAnchor(root: ParentNode) {
   const anchors = getDetailAnchors(root)
   return anchors.sort(
-    (left, right) => normalizeText(right.textContent).length - normalizeText(left.textContent).length,
+    (left, right) =>
+      normalizeText(right.textContent).length - normalizeText(left.textContent).length,
   )[0]
 }
 
@@ -797,8 +795,9 @@ function findLikelyPriceElement(root: ParentNode) {
     queryAll<HTMLElement>(
       root,
       '[class*="price" i], [data-testid*="price" i], [data-test*="price" i]',
-    ).find((element) => isVisible(element) && PRICE_PATTERN.test(normalizeText(element.textContent))) ||
-    findFirstTextMatch(root, (text) => PRICE_PATTERN.test(text) && text.length < 40)
+    ).find(
+      (element) => isVisible(element) && PRICE_PATTERN.test(normalizeText(element.textContent)),
+    ) || findFirstTextMatch(root, (text) => PRICE_PATTERN.test(text) && text.length < 40)
   )
 }
 
@@ -824,8 +823,12 @@ function findLikelyDescriptionElement(root: ParentNode) {
       root,
       'meta[name="description"], [class*="description" i] p, #description p',
     ).find(
-      (element) => normalizeText(element.textContent || element.getAttribute('content')).length > 40,
-    ) || queryAll<HTMLElement>(root, 'p').find((element) => normalizeText(element.textContent).length > 100)
+      (element) =>
+        normalizeText(element.textContent || element.getAttribute('content')).length > 40,
+    ) ||
+    queryAll<HTMLElement>(root, 'p').find(
+      (element) => normalizeText(element.textContent).length > 100,
+    )
   )
 }
 
@@ -993,7 +996,8 @@ function classifyDocumentState(document: Document, pageUrl: string) {
   if (BLOCK_TITLE_SUBSTRINGS.some((needle) => title.includes(needle))) {
     return {
       pageState: 'challenge' as const,
-      stateMessage: 'The page is showing a Cloudflare or verification interstitial instead of listings.',
+      stateMessage:
+        'The page is showing a Cloudflare or verification interstitial instead of listings.',
     }
   }
 
@@ -1004,7 +1008,8 @@ function classifyDocumentState(document: Document, pageUrl: string) {
   ) {
     return {
       pageState: 'challenge' as const,
-      stateMessage: 'The page is showing Cloudflare challenge markers instead of the expected site content.',
+      stateMessage:
+        'The page is showing Cloudflare challenge markers instead of the expected site content.',
     }
   }
 
@@ -1091,7 +1096,7 @@ function buildSearchAnalysis(document: Document, pageUrl: string): AutoDetectedA
       ? 'div.grid-item'
       : boatsComPage && queryAll(document, 'li[data-listing-id]').length >= 3
         ? 'li[data-listing-id]'
-      : detectRepeatedItemSelector(document, detailAnchors)
+        : detectRepeatedItemSelector(document, detailAnchors)
   const itemRoots = itemSelector ? queryAll<HTMLElement>(document, itemSelector) : []
   const firstItem = itemRoots[0] || null
   const titleAnchor =
@@ -1108,40 +1113,40 @@ function buildSearchAnalysis(document: Document, pageUrl: string): AutoDetectedA
     (firstItem ? findBestTitleAnchor(firstItem) : findBestTitleAnchor(document))
   const sampleDetailUrl = titleAnchor?.href || detailAnchors[0]?.href || null
   const priceElement = firstItem
-    ? (yachtWorldPage
-        ? queryAll<HTMLElement>(
-            firstItem,
-            'span.style-module_listingPrice__lsbyO > p.style-module_content__tmQCh',
-          ).find((element) => isVisible(element)) ||
-          findLikelyPriceElement(firstItem) ||
-          null
-        : findLikelyPriceElement(firstItem) || null)
+    ? yachtWorldPage
+      ? queryAll<HTMLElement>(
+          firstItem,
+          'span.style-module_listingPrice__lsbyO > p.style-module_content__tmQCh',
+        ).find((element) => isVisible(element)) ||
+        findLikelyPriceElement(firstItem) ||
+        null
+      : findLikelyPriceElement(firstItem) || null
     : null
   const boatsComPriceElement = firstItem
     ? queryAll<HTMLElement>(firstItem, '.price').find((element) => isVisible(element)) || null
     : null
   const locationElement = firstItem
-    ? (yachtWorldPage
-        ? queryAll<HTMLElement>(
-            firstItem,
-            'span.style-module_listingBody__VNPuA > p.style-module_content__tmQCh.style-module_content-3__kZFb1, span.style-module_listingBody__VNPuA > p.style-module_content__tmQCh',
-          ).find((element) => isVisible(element)) ||
-          findLikelyLocationElement(firstItem) ||
-          null
-        : findLikelyLocationElement(firstItem) || null)
+    ? yachtWorldPage
+      ? queryAll<HTMLElement>(
+          firstItem,
+          'span.style-module_listingBody__VNPuA > p.style-module_content__tmQCh.style-module_content-3__kZFb1, span.style-module_listingBody__VNPuA > p.style-module_content__tmQCh',
+        ).find((element) => isVisible(element)) ||
+        findLikelyLocationElement(firstItem) ||
+        null
+      : findLikelyLocationElement(firstItem) || null
     : null
   const boatsComLocationElement = firstItem
     ? queryAll<HTMLElement>(firstItem, '.country').find((element) => isVisible(element)) || null
     : null
   const imageElement = firstItem
-    ? (yachtWorldPage
-        ? queryAll<HTMLImageElement>(
-            firstItem,
-            'div.style-module_wrapper__3JAO6 > span.style-module_image__tb1LM > img',
-          ).find((image) => isMeaningfulGalleryImage(image, false)) ||
-          findLikelyImageElement(firstItem) ||
-          null
-        : findLikelyImageElement(firstItem) || null)
+    ? yachtWorldPage
+      ? queryAll<HTMLImageElement>(
+          firstItem,
+          'div.style-module_wrapper__3JAO6 > span.style-module_image__tb1LM > img',
+        ).find((image) => isMeaningfulGalleryImage(image, false)) ||
+        findLikelyImageElement(firstItem) ||
+        null
+      : findLikelyImageElement(firstItem) || null
     : null
   const boatsComImageElement = firstItem
     ? queryAll<HTMLImageElement>(firstItem, '.img-container img').find((image) =>
@@ -1158,7 +1163,7 @@ function buildSearchAnalysis(document: Document, pageUrl: string): AutoDetectedA
     detectNextPageSelector(document)
   analysis.sampleDetailUrl = sampleDetailUrl
   analysis.stats.listingCardCount = itemRoots.length
-  analysis.stats.distinctImageCount = (boatsComImageElement || imageElement) ? 1 : 0
+  analysis.stats.distinctImageCount = boatsComImageElement || imageElement ? 1 : 0
 
   if (!itemSelector) {
     analysis.warnings.push(
@@ -1166,14 +1171,16 @@ function buildSearchAnalysis(document: Document, pageUrl: string): AutoDetectedA
     )
     analysis.pageState = 'parser_changed'
     analysis.stateMessage =
-      analysis.stateMessage || 'The page loaded, but the helper could not infer a stable listing-card selector.'
+      analysis.stateMessage ||
+      'The page loaded, but the helper could not infer a stable listing-card selector.'
   }
 
   if (!sampleDetailUrl) {
     analysis.warnings.push('Could not detect any sample detail link on the search page.')
     analysis.pageState = 'parser_changed'
     analysis.stateMessage =
-      analysis.stateMessage || 'The page loaded, but the helper could not find any listing detail links.'
+      analysis.stateMessage ||
+      'The page loaded, but the helper could not find any listing detail links.'
   }
 
   analysis.fields = [
@@ -1190,8 +1197,8 @@ function buildSearchAnalysis(document: Document, pageUrl: string): AutoDetectedA
       boatsComPriceElement || priceElement,
       firstItem || document,
       {
-      transform: 'price',
-      required: false,
+        transform: 'price',
+        required: false,
       },
     ),
     ruleFromElement(
@@ -1201,7 +1208,7 @@ function buildSearchAnalysis(document: Document, pageUrl: string): AutoDetectedA
       boatsComLocationElement || locationElement,
       firstItem || document,
       {
-      required: false,
+        required: false,
       },
     ),
     ruleFromElement(
@@ -1211,11 +1218,11 @@ function buildSearchAnalysis(document: Document, pageUrl: string): AutoDetectedA
       boatsComImageElement || imageElement,
       firstItem || document,
       {
-      extract: 'attr',
-      attribute: 'src',
-      multiple: true,
-      transform: 'url',
-      required: false,
+        extract: 'attr',
+        attribute: 'src',
+        multiple: true,
+        transform: 'url',
+        required: false,
       },
     ),
   ].filter((field): field is ScraperFieldRule => Boolean(field))
@@ -1230,8 +1237,9 @@ function buildDetailAnalysis(document: Document, pageUrl: string): AutoDetectedA
   const boatsComPage = isBoatsComPage(pageUrl)
   const titleElement =
     (yachtWorldPage
-      ? queryAll<HTMLElement>(document, 'div#bdp-boat-summary h1').find((element) => isVisible(element)) ||
-        null
+      ? queryAll<HTMLElement>(document, 'div#bdp-boat-summary h1').find((element) =>
+          isVisible(element),
+        ) || null
       : null) || findVisibleTitleElement(document)
   const boatsComTitleElement =
     queryAll<HTMLElement>(document, 'section.boat-details h1, .boat-details h1').find((element) =>
@@ -1272,8 +1280,9 @@ function buildDetailAnalysis(document: Document, pageUrl: string): AutoDetectedA
       ? queryAll<HTMLElement>(
           document,
           'div.accordion-details-items details > div.data-html > div.data-html-inner-wrapper > div.render-html, div.data-html-inner-wrapper > div.render-html',
-        ).find((element) => isVisible(element) && normalizeText(element.textContent).length > 140) ||
-        null
+        ).find(
+          (element) => isVisible(element) && normalizeText(element.textContent).length > 140,
+        ) || null
       : null) ||
     findLikelyDescriptionElement(document) ||
     null
@@ -1319,14 +1328,27 @@ function buildDetailAnalysis(document: Document, pageUrl: string): AutoDetectedA
   }
 
   analysis.fields = [
-    ruleFromElement(document, 'title', 'detail', boatsComTitleElement || titleElement || null, document),
+    ruleFromElement(
+      document,
+      'title',
+      'detail',
+      boatsComTitleElement || titleElement || null,
+      document,
+    ),
     ruleFromElement(document, 'price', 'detail', boatsComPriceElement || priceElement, document, {
       transform: 'price',
       required: false,
     }),
-    ruleFromElement(document, 'location', 'detail', boatsComLocationElement || locationElement, document, {
-      required: false,
-    }),
+    ruleFromElement(
+      document,
+      'location',
+      'detail',
+      boatsComLocationElement || locationElement,
+      document,
+      {
+        required: false,
+      },
+    ),
     ruleFromElement(document, 'description', 'detail', descriptionElement, document, {
       extract: descriptionIsMeta ? 'attr' : 'text',
       attribute: descriptionIsMeta ? 'content' : '',
@@ -1347,11 +1369,14 @@ function buildDetailAnalysis(document: Document, pageUrl: string): AutoDetectedA
     analysis.warnings.push('Could not detect the main title automatically. Pick it manually.')
     analysis.pageState = 'parser_changed'
     analysis.stateMessage =
-      analysis.stateMessage || 'The detail page loaded, but the main listing title was not detected.'
+      analysis.stateMessage ||
+      'The detail page loaded, but the main listing title was not detected.'
   }
 
   if (!detailImage.selector) {
-    analysis.warnings.push('Could not detect a multi-image gallery automatically on the detail page.')
+    analysis.warnings.push(
+      'Could not detect a multi-image gallery automatically on the detail page.',
+    )
   }
 
   return analysis

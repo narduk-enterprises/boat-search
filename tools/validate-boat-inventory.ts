@@ -157,9 +157,7 @@ function fetchYachtWorldUrlsForExport(
 ): string[] {
   const sql = buildYachtWorldUrlExportSql(mode, maxRows)
   const rows = runD1Json(sql, isProduction) as Record<string, unknown>[]
-  return rows
-    .map((row) => (typeof row.url === 'string' ? row.url.trim() : ''))
-    .filter(Boolean)
+  return rows.map((row) => (typeof row.url === 'string' ? row.url.trim() : '')).filter(Boolean)
 }
 
 function resolveLocalFlag(isProduction: boolean) {
@@ -313,7 +311,12 @@ LIMIT ${limit}
     const batch: BoatImageRow[] = rows.map((row) => ({
       id: num(row, 'id'),
       url: typeof row.url === 'string' ? row.url : '',
-      images: typeof row.images === 'string' ? row.images : row.images == null ? null : String(row.images),
+      images:
+        typeof row.images === 'string'
+          ? row.images
+          : row.images == null
+            ? null
+            : String(row.images),
     }))
 
     yield batch
@@ -328,7 +331,9 @@ LIMIT ${limit}
 function tryCreateR2S3Client(): S3Client | null {
   const accountId = (process.env.CLOUDFLARE_ACCOUNT_ID ?? process.env.CF_ACCOUNT_ID)?.trim()
   const accessKeyId = (process.env.R2_ACCESS_KEY_ID ?? process.env.AWS_ACCESS_KEY_ID)?.trim()
-  const secretAccessKey = (process.env.R2_SECRET_ACCESS_KEY ?? process.env.AWS_SECRET_ACCESS_KEY)?.trim()
+  const secretAccessKey = (
+    process.env.R2_SECRET_ACCESS_KEY ?? process.env.AWS_SECRET_ACCESS_KEY
+  )?.trim()
 
   if (!accountId || !accessKeyId || !secretAccessKey) return null
 
@@ -521,10 +526,7 @@ async function main() {
       aggregates.images_empty > 0 ||
       aggregates.images_invalid_json > 0)
 
-  const success =
-    !strictViolation &&
-    r2Error == null &&
-    (opts.skipR2 || missingR2.length === 0)
+  const success = !strictViolation && r2Error == null && (opts.skipR2 || missingR2.length === 0)
 
   const report = {
     ok: success,
@@ -583,7 +585,11 @@ async function main() {
     } else {
       console.log('')
       const via =
-        r2Method === 's3' ? 'S3 HeadObject' : r2Method === 'wrangler' ? 'wrangler r2 object get' : 'unknown'
+        r2Method === 's3'
+          ? 'S3 HeadObject'
+          : r2Method === 'wrangler'
+            ? 'wrangler r2 object get'
+            : 'unknown'
       console.log(`R2: bucket ${R2_BUCKET} — via ${via} — missing_objects: ${missingR2.length}`)
       if (r2Method === 'wrangler' && sortedKeys.length > 50) {
         console.log(

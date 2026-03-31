@@ -98,7 +98,8 @@ async function handleRerunProfile(profileId: number | null | undefined, sessionI
         <UIcon name="i-lucide-history" class="mx-auto text-4xl text-dimmed" />
         <h2 class="mt-4 text-xl font-semibold text-default">No finder runs yet</h2>
         <p class="mt-2 text-muted max-w-2xl mx-auto">
-          Run the AI from a buyer profile and this page becomes your history view for saved shortlists.
+          Run the AI from a buyer profile and this page becomes your history view for saved
+          shortlists.
         </p>
         <UButton
           class="mt-6"

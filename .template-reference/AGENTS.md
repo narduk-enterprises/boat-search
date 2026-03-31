@@ -11,20 +11,20 @@ Use this file as the entry point for agent work in this repository.
 
 ## Where Changes Belong
 
-| Change type                                     | Preferred location                       |
-| ----------------------------------------------- | ---------------------------------------- |
-| App-specific product work                       | `apps/web/`                              |
-| Shared reusable Nuxt functionality for all apps | `narduk-nuxt-template` then sync/update  |
-| Shared ESLint rules and plugins                 | `packages/eslint-config/`                |
-| Local Node.js automation and sync tooling       | `tools/`                                 |
-| Shell helper scripts                            | `scripts/`                               |
+| Change type                                     | Preferred location                      |
+| ----------------------------------------------- | --------------------------------------- |
+| App-specific product work                       | `apps/web/`                             |
+| Shared reusable Nuxt functionality for all apps | `narduk-nuxt-template` then sync/update |
+| Shared ESLint rules and plugins                 | `packages/eslint-config/`               |
+| Local Node.js automation and sync tooling       | `tools/`                                |
+| Shell helper scripts                            | `scripts/`                              |
 
 Do not recreate layer-provided composables, plugins, middleware, auth helpers,
 rate limiting, OG image building blocks, or base schema files inside `apps/web`
-without first checking the workspace guide.
-Treat `layers/narduk-nuxt-layer/` as template-owned. Downstream edits in that
-directory are override-only and will be replaced by sync; fix shared behavior in
-`narduk-nuxt-template`, then sync it back into the app.
+without first checking the workspace guide. Treat `layers/narduk-nuxt-layer/` as
+template-owned. Downstream edits in that directory are override-only and will be
+replaced by sync; fix shared behavior in `narduk-nuxt-template`, then sync it
+back into the app.
 
 ## Load The Right Local Instructions
 

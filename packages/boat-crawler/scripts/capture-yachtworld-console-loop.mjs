@@ -13,10 +13,7 @@ import {
   waitForClipboardPayload,
   writeClipboard,
 } from '../src/fixture-capture.mjs'
-import {
-  getFixturePreset,
-  GUIDED_YACHTWORLD_FIXTURE_ORDER,
-} from '../src/fixture-presets.mjs'
+import { getFixturePreset, GUIDED_YACHTWORLD_FIXTURE_ORDER } from '../src/fixture-presets.mjs'
 import { openTrustedChromeWindow } from '../src/trusted-chrome.mjs'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
@@ -156,7 +153,9 @@ function validateStepPayload(stepId, payload) {
     if (galleryImageCount === 0) {
       warnings.push('Captured detail page did not expose any YachtWorld gallery images.')
     } else if (galleryImageCount < 3) {
-      warnings.push('Captured page has very few gallery images, so it may not be a strong gallery-noise fixture.')
+      warnings.push(
+        'Captured page has very few gallery images, so it may not be a strong gallery-noise fixture.',
+      )
     }
   }
 
@@ -195,9 +194,9 @@ async function promptForUrl(rl, stepId, defaultUrl) {
 }
 
 async function promptForRetry(rl, reason) {
-  const answer = (
-    await rl.question(`${reason} [Enter=retry, skip=skip step, abort=exit]: `)
-  ).trim().toLowerCase()
+  const answer = (await rl.question(`${reason} [Enter=retry, skip=skip step, abort=exit]: `))
+    .trim()
+    .toLowerCase()
 
   if (answer === 'skip') return 'skip'
   if (answer === 'abort') return 'abort'
@@ -209,7 +208,9 @@ async function promptForValidationDecision(rl, stepId) {
     await rl.question(
       `Save ${stepId} anyway? [Enter=save, retry=retry, skip=skip step, abort=exit]: `,
     )
-  ).trim().toLowerCase()
+  )
+    .trim()
+    .toLowerCase()
 
   if (answer === 'retry') return 'retry'
   if (answer === 'skip') return 'skip'
@@ -244,7 +245,9 @@ const capturedUrls = {}
 
 try {
   console.log('Starting the guided YachtWorld fixture capture loop.')
-  console.log('Each step copies a DevTools snippet, opens a fresh trusted Chrome window, and waits for the clipboard payload.\n')
+  console.log(
+    'Each step copies a DevTools snippet, opens a fresh trusted Chrome window, and waits for the clipboard payload.\n',
+  )
 
   for (const stepId of GUIDED_YACHTWORLD_FIXTURE_ORDER) {
     const preset = buildStepOutput(stepId)
@@ -255,8 +258,7 @@ try {
       defaultUrl = detectedDetailUrls[0] || defaultUrl
     }
     if (stepId === 'detail-gallery-noise' && !stepOverride) {
-      defaultUrl =
-        detectedDetailUrls.find((url) => url !== capturedUrls['detail-ok']) || defaultUrl
+      defaultUrl = detectedDetailUrls.find((url) => url !== capturedUrls['detail-ok']) || defaultUrl
     }
 
     const requestedUrl = await promptForUrl(rl, stepId, defaultUrl)
@@ -331,7 +333,10 @@ try {
           requestedUrl,
           validationWarnings,
         })
-        const mirroredPaths = await mirrorHtmlOutputs(saved.outputHtmlPath, preset.mirrorHtmlOutputs)
+        const mirroredPaths = await mirrorHtmlOutputs(
+          saved.outputHtmlPath,
+          preset.mirrorHtmlOutputs,
+        )
 
         console.log(`\nSaved HTML: ${saved.outputHtmlPath}`)
         console.log(`Saved metadata: ${saved.outputMetaPath}`)
@@ -343,9 +348,15 @@ try {
         }
 
         if (stepId === 'search-ok') {
-          detectedDetailUrls.splice(0, detectedDetailUrls.length, ...extractYachtWorldDetailUrlsFromHtml(payload.html))
+          detectedDetailUrls.splice(
+            0,
+            detectedDetailUrls.length,
+            ...extractYachtWorldDetailUrlsFromHtml(payload.html),
+          )
           if (detectedDetailUrls.length > 0) {
-            console.log(`Detected ${detectedDetailUrls.length} YachtWorld detail URLs for later fixture steps.`)
+            console.log(
+              `Detected ${detectedDetailUrls.length} YachtWorld detail URLs for later fixture steps.`,
+            )
           }
         }
 
@@ -355,7 +366,9 @@ try {
         break
       } catch (error) {
         await context?.close()
-        console.error(`\n${stepId} failed: ${error instanceof Error ? error.message : String(error)}`)
+        console.error(
+          `\n${stepId} failed: ${error instanceof Error ? error.message : String(error)}`,
+        )
         const resolution = await promptForRetry(rl, `Retry ${stepId}?`)
         if (resolution === 'retry') {
           continue

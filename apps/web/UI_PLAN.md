@@ -3,6 +3,7 @@
 ## Design System
 
 Inherits from `@narduk-enterprises/narduk-nuxt-template-layer`:
+
 - **Nuxt UI 4** component library
 - **Tailwind CSS v4** with `@theme` design tokens
 - Semantic color tokens (`text-default`, `text-muted`, `bg-elevated`, etc.)
@@ -32,6 +33,7 @@ Inherits from `@narduk-enterprises/narduk-nuxt-template-layer`:
 ```
 
 **Components:**
+
 - `AccountBuyerProfileCard` — card with inline rename, badges, action menu
 - `AccountBuyerProfileCreateDialog` — modal for naming new profile
 
@@ -65,6 +67,7 @@ Inherits from `@narduk-enterprises/narduk-nuxt-template-layer`:
 ```
 
 **Key behaviors:**
+
 - Autosave on questionnaire changes (900ms debounce)
 - "Run AI assessment" saves + runs + stays on page + refreshes run history
 - Run history shows last 5 sessions, links to `/search?sessionId=X`
@@ -128,27 +131,30 @@ app.vue (shell)
 
 ## Composable Architecture
 
-| Composable | Scope | Purpose |
-|------------|-------|---------|
-| `useBuyerProfiles` | Library | List, create, duplicate, activate, delete, rename |
-| `useBuyerProfile(id)` | Single profile | CRUD + run state + cooldown |
-| `useActiveBuyerProfile` | App-wide | Convenience: active profile ID + existence check |
-| `useProfileRunHistory(id)` | Profile editor | Sessions filtered by profileId |
-| `useRecommendationSessions` | App-wide | All sessions + createSession |
+| Composable                  | Scope          | Purpose                                           |
+| --------------------------- | -------------- | ------------------------------------------------- |
+| `useBuyerProfiles`          | Library        | List, create, duplicate, activate, delete, rename |
+| `useBuyerProfile(id)`       | Single profile | CRUD + run state + cooldown                       |
+| `useActiveBuyerProfile`     | App-wide       | Convenience: active profile ID + existence check  |
+| `useProfileRunHistory(id)`  | Profile editor | Sessions filtered by profileId                    |
+| `useRecommendationSessions` | App-wide       | All sessions + createSession                      |
 
 ## Interaction Patterns
 
 ### Create Profile
+
 1. Click "New profile" on library
 2. Modal opens → type name → Create
 3. Navigates to `/account/profile/[newId]`
 
 ### Fill Questionnaire
+
 1. From profile editor, click "Edit full questionnaire"
 2. Questionnaire panel expands
 3. Answers autosave as user makes changes
 
 ### Run AI
+
 1. From profile editor, click "Run AI assessment"
 2. Saves current answers → calls `createSession({ profileId })`
 3. On success: toast + refresh profile + refresh run history
@@ -156,6 +162,7 @@ app.vue (shell)
 5. User clicks "View" to open full shortlist in `/search`
 
 ### Cooldown
+
 1. After running, "Run AI assessment" button disabled
 2. Countdown shown: "Rerun available in Xh Ym"
 3. After 24h, button re-enables

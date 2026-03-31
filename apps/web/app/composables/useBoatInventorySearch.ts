@@ -77,8 +77,7 @@ function buildActiveFilterChips(filters: BoatInventoryFilters): BoatInventoryAct
   const chips: BoatInventoryActiveFilterChip[] = []
 
   if (filters.q) {
-    const display =
-      filters.q.length > 48 ? `${filters.q.slice(0, 45).trimEnd()}…` : filters.q
+    const display = filters.q.length > 48 ? `${filters.q.slice(0, 45).trimEnd()}…` : filters.q
     chips.push({ key: 'q', label: 'Search', value: display })
   }
   if (filters.make) {

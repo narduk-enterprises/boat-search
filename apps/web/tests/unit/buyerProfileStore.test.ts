@@ -13,11 +13,7 @@ describe('generateDuplicateName', () => {
   })
 
   it('increments through multiple collisions', () => {
-    const existing = [
-      'Tournament rig Copy',
-      'Tournament rig Copy 2',
-      'Tournament rig Copy 3',
-    ]
+    const existing = ['Tournament rig Copy', 'Tournament rig Copy 2', 'Tournament rig Copy 3']
     expect(generateDuplicateName(existing, 'Tournament rig')).toBe('Tournament rig Copy 4')
   })
 

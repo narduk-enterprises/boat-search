@@ -41,7 +41,9 @@ export function r2KeyFromBoatImageUrl(value: string): string | null {
       ? new URL(normalized, 'https://boat-search.local')
       : new URL(normalized)
     if (!url.pathname.startsWith(IMAGES_PATH_PREFIX)) return null
-    const key = decodeURIComponent(url.pathname.slice(IMAGES_PATH_PREFIX.length).replace(/^\/+/, ''))
+    const key = decodeURIComponent(
+      url.pathname.slice(IMAGES_PATH_PREFIX.length).replace(/^\/+/, ''),
+    )
     return key.length > 0 ? key : null
   } catch {
     return null

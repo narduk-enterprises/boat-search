@@ -1,6 +1,10 @@
 import { z } from 'zod'
 import { defineUserMutation, withValidatedBody } from '#layer/server/utils/mutation'
-import { createBuyerProfile, listBuyerProfiles, generateDuplicateName } from '~~/server/utils/boatFinderStore'
+import {
+  createBuyerProfile,
+  listBuyerProfiles,
+  generateDuplicateName,
+} from '~~/server/utils/boatFinderStore'
 
 const bodySchema = z.object({
   name: z.string().trim().min(1).max(100).default('New profile'),

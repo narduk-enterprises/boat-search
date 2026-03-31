@@ -155,7 +155,9 @@ async function handleRename(profileId: number, name: string) {
       <div class="mx-auto max-w-3xl space-y-5">
         <div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div class="min-w-0 space-y-1">
-            <h1 class="text-xl font-bold tracking-tight text-default sm:text-2xl">AI Boat Profiles</h1>
+            <h1 class="text-xl font-bold tracking-tight text-default sm:text-2xl">
+              AI Boat Profiles
+            </h1>
             <p class="text-sm text-muted">
               Each profile captures a different buying scenario. Activate one to use it as the
               default when running the AI boat finder.

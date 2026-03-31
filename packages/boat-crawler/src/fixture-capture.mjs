@@ -10,7 +10,7 @@ export const CAPTURE_PAYLOAD_SCHEMA = 'boat-search-fixture-capture-v1'
 export function buildConsoleCaptureSnippet() {
   return [
     '(() => {',
-    "  const docType = document.doctype",
+    '  const docType = document.doctype',
     "    ? `<!DOCTYPE ${document.doctype.name}${document.doctype.publicId ? ` PUBLIC \"${document.doctype.publicId}\"` : ''}${!document.doctype.publicId && document.doctype.systemId ? ' SYSTEM' : ''}${document.doctype.systemId ? ` \"${document.doctype.systemId}\"` : ''}>`",
     "    : '';",
     '  const payload = {',
@@ -45,7 +45,7 @@ export function buildConsoleCaptureSnippet() {
     "    console.log('Fixture payload copied to clipboard.', payload);",
     '    return payload;',
     '  }',
-    "  if (navigator.clipboard?.writeText) {",
+    '  if (navigator.clipboard?.writeText) {',
     '    return navigator.clipboard.writeText(serialized).then(() => {',
     "      console.log('Fixture payload copied to clipboard.', payload);",
     '      return payload;',
@@ -203,7 +203,11 @@ export async function saveCapturedPayload({
     `${JSON.stringify(
       {
         captureMethod,
-        fixtureLabel: resolvedOutputHtmlPath.split('/').pop()?.replace(/\.html?$/i, '') || null,
+        fixtureLabel:
+          resolvedOutputHtmlPath
+            .split('/')
+            .pop()
+            ?.replace(/\.html?$/i, '') || null,
         capturedAt: payload.capturedAt,
         requestedUrl: requestedUrl || payload.page.url,
         finalUrl: payload.page.url,
@@ -241,9 +245,7 @@ export async function mirrorHtmlOutputs(primaryOutputPath, mirrorOutputPaths = [
 }
 
 export function extractYachtWorldDetailUrlsFromHtml(html) {
-  const matches = html.matchAll(
-    /(?:https:\/\/www\.yachtworld\.com)?(\/yacht\/[^"'?#\s>]+\/?)/gi,
-  )
+  const matches = html.matchAll(/(?:https:\/\/www\.yachtworld\.com)?(\/yacht\/[^"'?#\s>]+\/?)/gi)
   const urls = new Set()
 
   for (const match of matches) {
@@ -265,7 +267,9 @@ export function extractYachtWorldDetailUrlsFromHtml(html) {
 }
 
 export function countYachtWorldGalleryImages(html) {
-  const matches = html.matchAll(/<img[^>]+src=(["'])(https:\/\/images\.yachtworld\.com\/[^"']+)\1/gi)
+  const matches = html.matchAll(
+    /<img[^>]+src=(["'])(https:\/\/images\.yachtworld\.com\/[^"']+)\1/gi,
+  )
   const urls = new Set()
 
   for (const match of matches) {

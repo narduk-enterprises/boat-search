@@ -180,11 +180,7 @@ function matchesLengthPreset(minLength: string, maxLength: string) {
         label="Keywords"
         description="Matches make, model, description, and features. Multiple words narrow results."
       >
-        <UInput
-          v-model="filters.q"
-          class="w-full"
-          placeholder="Sea Ray, diesel, flybridge…"
-        />
+        <UInput v-model="filters.q" class="w-full" placeholder="Sea Ray, diesel, flybridge…" />
       </UFormField>
 
       <div class="grid gap-4 md:grid-cols-2">

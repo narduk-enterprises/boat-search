@@ -12,7 +12,10 @@ definePageMeta({ middleware: ['auth'] })
 const route = useRoute()
 const profileId = computed(() => {
   const raw = route.params.id
-  const num = Number.parseInt(typeof raw === 'string' ? raw : Array.isArray(raw) ? raw[0] || '' : '', 10)
+  const num = Number.parseInt(
+    typeof raw === 'string' ? raw : Array.isArray(raw) ? raw[0] || '' : '',
+    10,
+  )
   return Number.isNaN(num) ? null : num
 })
 
@@ -29,7 +32,9 @@ const {
 const { createSession } = useRecommendationSessions()
 const { profileSessions, refresh: refreshRunHistory } = useProfileRunHistory(profileId)
 
-const seoTitle = computed(() => profileName.value ? `${profileName.value} — Edit Profile` : 'Edit Buyer Profile')
+const seoTitle = computed(() =>
+  profileName.value ? `${profileName.value} — Edit Profile` : 'Edit Buyer Profile',
+)
 
 useSeo({
   title: seoTitle.value,
@@ -322,7 +327,9 @@ const cooldownLabel = computed(() => {
                   <div class="min-w-0 space-y-0.5">
                     <div class="flex flex-wrap items-center gap-2">
                       <UBadge
-                        :label="session.resultSummary.generatedBy === 'ai' ? 'AI ranked' : 'Fallback'"
+                        :label="
+                          session.resultSummary.generatedBy === 'ai' ? 'AI ranked' : 'Fallback'
+                        "
                         :color="session.resultSummary.generatedBy === 'ai' ? 'primary' : 'neutral'"
                         variant="subtle"
                         size="xs"

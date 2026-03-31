@@ -17,14 +17,7 @@
  *   />
  */
 
-type ConfirmColor =
-  | 'error'
-  | 'info'
-  | 'primary'
-  | 'secondary'
-  | 'success'
-  | 'warning'
-  | 'neutral'
+type ConfirmColor = 'error' | 'info' | 'primary' | 'secondary' | 'success' | 'warning' | 'neutral'
 
 const ICON_TONE_CLASSES: Record<ConfirmColor, string> = {
   error: 'bg-error/10 text-error',

@@ -82,7 +82,9 @@ describe('scraper pipeline draft schema', () => {
 
   it('recognizes YachtWorld listing detail URLs for backfill mode', () => {
     expect(
-      isYachtWorldDetailBackfillUrl('https://www.yachtworld.com/yacht/2021-pathfinder-2500-hybrid-10019034/'),
+      isYachtWorldDetailBackfillUrl(
+        'https://www.yachtworld.com/yacht/2021-pathfinder-2500-hybrid-10019034/',
+      ),
     ).toBe(true)
     expect(isYachtWorldDetailBackfillUrl('https://yachtworld.com/yacht/foo-123456/')).toBe(true)
     expect(isYachtWorldDetailBackfillUrl('https://www.yachtworld.com/boats-for-sale/')).toBe(false)
@@ -95,7 +97,9 @@ describe('scraper pipeline draft schema', () => {
     draft.boatSource = 'YachtWorld'
     draft.config.detailBackfillMode = true
     draft.config.fetchDetailPages = true
-    draft.config.startUrls = ['https://www.yachtworld.com/yacht/2021-pathfinder-2500-hybrid-10019034/']
+    draft.config.startUrls = [
+      'https://www.yachtworld.com/yacht/2021-pathfinder-2500-hybrid-10019034/',
+    ]
     draft.config.itemSelector = '.grid-item'
 
     const parsed = scraperPipelineDraftSchema.safeParse(draft)
@@ -110,7 +114,9 @@ describe('scraper pipeline draft schema', () => {
     draft.boatSource = 'boats.com'
     draft.config.detailBackfillMode = true
     draft.config.fetchDetailPages = true
-    draft.config.startUrls = ['https://www.yachtworld.com/yacht/2021-pathfinder-2500-hybrid-10019034/']
+    draft.config.startUrls = [
+      'https://www.yachtworld.com/yacht/2021-pathfinder-2500-hybrid-10019034/',
+    ]
     draft.config.itemSelector = '.listing'
 
     const parsed = scraperPipelineDraftSchema.safeParse(draft)
@@ -138,7 +144,9 @@ describe('scraper pipeline draft schema', () => {
     draft.boatSource = 'YachtWorld'
     draft.config.detailBackfillMode = true
     draft.config.fetchDetailPages = false
-    draft.config.startUrls = ['https://www.yachtworld.com/yacht/2021-pathfinder-2500-hybrid-10019034/']
+    draft.config.startUrls = [
+      'https://www.yachtworld.com/yacht/2021-pathfinder-2500-hybrid-10019034/',
+    ]
     draft.config.itemSelector = '.grid-item'
 
     const parsed = scraperPipelineDraftSchema.safeParse(draft)

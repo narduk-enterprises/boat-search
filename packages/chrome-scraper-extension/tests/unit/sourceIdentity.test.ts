@@ -14,9 +14,9 @@ describe('source identity', () => {
       normalizedUrls: ['https://WWW.YACHTWORLD.com/boats/12345/'],
     })
 
-    expect(normalizeBoatSourceUrl('https://www.yachtworld.com/boats/12345/?ref=search#gallery')).toBe(
-      'https://www.yachtworld.com/boats/12345',
-    )
+    expect(
+      normalizeBoatSourceUrl('https://www.yachtworld.com/boats/12345/?ref=search#gallery'),
+    ).toBe('https://www.yachtworld.com/boats/12345')
     expect(
       hasKnownBoatIdentity(state, {
         listingId: null,

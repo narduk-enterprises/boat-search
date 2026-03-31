@@ -41,7 +41,8 @@ const queryProfileId = computed(() => {
 })
 const resolvedProfileId = computed(() => queryProfileId.value ?? activeProfileId.value)
 
-const { coreAnswers, canRunNow, nextRunAvailableAt, status, refresh } = useBuyerProfile(resolvedProfileId)
+const { coreAnswers, canRunNow, nextRunAvailableAt, status, refresh } =
+  useBuyerProfile(resolvedProfileId)
 const { createSession } = useRecommendationSessions()
 
 const generating = shallowRef(false)
@@ -114,17 +115,21 @@ async function handleGenerateAiSummary() {
       class="pb-20"
       :ui="{
         root: 'relative isolate min-w-0',
-        container:
-          'min-w-0 w-full flex flex-col gap-6 py-8 sm:gap-10 sm:py-10 lg:gap-12 lg:py-12',
+        container: 'min-w-0 w-full flex flex-col gap-6 py-8 sm:gap-10 sm:py-10 lg:gap-12 lg:py-12',
       }"
     >
-      <div class="mx-auto w-full min-w-0 max-w-3xl space-y-6" data-testid="boat-finder-summary-shell">
+      <div
+        class="mx-auto w-full min-w-0 max-w-3xl space-y-6"
+        data-testid="boat-finder-summary-shell"
+      >
         <div class="space-y-2">
-          <h1 class="text-2xl font-bold tracking-tight text-default sm:text-3xl">Review your brief</h1>
+          <h1 class="text-2xl font-bold tracking-tight text-default sm:text-3xl">
+            Review your brief
+          </h1>
           <p class="text-sm text-muted sm:text-base">
-            This is what we send to the shortlist model (plus system instructions and live listings on
-            our side). When it looks right, run generation — you can still edit answers in the finder or
-            profile afterward.
+            This is what we send to the shortlist model (plus system instructions and live listings
+            on our side). When it looks right, run generation — you can still edit answers in the
+            finder or profile afterward.
           </p>
         </div>
 

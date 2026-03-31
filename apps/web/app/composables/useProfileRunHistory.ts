@@ -18,9 +18,7 @@ export function useProfileRunHistory(profileId: MaybeRefOrGetter<number | null |
 
   const profileSessions = computed(() => {
     if (!data.value?.sessions || !profileIdRef.value) return []
-    return data.value.sessions.filter(
-      (s) => s.buyerProfileId === profileIdRef.value,
-    )
+    return data.value.sessions.filter((s) => s.buyerProfileId === profileIdRef.value)
   })
 
   const latestProfileSessionId = computed(() => profileSessions.value[0]?.id ?? null)

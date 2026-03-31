@@ -68,9 +68,7 @@ test.describe('Buyer Profile Library', () => {
     // we just verify the page loaded (finder or redirect to library)
     await page.waitForTimeout(3000)
     const url = page.url()
-    expect(
-      url.includes('/ai-boat-finder') || url.includes('/account/profile'),
-    ).toBeTruthy()
+    expect(url.includes('/ai-boat-finder') || url.includes('/account/profile')).toBeTruthy()
   })
 
   test('recommendation history page loads', async ({ page }) => {

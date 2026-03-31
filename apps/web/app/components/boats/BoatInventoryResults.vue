@@ -111,7 +111,9 @@ const emptyMessage = computed(() =>
           @click="submitSearchFromField"
         />
       </div>
-      <p class="text-xs text-dimmed">Press Enter or Search to apply, together with any filters you set in the bar.</p>
+      <p class="text-xs text-dimmed">
+        Press Enter or Search to apply, together with any filters you set in the bar.
+      </p>
 
       <div
         v-if="activeFilterChips.length || hasActiveFilters"

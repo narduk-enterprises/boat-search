@@ -161,9 +161,7 @@ describe('boat recommendation prompt packaging', () => {
     )
 
     expect(hardSection).toContain('Budget ceiling: $475,000')
-    expect(hardSection).toContain(
-      'Target waters: Northern Gulf (AL / MS / FL panhandle)',
-    )
+    expect(hardSection).toContain('Target waters: Northern Gulf (AL / MS / FL panhandle)')
     expect(hardSection).not.toContain('Supportive but cautious')
     expect(softSection).toContain('Center console')
     expect(softSection).toContain('Must-have: Easy boarding for family or guests')

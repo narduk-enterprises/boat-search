@@ -31,9 +31,7 @@ describe('boatImageRefs', () => {
     })
 
     it('accepts absolute URLs with /images/ path', () => {
-      expect(isAppHostedBoatImageUrl('https://boat-search.nard.uk/images/uploads/x.jpg')).toBe(
-        true,
-      )
+      expect(isAppHostedBoatImageUrl('https://boat-search.nard.uk/images/uploads/x.jpg')).toBe(true)
     })
 
     it('rejects external and non-image paths', () => {
@@ -47,9 +45,9 @@ describe('boatImageRefs', () => {
   describe('r2KeyFromBoatImageUrl', () => {
     it('strips /images/ prefix as R2 key', () => {
       expect(r2KeyFromBoatImageUrl('/images/uploads/uuid.jpg')).toBe('uploads/uuid.jpg')
-      expect(
-        r2KeyFromBoatImageUrl('https://boat-search.nard.uk/images/boats/123/hero.webp'),
-      ).toBe('boats/123/hero.webp')
+      expect(r2KeyFromBoatImageUrl('https://boat-search.nard.uk/images/boats/123/hero.webp')).toBe(
+        'boats/123/hero.webp',
+      )
     })
 
     it('returns null for non-hosted URLs', () => {

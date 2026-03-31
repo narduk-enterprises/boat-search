@@ -113,7 +113,9 @@ test.describe('AI boat finder stepped flow', () => {
     await expect(page).toHaveURL(/\/search\?.*sessionId=/, { timeout: 60_000 })
   })
 
-  test('last section end stays in wizard; Continue jumps to first shortlist blocker', async ({ page }) => {
+  test('last section end stays in wizard; Continue jumps to first shortlist blocker', async ({
+    page,
+  }) => {
     const ok = await registerAndEnterFinder(page, '/ai-boat-finder?step=anythingElse&q=1')
     test.skip(!ok, 'Registration did not establish a session (e.g. Supabase email confirmation).')
 

@@ -87,9 +87,7 @@ const overviewMetrics = computed(() => {
           <UBadge
             v-if="props.session"
             :label="
-              props.session.resultSummary.generatedBy === 'ai'
-                ? 'AI reranked'
-                : 'Fallback ranking'
+              props.session.resultSummary.generatedBy === 'ai' ? 'AI reranked' : 'Fallback ranking'
             "
             color="neutral"
             variant="soft"
@@ -146,7 +144,7 @@ const overviewMetrics = computed(() => {
               props.loading
                 ? 'Loading your saved shortlist...'
                 : props.session?.resultSummary.querySummary ||
-              'No shortlist loaded yet. Run the finder to generate one.'
+                  'No shortlist loaded yet. Run the finder to generate one.'
             }}
           </h2>
         </div>
@@ -164,10 +162,7 @@ const overviewMetrics = computed(() => {
         />
       </div>
 
-      <div
-        v-if="props.session"
-        class="grid gap-3 sm:grid-cols-2"
-      >
+      <div v-if="props.session" class="grid gap-3 sm:grid-cols-2">
         <div
           v-for="metric in overviewMetrics"
           :key="metric.label"
@@ -197,10 +192,7 @@ const overviewMetrics = computed(() => {
         We are loading the latest saved run, boats, and AI ranking notes for this board.
       </div>
 
-      <div
-        v-if="topPickBoat"
-        class="rounded-[1.4rem] border border-primary/15 bg-primary/5 p-4"
-      >
+      <div v-if="topPickBoat" class="rounded-[1.4rem] border border-primary/15 bg-primary/5 p-4">
         <div class="flex flex-wrap items-start justify-between gap-3">
           <div class="space-y-1">
             <p class="brand-caption">Start here</p>

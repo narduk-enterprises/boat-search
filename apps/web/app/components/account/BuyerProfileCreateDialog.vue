@@ -51,12 +51,7 @@ function handleClose() {
 
     <template #footer>
       <div class="flex justify-end gap-2">
-        <UButton
-          label="Cancel"
-          color="neutral"
-          variant="ghost"
-          @click="handleClose"
-        />
+        <UButton label="Cancel" color="neutral" variant="ghost" @click="handleClose" />
         <UButton
           label="Create profile"
           icon="i-lucide-plus"

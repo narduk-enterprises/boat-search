@@ -1,8 +1,4 @@
-import {
-  createEmptyDraft,
-  createFieldRule,
-  DEFAULT_BROWSER_SCRAPE_MAX_PAGES,
-} from './defaults'
+import { createEmptyDraft, createFieldRule, DEFAULT_BROWSER_SCRAPE_MAX_PAGES } from './defaults'
 import type {
   AutoDetectedAnalysis,
   BrowserScrapeRecord,
@@ -108,8 +104,7 @@ const YACHTWORLD_SECTION_CALLOUT_PATTERNS = [
   /Want more features\?Ask the seller/gi,
   /Want more specs\?Ask the seller/gi,
 ]
-const PHONE_PATTERN =
-  /(?:\+?1[-.\s]*)?(?:\(\d{3}\)|\d{3})[-.\s]*\d{3}[-.\s]*\d{4}/
+const PHONE_PATTERN = /(?:\+?1[-.\s]*)?(?:\(\d{3}\)|\d{3})[-.\s]*\d{3}[-.\s]*\d{4}/
 
 function uniqueStrings(values: string[]) {
   return [...new Set(values.map((value) => value.trim()).filter(Boolean))]
@@ -346,9 +341,7 @@ function normalizeStructuredListValue(value: string | null | undefined) {
     return null
   }
 
-  const expanded = normalized
-    .replace(/([a-z0-9✓)])([A-Z])/g, '$1\n$2')
-    .replace(/:\s*(?=\S)/g, ': ')
+  const expanded = normalized.replace(/([a-z0-9✓)])([A-Z])/g, '$1\n$2').replace(/:\s*(?=\S)/g, ': ')
 
   const parts = expanded
     .split(/\n+/)
@@ -380,21 +373,13 @@ function assignDerivedRecordValue<K extends keyof BrowserScrapeRecord>(
   value: BrowserScrapeRecord[K] | null | undefined,
 ) {
   const normalized =
-    typeof value === 'string'
-      ? normalizeTitle(value)
-      : Array.isArray(value)
-        ? value
-        : value
+    typeof value === 'string' ? normalizeTitle(value) : Array.isArray(value) ? value : value
   if (normalized == null || normalized === '') {
     return
   }
 
   const existing = record[key]
-  if (
-    existing != null &&
-    existing !== '' &&
-    (!Array.isArray(existing) || existing.length > 0)
-  ) {
+  if (existing != null && existing !== '' && (!Array.isArray(existing) || existing.length > 0)) {
     return
   }
 
@@ -426,7 +411,9 @@ function findHeadingOccurrence(
     }
 
     const absoluteIndex = after + localIndex
-    const tail = normalizeTitle(text.slice(absoluteIndex + heading.length, absoluteIndex + heading.length + 160))
+    const tail = normalizeTitle(
+      text.slice(absoluteIndex + heading.length, absoluteIndex + heading.length + 160),
+    )
     if (!options.validate || options.validate(tail)) {
       return absoluteIndex
     }
@@ -546,9 +533,10 @@ function extractYachtWorldDetailSections(fullText: string | null | undefined) {
           ? specificationsIndex
           : normalized.length,
     validate: (tail) =>
-      new RegExp(`^(?:${YACHTWORLD_FEATURE_SECTION_HEADINGS.map((value) => escapeRegExp(value)).join('|')})`, 'i').test(
-        tail,
-      ),
+      new RegExp(
+        `^(?:${YACHTWORLD_FEATURE_SECTION_HEADINGS.map((value) => escapeRegExp(value)).join('|')})`,
+        'i',
+      ).test(tail),
   })
   const otherDetailsIndex = findHeadingOccurrence(normalized, 'Other Details', {
     before:
@@ -926,15 +914,25 @@ function getBoatsComDetailFields() {
       transform: 'year',
       required: false,
     }),
-    createFieldRule('price', 'detail', 'section.boat-details .details-header .price, section.boat-details .price', {
-      transform: 'price',
-      regex: '((?:US|C|CA)?\\$\\s*[\\d,.]+|€\\s*[\\d,.]+|£\\s*[\\d,.]+)',
-      required: false,
-    }),
-    createFieldRule('currency', 'detail', 'section.boat-details .details-header .price, section.boat-details .price', {
-      regex: '(USD|CAD|EUR|GBP|\\$|€|£)',
-      required: false,
-    }),
+    createFieldRule(
+      'price',
+      'detail',
+      'section.boat-details .details-header .price, section.boat-details .price',
+      {
+        transform: 'price',
+        regex: '((?:US|C|CA)?\\$\\s*[\\d,.]+|€\\s*[\\d,.]+|£\\s*[\\d,.]+)',
+        required: false,
+      },
+    ),
+    createFieldRule(
+      'currency',
+      'detail',
+      'section.boat-details .details-header .price, section.boat-details .price',
+      {
+        regex: '(USD|CAD|EUR|GBP|\\$|€|£)',
+        required: false,
+      },
+    ),
     createFieldRule('location', 'detail', '#seller-map-view, button.map-trigger', {
       required: false,
     }),
@@ -1030,7 +1028,11 @@ function normalizeBoatsComRecord(
   assignDerivedRecordValue(nextRecord, 'model', titleParts.model)
   assignDerivedRecordValue(nextRecord, 'city', locationParts.city)
   assignDerivedRecordValue(nextRecord, 'state', locationParts.state)
-  assignDerivedRecordValue(nextRecord, 'country', locationParts.country || (nextRecord.location ? 'US' : null))
+  assignDerivedRecordValue(
+    nextRecord,
+    'country',
+    locationParts.country || (nextRecord.location ? 'US' : null),
+  )
 
   nextRecord.currency =
     extractCurrencyFromText(nextRecord.currency) ||
@@ -1093,9 +1095,10 @@ function createYachtWorldPipelineName(pageUrl: string) {
 }
 
 function getYachtWorldSearchFields(analysis?: AutoDetectedAnalysis | null) {
-  const inferredFields = analysis?.pageType === 'search' && analysis.pageState === 'ok'
-    ? analysis.fields.filter((field) => field.scope === 'item')
-    : []
+  const inferredFields =
+    analysis?.pageType === 'search' && analysis.pageState === 'ok'
+      ? analysis.fields.filter((field) => field.scope === 'item')
+      : []
 
   const staticFields = [
     createFieldRule('url', 'item', 'a.grid-listing-link[href*="/yacht/"], a[href*="/yacht/"]', {
@@ -1103,12 +1106,17 @@ function getYachtWorldSearchFields(analysis?: AutoDetectedAnalysis | null) {
       attribute: 'href',
       transform: 'url',
     }),
-    createFieldRule('listingId', 'item', 'a.grid-listing-link[href*="/yacht/"], a[href*="/yacht/"]', {
-      extract: 'attr',
-      attribute: 'href',
-      regex: '-(\\d{6,})(?:/|$)',
-      required: false,
-    }),
+    createFieldRule(
+      'listingId',
+      'item',
+      'a.grid-listing-link[href*="/yacht/"], a[href*="/yacht/"]',
+      {
+        extract: 'attr',
+        attribute: 'href',
+        regex: '-(\\d{6,})(?:/|$)',
+        required: false,
+      },
+    ),
     createFieldRule('title', 'item', 'a.grid-listing-link[href*="/yacht/"], a[href*="/yacht/"]'),
     createFieldRule('year', 'item', 'a.grid-listing-link[href*="/yacht/"], a[href*="/yacht/"]', {
       regex: '^((?:19|20)\\d{2})\\b',
@@ -1116,44 +1124,80 @@ function getYachtWorldSearchFields(analysis?: AutoDetectedAnalysis | null) {
       required: false,
     }),
     createFieldRule('make', 'item', 'a.grid-listing-link[href*="/yacht/"], a[href*="/yacht/"]', {
-      regex: '^(?:19|20)\\d{2}\\s+([A-Za-z0-9&./\'-]+)',
+      regex: "^(?:19|20)\\d{2}\\s+([A-Za-z0-9&./'-]+)",
       required: false,
     }),
     createFieldRule('model', 'item', 'a.grid-listing-link[href*="/yacht/"], a[href*="/yacht/"]', {
-      regex: '^(?:19|20)\\d{2}\\s+[A-Za-z0-9&./\'-]+\\s+(.+?)(?:\\s*\\|\\s*\\d{2,3}(?:\\.\\d+)?\\s*ft)?$',
+      regex:
+        "^(?:19|20)\\d{2}\\s+[A-Za-z0-9&./'-]+\\s+(.+?)(?:\\s*\\|\\s*\\d{2,3}(?:\\.\\d+)?\\s*ft)?$",
       required: false,
     }),
-    createFieldRule('price', 'item', 'span.style-module_listingPrice__lsbyO > p.style-module_content__tmQCh, .listing-price, [class*="price" i], [data-testid*="price" i]', {
-      transform: 'price',
-      regex: '((?:US|C|CA)?\\$\\s*[\\d,.]+|€\\s*[\\d,.]+|£\\s*[\\d,.]+)',
-      required: false,
-    }),
-    createFieldRule('currency', 'item', 'span.style-module_listingPrice__lsbyO > p.style-module_content__tmQCh, .listing-price, [class*="price" i], [data-testid*="price" i]', {
-      regex: '(USD|CAD|EUR|GBP|\\$|€|£)',
-      required: false,
-    }),
-    createFieldRule('location', 'item', 'span.style-module_listingBody__VNPuA > p.style-module_content__tmQCh.style-module_content-3__kZFb1, span.style-module_listingBody__VNPuA > p.style-module_content__tmQCh, .listing-location, [class*="location" i], [data-testid*="location" i]', {
-      required: false,
-    }),
-    createFieldRule('city', 'item', 'span.style-module_listingBody__VNPuA > p.style-module_content__tmQCh.style-module_content-3__kZFb1, span.style-module_listingBody__VNPuA > p.style-module_content__tmQCh, .listing-location, [class*="location" i], [data-testid*="location" i]', {
-      regex: '^([^,]+)',
-      required: false,
-    }),
-    createFieldRule('state', 'item', 'span.style-module_listingBody__VNPuA > p.style-module_content__tmQCh.style-module_content-3__kZFb1, span.style-module_listingBody__VNPuA > p.style-module_content__tmQCh, .listing-location, [class*="location" i], [data-testid*="location" i]', {
-      regex: '^[^,]+,\\s*([^,]+)',
-      required: false,
-    }),
-    createFieldRule('country', 'item', 'span.style-module_listingBody__VNPuA > p.style-module_content__tmQCh.style-module_content-3__kZFb1, span.style-module_listingBody__VNPuA > p.style-module_content__tmQCh, .listing-location, [class*="location" i], [data-testid*="location" i]', {
-      regex: '^[^,]+,\\s*[^,]+,\\s*(.+)$',
-      required: false,
-    }),
-    createFieldRule('images', 'item', 'div.style-module_wrapper__3JAO6 > span.style-module_image__tb1LM > img, img', {
-      extract: 'attr',
-      attribute: 'src',
-      multiple: true,
-      transform: 'url',
-      required: false,
-    }),
+    createFieldRule(
+      'price',
+      'item',
+      'span.style-module_listingPrice__lsbyO > p.style-module_content__tmQCh, .listing-price, [class*="price" i], [data-testid*="price" i]',
+      {
+        transform: 'price',
+        regex: '((?:US|C|CA)?\\$\\s*[\\d,.]+|€\\s*[\\d,.]+|£\\s*[\\d,.]+)',
+        required: false,
+      },
+    ),
+    createFieldRule(
+      'currency',
+      'item',
+      'span.style-module_listingPrice__lsbyO > p.style-module_content__tmQCh, .listing-price, [class*="price" i], [data-testid*="price" i]',
+      {
+        regex: '(USD|CAD|EUR|GBP|\\$|€|£)',
+        required: false,
+      },
+    ),
+    createFieldRule(
+      'location',
+      'item',
+      'span.style-module_listingBody__VNPuA > p.style-module_content__tmQCh.style-module_content-3__kZFb1, span.style-module_listingBody__VNPuA > p.style-module_content__tmQCh, .listing-location, [class*="location" i], [data-testid*="location" i]',
+      {
+        required: false,
+      },
+    ),
+    createFieldRule(
+      'city',
+      'item',
+      'span.style-module_listingBody__VNPuA > p.style-module_content__tmQCh.style-module_content-3__kZFb1, span.style-module_listingBody__VNPuA > p.style-module_content__tmQCh, .listing-location, [class*="location" i], [data-testid*="location" i]',
+      {
+        regex: '^([^,]+)',
+        required: false,
+      },
+    ),
+    createFieldRule(
+      'state',
+      'item',
+      'span.style-module_listingBody__VNPuA > p.style-module_content__tmQCh.style-module_content-3__kZFb1, span.style-module_listingBody__VNPuA > p.style-module_content__tmQCh, .listing-location, [class*="location" i], [data-testid*="location" i]',
+      {
+        regex: '^[^,]+,\\s*([^,]+)',
+        required: false,
+      },
+    ),
+    createFieldRule(
+      'country',
+      'item',
+      'span.style-module_listingBody__VNPuA > p.style-module_content__tmQCh.style-module_content-3__kZFb1, span.style-module_listingBody__VNPuA > p.style-module_content__tmQCh, .listing-location, [class*="location" i], [data-testid*="location" i]',
+      {
+        regex: '^[^,]+,\\s*[^,]+,\\s*(.+)$',
+        required: false,
+      },
+    ),
+    createFieldRule(
+      'images',
+      'item',
+      'div.style-module_wrapper__3JAO6 > span.style-module_image__tb1LM > img, img',
+      {
+        extract: 'attr',
+        attribute: 'src',
+        multiple: true,
+        transform: 'url',
+        required: false,
+      },
+    ),
   ]
 
   return mergeFieldRules(staticFields, inferredFields)
@@ -1172,44 +1216,80 @@ function getYachtWorldDetailFields() {
       required: false,
     }),
     createFieldRule('make', 'detail', 'div#bdp-boat-summary h1, h1', {
-      regex: '^(?:19|20)\\d{2}\\s+([A-Za-z0-9&./\'-]+)',
+      regex: "^(?:19|20)\\d{2}\\s+([A-Za-z0-9&./'-]+)",
       required: false,
     }),
     createFieldRule('model', 'detail', 'div#bdp-boat-summary h1, h1', {
-      regex: '^(?:19|20)\\d{2}\\s+[A-Za-z0-9&./\'-]+\\s+(.+?)(?:\\s*\\|\\s*\\d{2,3}(?:\\.\\d+)?\\s*ft)?$',
+      regex:
+        "^(?:19|20)\\d{2}\\s+[A-Za-z0-9&./'-]+\\s+(.+?)(?:\\s*\\|\\s*\\d{2,3}(?:\\.\\d+)?\\s*ft)?$",
       required: false,
     }),
     createFieldRule('length', 'detail', 'div#bdp-boat-summary h1, :root', {
       regex: '(\\b\\d{2,3}(?:\\.\\d+)?\\s*(?:ft|feet|foot)\\b|\\b\\d{2,3}\'(?:\\s*\\d+")?)',
       required: false,
     }),
-    createFieldRule('price', 'detail', 'div.next-previous-listing-price, div#bdp-boat-summary [class*="listingPrice" i] > p, div#bdp-boat-summary [class*="price" i] > p, .listing-price, [class*="price" i], [data-testid*="price" i]', {
-      transform: 'price',
-      regex: '((?:US|C|CA)?\\$\\s*[\\d,.]+|€\\s*[\\d,.]+|£\\s*[\\d,.]+)',
-      required: false,
-    }),
-    createFieldRule('currency', 'detail', 'div.next-previous-listing-price, div#bdp-boat-summary [class*="listingPrice" i] > p, div#bdp-boat-summary [class*="price" i] > p, .listing-price, [class*="price" i], [data-testid*="price" i]', {
-      regex: '(USD|CAD|EUR|GBP|\\$|€|£)',
-      required: false,
-    }),
-    createFieldRule('location', 'detail', 'div.next-previous-listing-location, div#bdp-boat-summary [class*="location" i], .listing-location, [class*="location" i], [data-testid*="location" i]', {
-      required: false,
-    }),
-    createFieldRule('city', 'detail', 'div.next-previous-listing-location, div#bdp-boat-summary [class*="location" i], .listing-location, [class*="location" i], [data-testid*="location" i]', {
-      regex: '^([^,]+)',
-      required: false,
-    }),
-    createFieldRule('state', 'detail', 'div.next-previous-listing-location, div#bdp-boat-summary [class*="location" i], .listing-location, [class*="location" i], [data-testid*="location" i]', {
-      regex: '^[^,]+,\\s*([^,]+)',
-      required: false,
-    }),
-    createFieldRule('country', 'detail', 'div.next-previous-listing-location, div#bdp-boat-summary [class*="location" i], .listing-location, [class*="location" i], [data-testid*="location" i]', {
-      regex: '^[^,]+,\\s*[^,]+,\\s*(.+)$',
-      required: false,
-    }),
-    createFieldRule('description', 'detail', 'div.accordion-details-items details > div.data-html > div.data-html-inner-wrapper > div.render-html, div.data-html-inner-wrapper > div.render-html, .description-panel, [class*="description" i]', {
-      required: false,
-    }),
+    createFieldRule(
+      'price',
+      'detail',
+      'div.next-previous-listing-price, div#bdp-boat-summary [class*="listingPrice" i] > p, div#bdp-boat-summary [class*="price" i] > p, .listing-price, [class*="price" i], [data-testid*="price" i]',
+      {
+        transform: 'price',
+        regex: '((?:US|C|CA)?\\$\\s*[\\d,.]+|€\\s*[\\d,.]+|£\\s*[\\d,.]+)',
+        required: false,
+      },
+    ),
+    createFieldRule(
+      'currency',
+      'detail',
+      'div.next-previous-listing-price, div#bdp-boat-summary [class*="listingPrice" i] > p, div#bdp-boat-summary [class*="price" i] > p, .listing-price, [class*="price" i], [data-testid*="price" i]',
+      {
+        regex: '(USD|CAD|EUR|GBP|\\$|€|£)',
+        required: false,
+      },
+    ),
+    createFieldRule(
+      'location',
+      'detail',
+      'div.next-previous-listing-location, div#bdp-boat-summary [class*="location" i], .listing-location, [class*="location" i], [data-testid*="location" i]',
+      {
+        required: false,
+      },
+    ),
+    createFieldRule(
+      'city',
+      'detail',
+      'div.next-previous-listing-location, div#bdp-boat-summary [class*="location" i], .listing-location, [class*="location" i], [data-testid*="location" i]',
+      {
+        regex: '^([^,]+)',
+        required: false,
+      },
+    ),
+    createFieldRule(
+      'state',
+      'detail',
+      'div.next-previous-listing-location, div#bdp-boat-summary [class*="location" i], .listing-location, [class*="location" i], [data-testid*="location" i]',
+      {
+        regex: '^[^,]+,\\s*([^,]+)',
+        required: false,
+      },
+    ),
+    createFieldRule(
+      'country',
+      'detail',
+      'div.next-previous-listing-location, div#bdp-boat-summary [class*="location" i], .listing-location, [class*="location" i], [data-testid*="location" i]',
+      {
+        regex: '^[^,]+,\\s*[^,]+,\\s*(.+)$',
+        required: false,
+      },
+    ),
+    createFieldRule(
+      'description',
+      'detail',
+      'div.accordion-details-items details > div.data-html > div.data-html-inner-wrapper > div.render-html, div.data-html-inner-wrapper > div.render-html, .description-panel, [class*="description" i]',
+      {
+        required: false,
+      },
+    ),
     createFieldRule('sellerType', 'detail', ':root', {
       regex: '(private seller|broker(?:ed)?|dealer)',
       required: false,
@@ -1218,16 +1298,26 @@ function getYachtWorldDetailFields() {
       regex: '\\b(new|used)\\b',
       required: false,
     }),
-    createFieldRule('images', 'detail', 'div.style-module_mediaCarousel__gADiR div.embla__slide img, [data-testid="listing-gallery"] img, .photo-gallery img, .gallery-rail img', {
-      extract: 'attr',
-      attribute: 'src',
-      transform: 'url',
-      multiple: true,
-      required: false,
-    }),
-    createFieldRule('fullText', 'detail', 'div.accordion-details-wrapper, div.data-html-inner-wrapper > div.render-html, main', {
-      required: false,
-    }),
+    createFieldRule(
+      'images',
+      'detail',
+      'div.style-module_mediaCarousel__gADiR div.embla__slide img, [data-testid="listing-gallery"] img, .photo-gallery img, .gallery-rail img',
+      {
+        extract: 'attr',
+        attribute: 'src',
+        transform: 'url',
+        multiple: true,
+        required: false,
+      },
+    ),
+    createFieldRule(
+      'fullText',
+      'detail',
+      'div.accordion-details-wrapper, div.data-html-inner-wrapper > div.render-html, main',
+      {
+        required: false,
+      },
+    ),
   ]
 }
 
@@ -1636,7 +1726,9 @@ function normalizeYachtWorldRecord(
   }
   nextRecord.currency =
     extractCurrencyFromText(nextRecord.currency) ||
-    extractCurrencyFromText(typeof nextRecord.rawFields.currency === 'string' ? nextRecord.rawFields.currency : '') ||
+    extractCurrencyFromText(
+      typeof nextRecord.rawFields.currency === 'string' ? nextRecord.rawFields.currency : '',
+    ) ||
     extractCurrencyFromText(fullText) ||
     nextRecord.currency ||
     'USD'
@@ -1693,7 +1785,8 @@ function normalizeYachtWorldRecord(
   assignDerivedRecordValue(nextRecord, 'guestHeads', guestHeads)
 
   nextRecord.images = normalizeYachtWorldImages(nextRecord.images, nextRecord.listingId)
-  nextRecord.sellerType = inferSellerType(nextRecord.sellerType || fullText) || nextRecord.sellerType
+  nextRecord.sellerType =
+    inferSellerType(nextRecord.sellerType || fullText) || nextRecord.sellerType
   nextRecord.listingType =
     nextRecord.listingType ||
     inferYachtWorldListingTypeFromPageUrl(context === 'search' ? pageUrl : null) ||
@@ -1790,10 +1883,7 @@ export function findMatchingSitePreset(pageUrl: string) {
   return null
 }
 
-export function buildPresetDraft(
-  presetId: SitePresetId,
-  options: PresetDraftOptions,
-) {
+export function buildPresetDraft(presetId: SitePresetId, options: PresetDraftOptions) {
   const preset = getSitePresetById(presetId)
   if (!preset) {
     return createEmptyDraft()
@@ -1824,8 +1914,7 @@ export function buildRuntimePresetDraft(
         ...presetDraft.config.allowedDomains,
       ]),
       itemSelector: presetDraft.config.itemSelector || draft.config.itemSelector,
-      nextPageSelector:
-        presetDraft.config.nextPageSelector || draft.config.nextPageSelector,
+      nextPageSelector: presetDraft.config.nextPageSelector || draft.config.nextPageSelector,
       detailFollowLinkSelector:
         presetDraft.config.detailFollowLinkSelector || draft.config.detailFollowLinkSelector,
       fields: presetDraft.config.fields,

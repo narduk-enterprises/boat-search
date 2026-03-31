@@ -96,10 +96,7 @@ for (let index = 0; index < lines.length; index += 1) {
     tarballCache.set(cacheKey, forgejoDist)
   }
 
-  if (
-    currentTarballUrl === forgejoDist.tarballUrl &&
-    currentIntegrity === forgejoDist.integrity
-  ) {
+  if (currentTarballUrl === forgejoDist.tarballUrl && currentIntegrity === forgejoDist.integrity) {
     continue
   }
 
@@ -122,4 +119,6 @@ if (replacements === 0) {
 }
 
 fs.writeFileSync(lockfilePath, `${lines.join('\n')}\n`)
-console.log(`✅ Updated ${replacements} managed package tarball entr${replacements === 1 ? 'y' : 'ies'} in pnpm-lock.yaml.`)
+console.log(
+  `✅ Updated ${replacements} managed package tarball entr${replacements === 1 ? 'y' : 'ies'} in pnpm-lock.yaml.`,
+)

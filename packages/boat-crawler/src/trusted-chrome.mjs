@@ -29,10 +29,7 @@ export async function openTrustedChromeWindow(url, options = {}) {
     executablePath: chromeExecutablePath,
     headless: false,
     viewport: { width: 1600, height: 1200 },
-    args: [
-      `--profile-directory=${profileDir}`,
-      '--disable-blink-features=AutomationControlled',
-    ],
+    args: [`--profile-directory=${profileDir}`, '--disable-blink-features=AutomationControlled'],
   })
 
   const page = context.pages()[0] || (await context.newPage())

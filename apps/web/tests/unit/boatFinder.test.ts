@@ -30,9 +30,7 @@ describe('boat finder profile model', () => {
     expect(normalized.coreAnswers.preferences.maintenanceReality).toBe('Balanced upkeep')
     expect(normalized.coreAnswers.facts.storagePlanNotes).toBe('Slip-ready only')
     expect(normalized.coreAnswers.preferences.mustHaves).toEqual(['Tower or upper station'])
-    expect(normalized.coreAnswers.preferences.dealBreakers).toEqual([
-      'Major refit or project boat',
-    ])
+    expect(normalized.coreAnswers.preferences.dealBreakers).toEqual(['Major refit or project boat'])
   })
 
   it('diffs and merges one-off overrides without mutating the base profile', () => {
@@ -51,9 +49,7 @@ describe('boat finder profile model', () => {
 
     const overrides = diffBuyerAnswers(base, next)
 
-    expect(overrides.facts.targetWatersOrRegion).toBe(
-      'Northern Gulf (AL / MS / FL panhandle)',
-    )
+    expect(overrides.facts.targetWatersOrRegion).toBe('Northern Gulf (AL / MS / FL panhandle)')
     expect(overrides.facts.budgetMax).toBe(425000)
     expect(overrides.preferences.mustHaves).toEqual([
       'Tower or upper station',
@@ -62,9 +58,7 @@ describe('boat finder profile model', () => {
     expect(overrides.openContextNote).toContain('worth the time away from family')
 
     const merged = mergeBuyerAnswers(base, overrides)
-    expect(merged.facts.targetWatersOrRegion).toBe(
-      'Northern Gulf (AL / MS / FL panhandle)',
-    )
+    expect(merged.facts.targetWatersOrRegion).toBe('Northern Gulf (AL / MS / FL panhandle)')
     expect(merged.facts.budgetMax).toBe(425000)
     expect(merged.preferences.mustHaves).toEqual([
       'Tower or upper station',

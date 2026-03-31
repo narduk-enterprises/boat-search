@@ -151,8 +151,9 @@ watch(
         <h3 class="text-lg font-semibold text-default">Page discovery</h3>
         <p class="mt-1 text-sm text-muted">
           <span v-if="draft.config.detailBackfillMode">
-            YachtWorld detail backfill: one listing detail URL per line (www.yachtworld.com/yacht/…).
-            Max rows per run is capped by “Max items per run”. Boat source must be YachtWorld.
+            YachtWorld detail backfill: one listing detail URL per line
+            (www.yachtworld.com/yacht/…). Max rows per run is capped by “Max items per run”. Boat
+            source must be YachtWorld.
           </span>
           <span v-else>
             One start URL or hostname per line. Pagination is optional and stops at the page cap.
@@ -168,7 +169,10 @@ watch(
       </div>
 
       <div class="grid gap-4 xl:grid-cols-2">
-        <UFormField :label="draft.config.detailBackfillMode ? 'Detail URLs' : 'Start URLs'" required>
+        <UFormField
+          :label="draft.config.detailBackfillMode ? 'Detail URLs' : 'Start URLs'"
+          required
+        >
           <UTextarea
             v-model="startUrlsText"
             class="w-full min-h-32"

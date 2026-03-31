@@ -219,7 +219,8 @@ describe('extension DOM analyzer', () => {
     expect(analysis.fields.find((field) => field.key === 'images')?.selector).toBeTruthy()
 
     const draft = buildPresetDraft('yachtworld-search', {
-      pageUrl: 'https://www.yachtworld.com/boats-for-sale/type-power/class-power-saltwater-fishing/',
+      pageUrl:
+        'https://www.yachtworld.com/boats-for-sale/type-power/class-power-saltwater-fishing/',
       analysis: null,
     })
 
@@ -253,7 +254,8 @@ describe('extension DOM analyzer', () => {
     )
 
     const draft = buildPresetDraft('yachtworld-search', {
-      pageUrl: 'https://www.yachtworld.com/boats-for-sale/type-power/class-power-saltwater-fishing/',
+      pageUrl:
+        'https://www.yachtworld.com/boats-for-sale/type-power/class-power-saltwater-fishing/',
       analysis: null,
     })
 

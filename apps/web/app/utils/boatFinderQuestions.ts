@@ -154,10 +154,7 @@ export const BOAT_FINDER_BUDGET_PRESETS: readonly BoatFinderBudgetPreset[] = [
   { id: '1_2m-plus', label: '$1.2M+', min: 1_200_000, max: 5_000_000 },
 ]
 
-export function matchBudgetPreset(
-  min: number | undefined,
-  max: number | undefined,
-): string | null {
+export function matchBudgetPreset(min: number | undefined, max: number | undefined): string | null {
   if (max == null) return null
   for (const p of BOAT_FINDER_BUDGET_PRESETS) {
     if (p.max !== max) continue
@@ -509,7 +506,9 @@ export function getVisibleBoatFinderQuestions(
 
 /** Ordered step sections for the wizard (excludes review). */
 export const BOAT_FINDER_STEP_SECTION_IDS = BOAT_FINDER_SECTIONS.filter(
-  (s): s is (typeof BOAT_FINDER_SECTIONS)[number] & { id: Exclude<BoatFinderSectionId, 'review'> } =>
+  (
+    s,
+  ): s is (typeof BOAT_FINDER_SECTIONS)[number] & { id: Exclude<BoatFinderSectionId, 'review'> } =>
     s.id !== 'review',
 ).map((s) => s.id)
 
@@ -595,7 +594,7 @@ export function boatFinderQuestionHasValue(
     }
     return Boolean(
       getValueFromQuestionGroup(answers, minGroup, minKey) ??
-        getValueFromQuestionGroup(answers, maxGroup, maxKey),
+      getValueFromQuestionGroup(answers, maxGroup, maxKey),
     )
   }
 

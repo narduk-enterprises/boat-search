@@ -74,9 +74,7 @@ export function consumeRefreshableBoatIdentity(
   const listingId = normalizeListingId(record.listingId)
   const normalizedUrl = normalizeBoatSourceUrl(record.url)
   const matchedByListingId = listingId ? state.refreshableListingIds.delete(listingId) : false
-  const matchedByUrl = normalizedUrl
-    ? state.refreshableNormalizedUrls.delete(normalizedUrl)
-    : false
+  const matchedByUrl = normalizedUrl ? state.refreshableNormalizedUrls.delete(normalizedUrl) : false
 
   return matchedByListingId || matchedByUrl
 }

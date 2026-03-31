@@ -99,9 +99,7 @@ export function getFixtureCaptureTemplateDefinition(template: FixtureCaptureTemp
 }
 
 export function listFixtureCaptureTemplateDefinitions() {
-  return FIXTURE_CAPTURE_TEMPLATES.map((template) =>
-    getFixtureCaptureTemplateDefinition(template),
-  )
+  return FIXTURE_CAPTURE_TEMPLATES.map((template) => getFixtureCaptureTemplateDefinition(template))
 }
 
 export function normalizeFixtureCaptureTemplate(value: unknown): FixtureCaptureTemplate {
@@ -155,7 +153,9 @@ function normalizeRecordShape(
     template: fallback.template,
     fileStem: typeof raw.fileStem === 'string' ? raw.fileStem : null,
     files: Array.isArray(raw.files)
-      ? raw.files.filter((entry): entry is string => typeof entry === 'string' && entry.trim().length > 0)
+      ? raw.files.filter(
+          (entry): entry is string => typeof entry === 'string' && entry.trim().length > 0,
+        )
       : [],
     currentUrl: typeof raw.currentUrl === 'string' ? raw.currentUrl : null,
     pageType,
@@ -198,7 +198,9 @@ export function normalizeFixtureCaptureSessionState(
         fallback.captured['search-ok'],
       ),
       'search-no-results': normalizeRecordShape(
-        (rawCaptured as Partial<Record<FixtureCaptureTemplate, FixtureCaptureRecord>>)['search-no-results'],
+        (rawCaptured as Partial<Record<FixtureCaptureTemplate, FixtureCaptureRecord>>)[
+          'search-no-results'
+        ],
         fallback.captured['search-no-results'],
       ),
       'detail-ok': normalizeRecordShape(
@@ -206,7 +208,9 @@ export function normalizeFixtureCaptureSessionState(
         fallback.captured['detail-ok'],
       ),
       'detail-gallery-noise': normalizeRecordShape(
-        (rawCaptured as Partial<Record<FixtureCaptureTemplate, FixtureCaptureRecord>>)['detail-gallery-noise'],
+        (rawCaptured as Partial<Record<FixtureCaptureTemplate, FixtureCaptureRecord>>)[
+          'detail-gallery-noise'
+        ],
         fallback.captured['detail-gallery-noise'],
       ),
       custom: normalizeRecordShape(
@@ -245,7 +249,9 @@ function normalizeFixtureCaptureSummary(value: unknown): FixtureCaptureSummary |
     template,
     fileStem: raw.fileStem,
     files: Array.isArray(raw.files)
-      ? raw.files.filter((entry): entry is string => typeof entry === 'string' && entry.trim().length > 0)
+      ? raw.files.filter(
+          (entry): entry is string => typeof entry === 'string' && entry.trim().length > 0,
+        )
       : [],
     currentUrl: raw.currentUrl,
     pageType,

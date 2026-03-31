@@ -329,11 +329,7 @@ export async function renameBuyerProfile(
   return { id: profileId, name: name.trim().slice(0, 100), updatedAt: now }
 }
 
-export async function activateBuyerProfile(
-  event: H3Event,
-  userId: string,
-  profileId: number,
-) {
+export async function activateBuyerProfile(event: H3Event, userId: string, profileId: number) {
   const db = useAppDatabase(event)
 
   const target = await db
@@ -365,11 +361,7 @@ export async function activateBuyerProfile(
   return { id: profileId, isActive: true }
 }
 
-export async function deleteBuyerProfile(
-  event: H3Event,
-  userId: string,
-  profileId: number,
-) {
+export async function deleteBuyerProfile(event: H3Event, userId: string, profileId: number) {
   const db = useAppDatabase(event)
 
   // Count remaining profiles

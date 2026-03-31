@@ -110,9 +110,7 @@ describe('site presets', () => {
     })
 
     expect(
-      findMatchingSitePreset(
-        'https://www.yachtworld.com/yacht/viking-52-convertible-1234567/',
-      ),
+      findMatchingSitePreset('https://www.yachtworld.com/yacht/viking-52-convertible-1234567/'),
     ).toMatchObject({
       id: 'yachtworld-search',
       context: 'detail',
@@ -399,7 +397,7 @@ describe('site presets', () => {
       listingType: null,
       images: [],
       fullText:
-        "Boat DetailsDescriptionVery clean 2021 Century Boats 29 Ft Center Console! This boat is ready for its next adventure. Show MoreContact InformationPlease contact Carlos Lopez at (305) 758-5786PropulsionEngine 1Engine Make:YAMAHAEngine Model:300HPEngine Year:2021Total Power:300hpEngine Type:OutboardDrive Type:OtherFuel Type:GasEngine 2Engine Make:YAMAHAEngine Model:300HPEngine Year:2021Total Power:300hpEngine Type:OutboardFuel Type:GasSpecificationsSpeed & DistanceCruising Speed:32knMax Speed:54knDimensionsLength Overall:29ftMin Draft:1.67ftBeam:9.5ftWeightsDry Weight:7,000LbMiscellaneousElectrical Circuit:noneHull Material:FiberglassHull Shape:OtherKeel Type:OtherTanksFresh Water Tank:Fuel Tank:1 x 280 gal Holding Tank:AccommodationsGuest Heads:1Want more specs?Ask the seller",
+        'Boat DetailsDescriptionVery clean 2021 Century Boats 29 Ft Center Console! This boat is ready for its next adventure. Show MoreContact InformationPlease contact Carlos Lopez at (305) 758-5786PropulsionEngine 1Engine Make:YAMAHAEngine Model:300HPEngine Year:2021Total Power:300hpEngine Type:OutboardDrive Type:OtherFuel Type:GasEngine 2Engine Make:YAMAHAEngine Model:300HPEngine Year:2021Total Power:300hpEngine Type:OutboardFuel Type:GasSpecificationsSpeed & DistanceCruising Speed:32knMax Speed:54knDimensionsLength Overall:29ftMin Draft:1.67ftBeam:9.5ftWeightsDry Weight:7,000LbMiscellaneousElectrical Circuit:noneHull Material:FiberglassHull Shape:OtherKeel Type:OtherTanksFresh Water Tank:Fuel Tank:1 x 280 gal Holding Tank:AccommodationsGuest Heads:1Want more specs?Ask the seller',
       rawFields: {},
       warnings: [],
     }
@@ -455,7 +453,7 @@ describe('site presets', () => {
       listingType: null,
       images: [],
       fullText:
-        "Boat DetailsDescription2018 TideWater 2700 CB - With Every Option Show MoreContact InformationPlease contact Chris Thomas at 713-870-3299Other DetailsManufacturer Provided DescriptionThis Carolina Bay model is a large, stepped bottom, feature full, high end, family friendly performance bay boat.Standard Features White Ivory or Sahara Interior DisclaimerThe Company offers the details of this vessel in good faith but cannot guarantee or warrant the accuracy of this information nor warrant the condition of the vessel. A buyer should instruct his agents, or his surveyors, to investigate such details as the buyer desires validated. This vessel is offered subject to prior sale, price change, or withdrawal without notice.Need more details?Ask the sellerFeaturesElectronicsDepthsounder:✓Radio:✓Compass:✓GPS:✓Cockpit Speakers:✓VHF:✓Inside EquipmentElectric Bilge Pump:✓Marine Head:✓Battery Charger:✓Outside EquipmentCockpit Shower:✓Outboard Engine Brackets:Bobs Jack PlatesCockpit Cushions:✓Swimming Ladder:✓Power Poles:✓Additional EquipmentRoad Trailer:New TiresUnderwater Lights:✓Want more features?Ask the sellerPropulsionEngine 1Engine Make:MercuryEngine Model:250REngine Year:2018Total Power:250hpEngine Hours:180Engine Type:OutboardFuel Type:GasPropeller Type:4 BladePropeller Material:Stainless SteelSpecificationsSpeed & DistanceCruising Speed:27.81knMax Speed:57.35knRange:269.38nmDimensionsLength Overall:27.17ftMax Bridge Clearance:8ftMax Draft:1.83ftBeam:9.33ftWeightsDry Weight:4,100LbMiscellaneousWindlass:Electric WindlassDeadrise At Transom:15degHull Material:FiberglassHull Shape:Modified VeeTanksFresh Water Tank:10 gal Fuel Tank:141 gal Holding Tank:Want more specs?Ask the seller",
+        'Boat DetailsDescription2018 TideWater 2700 CB - With Every Option Show MoreContact InformationPlease contact Chris Thomas at 713-870-3299Other DetailsManufacturer Provided DescriptionThis Carolina Bay model is a large, stepped bottom, feature full, high end, family friendly performance bay boat.Standard Features White Ivory or Sahara Interior DisclaimerThe Company offers the details of this vessel in good faith but cannot guarantee or warrant the accuracy of this information nor warrant the condition of the vessel. A buyer should instruct his agents, or his surveyors, to investigate such details as the buyer desires validated. This vessel is offered subject to prior sale, price change, or withdrawal without notice.Need more details?Ask the sellerFeaturesElectronicsDepthsounder:✓Radio:✓Compass:✓GPS:✓Cockpit Speakers:✓VHF:✓Inside EquipmentElectric Bilge Pump:✓Marine Head:✓Battery Charger:✓Outside EquipmentCockpit Shower:✓Outboard Engine Brackets:Bobs Jack PlatesCockpit Cushions:✓Swimming Ladder:✓Power Poles:✓Additional EquipmentRoad Trailer:New TiresUnderwater Lights:✓Want more features?Ask the sellerPropulsionEngine 1Engine Make:MercuryEngine Model:250REngine Year:2018Total Power:250hpEngine Hours:180Engine Type:OutboardFuel Type:GasPropeller Type:4 BladePropeller Material:Stainless SteelSpecificationsSpeed & DistanceCruising Speed:27.81knMax Speed:57.35knRange:269.38nmDimensionsLength Overall:27.17ftMax Bridge Clearance:8ftMax Draft:1.83ftBeam:9.33ftWeightsDry Weight:4,100LbMiscellaneousWindlass:Electric WindlassDeadrise At Transom:15degHull Material:FiberglassHull Shape:Modified VeeTanksFresh Water Tank:10 gal Fuel Tank:141 gal Holding Tank:Want more specs?Ask the seller',
       rawFields: {},
       warnings: [],
     }
@@ -474,9 +472,7 @@ describe('site presets', () => {
       'Depthsounder | Radio | Compass | GPS | Cockpit Speakers | VHF',
     )
     expect(normalized.insideEquipment).toContain('Marine Head')
-    expect(normalized.outsideEquipment).toContain(
-      'Outboard Engine Brackets: Bobs Jack Plates',
-    )
+    expect(normalized.outsideEquipment).toContain('Outboard Engine Brackets: Bobs Jack Plates')
     expect(normalized.additionalEquipment).toContain('Road Trailer: New Tires')
     expect(normalized.additionalEquipment).toContain('Underwater Lights')
     expect(normalized.engineHours).toBe('180')
@@ -536,20 +532,18 @@ describe('site presets', () => {
       expect.arrayContaining(['www.yachtworld.com', 'images.yachtworld.com']),
     )
     expect(
-      runtimeDraft.config.fields.find(
-        (field) => field.scope === 'detail' && field.key === 'images',
-      )?.selector,
+      runtimeDraft.config.fields.find((field) => field.scope === 'detail' && field.key === 'images')
+        ?.selector,
     ).toContain('div.style-module_mediaCarousel__gADiR')
     expect(
-      runtimeDraft.config.fields.some(
-        (field) => field.scope === 'detail' && field.key === 'url',
-      ),
+      runtimeDraft.config.fields.some((field) => field.scope === 'detail' && field.key === 'url'),
     ).toBe(false)
   })
 
   it('builds the YachtWorld preset with the full browser pagination default', () => {
     const draft = buildPresetDraft('yachtworld-search', {
-      pageUrl: 'https://www.yachtworld.com/boats-for-sale/type-power/class-power-saltwater-fishing/',
+      pageUrl:
+        'https://www.yachtworld.com/boats-for-sale/type-power/class-power-saltwater-fishing/',
       analysis: null,
     })
 

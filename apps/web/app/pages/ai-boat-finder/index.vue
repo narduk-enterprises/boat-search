@@ -223,10 +223,7 @@ const pageReady = computed(
 )
 
 const showOptionalResume = computed(
-  () =>
-    pageReady.value &&
-    optionalIncomplete.value.count > 0 &&
-    canGenerateShortlist.value,
+  () => pageReady.value && optionalIncomplete.value.count > 0 && canGenerateShortlist.value,
 )
 
 const activeFinderStep = ref<BoatFinderStepSectionId>('mission')
@@ -379,10 +376,7 @@ const backPath = computed(() => {
           'min-w-0 w-full flex flex-col lg:grid gap-6 py-8 sm:gap-10 sm:py-10 lg:gap-12 lg:py-12',
       }"
     >
-      <div
-        class="mx-auto w-full min-w-0 max-w-6xl space-y-8"
-        data-testid="boat-finder-page-shell"
-      >
+      <div class="mx-auto w-full min-w-0 max-w-6xl space-y-8" data-testid="boat-finder-page-shell">
         <div
           class="flex flex-col gap-6 border-b border-default pb-6 sm:flex-row sm:items-start sm:justify-between"
         >
@@ -403,7 +397,13 @@ const backPath = computed(() => {
                       ? 'Save issue'
                       : 'Draft synced'
                 "
-                :color="autosaveState === 'error' ? 'warning' : autosaveState === 'saving' ? 'neutral' : 'success'"
+                :color="
+                  autosaveState === 'error'
+                    ? 'warning'
+                    : autosaveState === 'saving'
+                      ? 'neutral'
+                      : 'success'
+                "
                 variant="soft"
                 :icon="
                   autosaveState === 'saving'

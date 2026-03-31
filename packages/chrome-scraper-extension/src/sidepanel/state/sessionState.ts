@@ -90,7 +90,8 @@ export function applyAnalysisToSession(session: ExtensionSession, analysis: Auto
   session.lastAnalysis = analysis
   session.sampleDetailUrl = analysis.sampleDetailUrl
   session.draft.boatSource = session.draft.boatSource || hostToSourceName(host || 'unknown')
-  session.draft.name = session.draft.name || `${hostToSourceName(host || 'unknown')} ${analysis.pageType} pipeline`
+  session.draft.name =
+    session.draft.name || `${hostToSourceName(host || 'unknown')} ${analysis.pageType} pipeline`
   session.draft.config.allowedDomains = uniqueStrings([
     ...session.draft.config.allowedDomains,
     host,
@@ -152,9 +153,9 @@ export function isPaginationAutoDetected(session: ExtensionSession) {
   const detectedSelector = session.lastAnalysis?.nextPageSelector?.trim()
   return Boolean(
     session.lastAnalysis?.pageType === 'search' &&
-      session.lastAnalysis.pageState === 'ok' &&
-      detectedSelector &&
-      session.draft.config.nextPageSelector.trim() === detectedSelector,
+    session.lastAnalysis.pageState === 'ok' &&
+    detectedSelector &&
+    session.draft.config.nextPageSelector.trim() === detectedSelector,
   )
 }
 
@@ -173,9 +174,9 @@ export function collectBrowserDetailQueue(records: BrowserScrapeRecord[]) {
 export function isTrustedPresetReady(session: ExtensionSession) {
   return Boolean(
     isTrustedPresetId(session.preset.appliedPresetId) &&
-      session.draft.config.startUrls.length &&
-      session.draft.config.fetchDetailPages &&
-      getScopeFields(session.draft.config.fields, 'detail').some((field) => field.selector.trim()),
+    session.draft.config.startUrls.length &&
+    session.draft.config.fetchDetailPages &&
+    getScopeFields(session.draft.config.fields, 'detail').some((field) => field.selector.trim()),
   )
 }
 

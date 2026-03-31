@@ -74,7 +74,7 @@ export default defineUserMutation(
     const baseProfile = profileData?.profile ?? createEmptyBuyerProfile()
     const effectiveAnswers = hasOverrides
       ? mergeBuyerAnswers(baseProfile.coreAnswers, overrides)
-      : profileData?.effectiveAnswers ?? baseProfile.coreAnswers
+      : (profileData?.effectiveAnswers ?? baseProfile.coreAnswers)
 
     if (!isBuyerAnswersComplete(effectiveAnswers)) {
       throw createError({

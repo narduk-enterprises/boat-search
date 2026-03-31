@@ -69,11 +69,7 @@ export function classifyGenericSignal(signal) {
     })
   }
 
-  if (
-    /accept all cookies|consent preferences|privacy choices/i.test(
-      `${title}\n${body}`,
-    )
-  ) {
+  if (/accept all cookies|consent preferences|privacy choices/i.test(`${title}\n${body}`)) {
     return makePageState(PAGE_STATES.CONSENT_REQUIRED, {
       summary: excerpt(signal?.bodyText || signal?.title),
       signal,

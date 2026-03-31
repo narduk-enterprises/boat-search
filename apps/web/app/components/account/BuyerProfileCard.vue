@@ -64,9 +64,15 @@ const cooldownLabel = computed(() => {
 })
 
 const menuItems = computed(() => {
-  const items: Array<Array<{ label: string; icon: string; onSelect: () => void; disabled?: boolean }>> = [
+  const items: Array<
+    Array<{ label: string; icon: string; onSelect: () => void; disabled?: boolean }>
+  > = [
     [
-      { label: 'Edit questionnaire', icon: 'i-lucide-pencil', onSelect: () => emit('edit', props.profile.id) },
+      {
+        label: 'Edit questionnaire',
+        icon: 'i-lucide-pencil',
+        onSelect: () => emit('edit', props.profile.id),
+      },
       { label: 'Rename', icon: 'i-lucide-type', onSelect: startRename },
     ],
     [

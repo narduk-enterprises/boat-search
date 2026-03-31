@@ -71,14 +71,10 @@ function createChromeMock(storedSession?: unknown, options: ChromeMockOptions = 
         onActivated: createListenerApi(),
         onUpdated: createListenerApi(),
         query: vi.fn(async () =>
-          options.queryTabs
-            ? await options.queryTabs()
-            : [structuredClone(activeTab)],
+          options.queryTabs ? await options.queryTabs() : [structuredClone(activeTab)],
         ),
         get: vi.fn(async (tabId: number) =>
-          options.getTab
-            ? await options.getTab(tabId)
-            : structuredClone(activeTab),
+          options.getTab ? await options.getTab(tabId) : structuredClone(activeTab),
         ),
         update: vi.fn(async (tabId: number, properties: { url?: string }) => {
           if (options.updateTab) {
@@ -108,9 +104,7 @@ function createChromeMock(storedSession?: unknown, options: ChromeMockOptions = 
           return structuredClone(activeTab)
         }),
         sendMessage: vi.fn(async (tabId: number, message: object) =>
-          options.sendTabMessage
-            ? await options.sendTabMessage(tabId, message)
-            : null,
+          options.sendTabMessage ? await options.sendTabMessage(tabId, message) : null,
         ),
       },
       scripting: {
@@ -219,10 +213,8 @@ describe('useExtensionSession', () => {
   })
 
   it('scrapes each detail page before moving to the next search page', async () => {
-    const searchPageOneUrl =
-      'https://www.yachtworld.com/boats-for-sale/type-power/page-1/'
-    const searchPageTwoUrl =
-      'https://www.yachtworld.com/boats-for-sale/type-power/page-2/'
+    const searchPageOneUrl = 'https://www.yachtworld.com/boats-for-sale/type-power/page-1/'
+    const searchPageTwoUrl = 'https://www.yachtworld.com/boats-for-sale/type-power/page-2/'
     const detailOneUrl = 'https://www.yachtworld.com/yacht/one-123/'
     const detailTwoUrl = 'https://www.yachtworld.com/yacht/two-456/'
 
@@ -927,11 +919,10 @@ describe('useExtensionSession', () => {
     await flushSessionWatchers()
     await extension.startScrapeInBoatSearch()
 
-    expect(extractionLog.filter((entry) => entry === `search:${searchPageUrl}`).length).toBeGreaterThanOrEqual(1)
-    expect(extractionLog.slice(-2)).toEqual([
-      `detail:${detailUrl}`,
-      `detail-follow:${followUrl}`,
-    ])
+    expect(
+      extractionLog.filter((entry) => entry === `search:${searchPageUrl}`).length,
+    ).toBeGreaterThanOrEqual(1)
+    expect(extractionLog.slice(-2)).toEqual([`detail:${detailUrl}`, `detail-follow:${followUrl}`])
     expect(extension.errorMessage.value).toBe('')
   })
 

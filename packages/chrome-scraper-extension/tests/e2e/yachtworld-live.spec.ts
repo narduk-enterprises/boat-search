@@ -1,7 +1,14 @@
 import { writeFile } from 'node:fs/promises'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { chromium, expect, test, type BrowserContext, type Page, type TestInfo } from '@playwright/test'
+import {
+  chromium,
+  expect,
+  test,
+  type BrowserContext,
+  type Page,
+  type TestInfo,
+} from '@playwright/test'
 import { loginAsAdmin } from '../../../../apps/web/tests/e2e/fixtures.ts'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
@@ -235,7 +242,9 @@ async function writeArtifacts(
   )
 }
 
-test('validates the YachtWorld extension flow against a seeded Chrome profile', async ({ baseURL }, testInfo) => {
+test('validates the YachtWorld extension flow against a seeded Chrome profile', async ({
+  baseURL,
+}, testInfo) => {
   const yachtWorldUrl = process.env.EXTENSION_E2E_YACHTWORLD_URL?.trim() || defaultYachtWorldUrl
   const context = await launchChromeWithExtension()
   const extensionConsole: string[] = []
@@ -268,7 +277,9 @@ test('validates the YachtWorld extension flow against a seeded Chrome profile', 
     await setInputValue(extensionPage, 'max-pages-input', '2')
     await setInputValue(extensionPage, 'max-items-per-run-input', '120')
     await clickByTestId(extensionPage, 'connection-test-button')
-    await expect(extensionPage.getByTestId('toolbar-status')).toContainText('Connected to Boat Search')
+    await expect(extensionPage.getByTestId('toolbar-status')).toContainText(
+      'Connected to Boat Search',
+    )
 
     yachtPage = await context.newPage()
     await attachConsole(yachtPage, yachtConsole)
@@ -280,14 +291,20 @@ test('validates the YachtWorld extension flow against a seeded Chrome profile', 
     await yachtPage.bringToFront()
 
     await clickByTestId(extensionPage, 'scan-current-page')
-    let snapshot = await waitForDebugSnapshot(
-      extensionPage,
-      (state) => Boolean(state.analysis),
-      { timeoutMs: 45_000, label: 'initial YachtWorld analysis' },
-    )
+    let snapshot = await waitForDebugSnapshot(extensionPage, (state) => Boolean(state.analysis), {
+      timeoutMs: 45_000,
+      label: 'initial YachtWorld analysis',
+    })
 
     if (snapshot.analysis?.pageState === 'challenge') {
-      await writeArtifacts(testInfo, extensionPage, yachtPage, snapshot, extensionConsole, yachtConsole)
+      await writeArtifacts(
+        testInfo,
+        extensionPage,
+        yachtPage,
+        snapshot,
+        extensionConsole,
+        yachtConsole,
+      )
       expect(snapshot.analysis.stateMessage || '').toMatch(/challenge|cloudflare|verification/i)
       return
     }
@@ -308,14 +325,23 @@ test('validates the YachtWorld extension flow against a seeded Chrome profile', 
     )
 
     if (snapshot.sampleDetailRun?.status !== 'scanned') {
-      await writeArtifacts(testInfo, extensionPage, yachtPage, snapshot, extensionConsole, yachtConsole)
+      await writeArtifacts(
+        testInfo,
+        extensionPage,
+        yachtPage,
+        snapshot,
+        extensionConsole,
+        yachtConsole,
+      )
       expect(snapshot.sampleDetailRun?.message || '').not.toMatch(/server error/i)
       expect(snapshot.sampleDetailRun?.message || '').toMatch(/detail|challenge|stable|cloudflare/i)
       return
     }
 
     expect(snapshot.sampleDetailRun.imageCount).toBeGreaterThan(1)
-    await expect(extensionPage.getByTestId('sample-detail-status')).toContainText('opened and scanned')
+    await expect(extensionPage.getByTestId('sample-detail-status')).toContainText(
+      'opened and scanned',
+    )
     await expect(extensionPage.getByTestId('detail-image-count')).toContainText('Detected')
 
     await clickByTestId(extensionPage, 'workflow-step-detail-fields-export')
@@ -330,11 +356,21 @@ test('validates the YachtWorld extension flow against a seeded Chrome profile', 
       { timeoutMs: 5 * 60_000, label: 'browser scrape completion' },
     )
 
-    await writeArtifacts(testInfo, extensionPage, yachtPage, snapshot, extensionConsole, yachtConsole)
+    await writeArtifacts(
+      testInfo,
+      extensionPage,
+      yachtPage,
+      snapshot,
+      extensionConsole,
+      yachtConsole,
+    )
 
     const finalEvent = [...snapshot.events]
       .reverse()
-      .find((event) => event.type === 'browser-scrape-complete' || event.type === 'browser-scrape-failed')
+      .find(
+        (event) =>
+          event.type === 'browser-scrape-complete' || event.type === 'browser-scrape-failed',
+      )
 
     if (finalEvent?.type === 'browser-scrape-failed') {
       expect(finalEvent.message).not.toMatch(/server error/i)
@@ -347,13 +383,20 @@ test('validates the YachtWorld extension flow against a seeded Chrome profile', 
     expect(snapshot.remoteRun?.summary.itemsSeen || 0).toBeGreaterThan(0)
     expect(snapshot.remoteRun?.summary.itemsExtracted || 0).toBeGreaterThan(0)
     expect(snapshot.remoteRun?.summary.pagesVisited || 0).toBeGreaterThanOrEqual(2)
-    expect(snapshot.remoteRun?.summary.inserted || 0 + (snapshot.remoteRun?.summary.updated || 0)).toBeGreaterThanOrEqual(0)
+    expect(
+      snapshot.remoteRun?.summary.inserted || 0 + (snapshot.remoteRun?.summary.updated || 0),
+    ).toBeGreaterThanOrEqual(0)
   } finally {
     if (extensionPage && yachtPage) {
       const finalSnapshot = await readDebugSnapshot(extensionPage).catch(() => null)
-      await writeArtifacts(testInfo, extensionPage, yachtPage, finalSnapshot, extensionConsole, yachtConsole).catch(
-        () => {},
-      )
+      await writeArtifacts(
+        testInfo,
+        extensionPage,
+        yachtPage,
+        finalSnapshot,
+        extensionConsole,
+        yachtConsole,
+      ).catch(() => {})
     }
 
     await context.close()

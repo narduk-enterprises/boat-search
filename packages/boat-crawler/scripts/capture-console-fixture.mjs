@@ -116,7 +116,9 @@ try {
   console.log(`1. Open the exact page state you want in trusted Chrome.`)
   console.log(`2. Open DevTools Console.`)
   console.log(`3. Paste the snippet and press Enter.`)
-  console.log(`4. This helper will keep polling until the clipboard contains a valid capture payload.`)
+  console.log(
+    `4. This helper will keep polling until the clipboard contains a valid capture payload.`,
+  )
 
   const answer = await readPromptAnswer(rl)
   if (answer.toLowerCase() === 'skip') {

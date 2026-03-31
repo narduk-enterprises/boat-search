@@ -273,9 +273,7 @@ function isVisible(element: Element) {
 }
 
 function formatFieldKey(key: ScraperFieldRule['key']) {
-  return key
-    .replace(/([A-Z])/g, ' $1')
-    .replace(/^./, (value) => value.toUpperCase())
+  return key.replace(/([A-Z])/g, ' $1').replace(/^./, (value) => value.toUpperCase())
 }
 
 function readAttributeValue(target: Element, attribute: string) {
@@ -341,7 +339,11 @@ function applyFieldTransform(value: string, field: ScraperFieldRule, baseUrl: st
   }
 }
 
-function extractFieldValue(target: Element, field: ScraperFieldRule, baseUrl = window.location.href) {
+function extractFieldValue(
+  target: Element,
+  field: ScraperFieldRule,
+  baseUrl = window.location.href,
+) {
   const rawValue =
     field.extract === 'attr'
       ? readAttributeValue(target, field.attribute)
@@ -563,7 +565,9 @@ function inferPickerSelection(target: HTMLElement, request: PickerRequest): Pick
 
   const itemRoot =
     request.scope === 'item' && request.itemSelector ? target.closest(request.itemSelector) : null
-  const selector = itemRoot ? buildRelativeSelector(target, itemRoot) : buildAbsoluteSelector(target)
+  const selector = itemRoot
+    ? buildRelativeSelector(target, itemRoot)
+    : buildAbsoluteSelector(target)
   const tagName = target.tagName.toLowerCase()
   const isAttributePick =
     request.fieldKey === 'url' ||
@@ -670,7 +674,9 @@ function scoreItemSelector(selector: string, examples: HTMLElement[]) {
   const totalUniqueListings = Math.max(getUniqueDetailHrefCount(document), matches.length)
   const countDistance = Math.abs(matches.length - totalUniqueListings)
   const countScore = Math.max(0, 120 - countDistance * 5)
-  const mediaRichMatches = matches.filter((element) => queryAll(element, 'img[src]').length > 0).length
+  const mediaRichMatches = matches.filter(
+    (element) => queryAll(element, 'img[src]').length > 0,
+  ).length
   const score =
     coverageCount * 100 +
     countScore +
@@ -688,10 +694,7 @@ function scoreItemSelector(selector: string, examples: HTMLElement[]) {
 }
 
 function inferItemSelectorFromExamples(examples: HTMLElement[]) {
-  const candidates = new Map<
-    string,
-    NonNullable<ReturnType<typeof scoreItemSelector>>
-  >()
+  const candidates = new Map<string, NonNullable<ReturnType<typeof scoreItemSelector>>>()
 
   for (const example of examples) {
     let current: HTMLElement | null = example
@@ -712,13 +715,19 @@ function inferItemSelectorFromExamples(examples: HTMLElement[]) {
   return [...candidates.values()].sort((left, right) => right.score - left.score)[0] || null
 }
 
-function positionOverlay(overlay: HTMLDivElement, target: HTMLElement, label: string, color: string) {
+function positionOverlay(
+  overlay: HTMLDivElement,
+  target: HTMLElement,
+  label: string,
+  color: string,
+) {
   const rect = target.getBoundingClientRect()
   overlay.style.position = 'absolute'
   overlay.style.zIndex = '2147483646'
   overlay.style.pointerEvents = 'none'
   overlay.style.border = `2px solid ${color}`
-  overlay.style.background = color === '#0ea5e9' ? 'rgba(14, 165, 233, 0.15)' : 'rgba(15, 23, 42, 0.12)'
+  overlay.style.background =
+    color === '#0ea5e9' ? 'rgba(14, 165, 233, 0.15)' : 'rgba(15, 23, 42, 0.12)'
   overlay.style.borderRadius = '14px'
   overlay.style.display = 'block'
   overlay.style.top = `${rect.top + window.scrollY}px`
@@ -845,7 +854,8 @@ function startPicker(request: PickerRequest) {
   document.body.append(helper)
 
   if (request.kind === 'itemSelector') {
-    helper.textContent = 'Click listing cards to add examples. Use cards from different rows. Press Enter to save once the detected-card count looks right, Backspace to undo the last one, or Escape to cancel.'
+    helper.textContent =
+      'Click listing cards to add examples. Use cards from different rows. Press Enter to save once the detected-card count looks right, Backspace to undo the last one, or Escape to cancel.'
   } else {
     helper.textContent = 'Click the exact element you want to map.'
   }
@@ -878,8 +888,10 @@ function startPicker(request: PickerRequest) {
 
         const selectedExamples = pickerState?.selectedTargets || []
         const inferredSelector = inferItemSelectorFromExamples(selectedExamples)
-        const resolvedSelector = inferredSelector?.selector || buildReusableSelector(selectedElement)
-        const matchCount = inferredSelector?.matchCount || queryAll(document, resolvedSelector).length
+        const resolvedSelector =
+          inferredSelector?.selector || buildReusableSelector(selectedElement)
+        const matchCount =
+          inferredSelector?.matchCount || queryAll(document, resolvedSelector).length
         const ready = selectedExamples.length >= 2
 
         sendPickerProgress({
@@ -951,7 +963,9 @@ function startPicker(request: PickerRequest) {
         const inferredSelector = inferItemSelectorFromExamples(pickerState.selectedTargets)
         const selector =
           inferredSelector?.selector ||
-          buildReusableSelector(pickerState.selectedTargets[pickerState.selectedTargets.length - 1]!)
+          buildReusableSelector(
+            pickerState.selectedTargets[pickerState.selectedTargets.length - 1]!,
+          )
         const matchCount = inferredSelector?.matchCount || queryAll(document, selector).length
         const ready = pickerState.selectedTargets.length >= 2
 
@@ -974,16 +988,16 @@ function startPicker(request: PickerRequest) {
         event.preventDefault()
 
         if (pickerState.selectedTargets.length < 2) {
-          updatePickerHelper(
-            'Choose at least two listing cards before saving this selector.',
-          )
+          updatePickerHelper('Choose at least two listing cards before saving this selector.')
           return
         }
 
         const inferredSelector = inferItemSelectorFromExamples(pickerState.selectedTargets)
         const selector =
           inferredSelector?.selector ||
-          buildReusableSelector(pickerState.selectedTargets[pickerState.selectedTargets.length - 1]!)
+          buildReusableSelector(
+            pickerState.selectedTargets[pickerState.selectedTargets.length - 1]!,
+          )
         const matchCount = inferredSelector?.matchCount || queryAll(document, selector).length
 
         chrome.runtime.sendMessage({

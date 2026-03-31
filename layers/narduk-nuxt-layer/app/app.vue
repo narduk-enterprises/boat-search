@@ -13,10 +13,7 @@ const isFullBleedRoute = computed(() => {
   if (route.meta.fullBleed === true) return true
   const layout = String(route.meta.layout ?? '')
   return (
-    layout === 'landing' ||
-    layout === 'blank' ||
-    layout === 'auth' ||
-    layout === 'preset-surface'
+    layout === 'landing' || layout === 'blank' || layout === 'auth' || layout === 'preset-surface'
   )
 })
 
@@ -26,9 +23,7 @@ const showShellHeader = computed(
 const showShellFooter = computed(() => route.meta.shellFooter !== false)
 
 const shellContentClass = computed(() =>
-  isFullBleedRoute.value
-    ? 'flex-1'
-    : 'flex-1 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 w-full',
+  isFullBleedRoute.value ? 'flex-1' : 'flex-1 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 w-full',
 )
 
 /**

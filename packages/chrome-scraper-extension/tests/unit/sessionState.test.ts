@@ -89,7 +89,11 @@ describe('sidepanel session state helpers', () => {
       message: 'Opened and auto-scanned the sample detail page.',
     })
 
-    expect([opening.status, opened.status, scanned.status]).toEqual(['opening', 'opened', 'scanned'])
+    expect([opening.status, opened.status, scanned.status]).toEqual([
+      'opening',
+      'opened',
+      'scanned',
+    ])
     expect(scanned.fieldCount).toBe(5)
     expect(scanned.imageCount).toBe(4)
   })
@@ -99,7 +103,8 @@ describe('sidepanel session state helpers', () => {
     session.preset.appliedPresetId = 'yachtworld-search'
     session.preset.appliedPresetLabel = 'YachtWorld Search'
     session.draft = buildPresetDraft('yachtworld-search', {
-      pageUrl: 'https://www.yachtworld.com/boats-for-sale/type-power/class-power-saltwater-fishing/',
+      pageUrl:
+        'https://www.yachtworld.com/boats-for-sale/type-power/class-power-saltwater-fishing/',
       analysis: null,
     })
 

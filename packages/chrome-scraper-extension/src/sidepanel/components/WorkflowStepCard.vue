@@ -51,28 +51,20 @@ const statusLabel = computed(() => {
       <header class="step-card__header">
         <div class="step-card__copy">
           <div class="step-card__meta">
-            <p class="step-card__eyebrow">
-              Step {{ props.step }}
-            </p>
+            <p class="step-card__eyebrow">Step {{ props.step }}</p>
             <span class="step-card__status">{{ statusLabel }}</span>
           </div>
           <h2>{{ props.title }}</h2>
           <p class="step-card__subtitle">
             {{ props.subtitle }}
           </p>
-          <p
-            v-if="props.note"
-            class="step-card__note"
-          >
+          <p v-if="props.note" class="step-card__note">
             {{ props.note }}
           </p>
         </div>
 
         <div class="step-card__aside">
-          <div
-            v-if="props.open"
-            class="step-card__actions"
-          >
+          <div v-if="props.open" class="step-card__actions">
             <slot name="actions" />
           </div>
 
@@ -88,10 +80,7 @@ const statusLabel = computed(() => {
         </div>
       </header>
 
-      <div
-        v-if="props.open"
-        class="step-card__body"
-      >
+      <div v-if="props.open" class="step-card__body">
         <slot />
       </div>
     </div>

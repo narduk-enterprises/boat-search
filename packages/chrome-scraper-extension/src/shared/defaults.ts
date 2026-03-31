@@ -33,7 +33,14 @@ export function createFieldRule(
     attribute: '',
     multiple: false,
     joinWith: '\n',
-    transform: key === 'url' || key === 'images' ? 'url' : key === 'price' ? 'price' : key === 'year' ? 'year' : 'text',
+    transform:
+      key === 'url' || key === 'images'
+        ? 'url'
+        : key === 'price'
+          ? 'price'
+          : key === 'year'
+            ? 'year'
+            : 'text',
     regex: '',
     required: key === 'url' || key === 'title',
     ...overrides,
@@ -57,7 +64,11 @@ export function createEmptyDraft(): ScraperPipelineDraft {
       fetchDetailPages: true,
       detailBackfillMode: false,
       fields: [
-        createFieldRule('url', 'item', 'a', { extract: 'attr', attribute: 'href', transform: 'url' }),
+        createFieldRule('url', 'item', 'a', {
+          extract: 'attr',
+          attribute: 'href',
+          transform: 'url',
+        }),
         createFieldRule('title', 'item', 'a'),
         createFieldRule('price', 'item', ''),
         createFieldRule('location', 'item', ''),

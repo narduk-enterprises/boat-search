@@ -47,21 +47,29 @@ const structuredFiltersJson = computed(() =>
     <USeparator />
 
     <div class="space-y-2">
-      <h2 class="text-xs font-semibold uppercase tracking-[0.14em] text-dimmed">Hard constraints</h2>
+      <h2 class="text-xs font-semibold uppercase tracking-[0.14em] text-dimmed">
+        Hard constraints
+      </h2>
       <ul
         v-if="profileContext.hardConstraints.length"
         class="list-disc space-y-1.5 ps-5 text-sm leading-relaxed text-default"
       >
         <li v-for="(line, i) in profileContext.hardConstraints" :key="`h-${i}`">{{ line }}</li>
       </ul>
-      <p v-else class="text-sm text-muted">None captured yet — budget, region, and size show up here.</p>
+      <p v-else class="text-sm text-muted">
+        None captured yet — budget, region, and size show up here.
+      </p>
     </div>
 
     <USeparator />
 
     <div class="space-y-2">
-      <h2 class="text-xs font-semibold uppercase tracking-[0.14em] text-dimmed">Soft preferences</h2>
-      <p class="text-xs text-muted">Same entries we pack into the Soft preferences array for the model.</p>
+      <h2 class="text-xs font-semibold uppercase tracking-[0.14em] text-dimmed">
+        Soft preferences
+      </h2>
+      <p class="text-xs text-muted">
+        Same entries we pack into the Soft preferences array for the model.
+      </p>
       <div
         class="max-h-72 overflow-y-auto overscroll-y-contain rounded-lg border border-default bg-muted/40 px-4 py-3"
       >
@@ -80,7 +88,9 @@ const structuredFiltersJson = computed(() =>
     <USeparator />
 
     <div class="space-y-2">
-      <h2 class="text-xs font-semibold uppercase tracking-[0.14em] text-dimmed">Reflective context</h2>
+      <h2 class="text-xs font-semibold uppercase tracking-[0.14em] text-dimmed">
+        Reflective context
+      </h2>
       <div
         class="max-h-56 overflow-y-auto overscroll-y-contain rounded-lg border border-default bg-muted/40 px-4 py-3"
       >
@@ -106,15 +116,20 @@ const structuredFiltersJson = computed(() =>
       >
         <li v-for="(line, i) in profileContext.uncertainties" :key="`u-${i}`">{{ line }}</li>
       </ul>
-      <p v-else class="text-sm text-muted">Skipped or &ldquo;not sure&rdquo; answers are called out here for the model.</p>
+      <p v-else class="text-sm text-muted">
+        Skipped or &ldquo;not sure&rdquo; answers are called out here for the model.
+      </p>
     </div>
 
     <USeparator />
 
     <div class="space-y-2">
-      <h2 class="text-xs font-semibold uppercase tracking-[0.14em] text-dimmed">Structured filters applied</h2>
+      <h2 class="text-xs font-semibold uppercase tracking-[0.14em] text-dimmed">
+        Structured filters applied
+      </h2>
       <p class="text-xs text-muted">
-        Same JSON shape we attach for inventory filtering and keyword hints (not the boat list itself).
+        Same JSON shape we attach for inventory filtering and keyword hints (not the boat list
+        itself).
       </p>
       <div
         class="max-h-64 overflow-auto rounded-lg border border-default bg-muted/50 p-3 font-mono text-xs leading-relaxed text-default"

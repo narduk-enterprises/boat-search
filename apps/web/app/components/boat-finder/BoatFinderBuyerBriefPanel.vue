@@ -15,7 +15,8 @@ const pillars = computed(() => [
     icon: 'i-lucide-shield-check' as const,
     tone: 'primary' as const,
     items: props.context.hardConstraints,
-    empty: 'No fixed guardrails yet — add budget, region or travel radius, or size limits in the questionnaire.',
+    empty:
+      'No fixed guardrails yet — add budget, region or travel radius, or size limits in the questionnaire.',
   },
   {
     id: 'soft',
@@ -62,9 +63,9 @@ const pillars = computed(() => [
             Your buyer brief
           </h2>
           <p class="max-w-prose text-sm leading-relaxed text-muted sm:text-base">
-            Below is everything we distilled from your answers — the story the AI uses to score boats
-            against live inventory. Edit any section with the tabs above, or go back to the last
-            question for fine-grained tweaks.
+            Below is everything we distilled from your answers — the story the AI uses to score
+            boats against live inventory. Edit any section with the tabs above, or go back to the
+            last question for fine-grained tweaks.
           </p>
           <div class="flex flex-wrap gap-2 pt-1">
             <UBadge
@@ -104,10 +105,17 @@ const pillars = computed(() => [
     >
       <div class="flex flex-wrap items-start justify-between gap-3">
         <div class="space-y-1">
-          <p class="text-xs font-semibold uppercase tracking-[0.18em] text-dimmed">In plain language</p>
+          <p class="text-xs font-semibold uppercase tracking-[0.18em] text-dimmed">
+            In plain language
+          </p>
           <h3 class="text-lg font-semibold text-default">How we describe you today</h3>
         </div>
-        <UBadge label="AI-facing summary" color="primary" variant="subtle" icon="i-lucide-file-text" />
+        <UBadge
+          label="AI-facing summary"
+          color="primary"
+          variant="subtle"
+          icon="i-lucide-file-text"
+        />
       </div>
       <p
         class="rounded-xl border border-default bg-muted/40 px-4 py-3.5 text-base leading-relaxed text-default sm:px-5 sm:py-4 sm:text-[1.05rem]"
@@ -120,7 +128,9 @@ const pillars = computed(() => [
     <div>
       <div class="mb-4 flex items-end justify-between gap-3">
         <div>
-          <p class="text-xs font-semibold uppercase tracking-[0.18em] text-dimmed">Structured signals</p>
+          <p class="text-xs font-semibold uppercase tracking-[0.18em] text-dimmed">
+            Structured signals
+          </p>
           <h3 class="text-lg font-semibold text-default">What we learned, by layer</h3>
         </div>
       </div>
@@ -134,11 +144,7 @@ const pillars = computed(() => [
           <div class="flex items-start gap-3">
             <div
               class="flex size-9 shrink-0 items-center justify-center rounded-lg"
-              :class="
-                col.tone === 'primary'
-                  ? 'bg-primary/10 text-primary'
-                  : 'bg-muted text-muted'
-              "
+              :class="col.tone === 'primary' ? 'bg-primary/10 text-primary' : 'bg-muted text-muted'"
             >
               <UIcon :name="col.icon" class="size-4" />
             </div>
@@ -182,8 +188,8 @@ const pillars = computed(() => [
         <div class="min-w-0 space-y-1">
           <h3 class="text-sm font-semibold text-default">Skipped or marked "not sure"</h3>
           <p class="text-sm leading-relaxed text-muted">
-            The matcher treats these as unknowns, not as open-ended preferences. You can still refine
-            answers from the tabs above.
+            The matcher treats these as unknowns, not as open-ended preferences. You can still
+            refine answers from the tabs above.
           </p>
         </div>
       </div>

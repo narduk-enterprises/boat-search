@@ -1,4 +1,4 @@
-(() => {
+;(() => {
   const MAX_CARDS = 5
   const MAX_TEXT_BLOCKS = 12
   const MAX_LINKS = 8
@@ -46,7 +46,10 @@
   function stableClasses(element) {
     return [...element.classList]
       .filter((name) => /^[a-z][\w-]{1,}$/i.test(name))
-      .filter((name) => !/(active|selected|current|visible|hidden|loading|loaded|focus|hover)/i.test(name))
+      .filter(
+        (name) =>
+          !/(active|selected|current|visible|hidden|loading|loaded|focus|hover)/i.test(name),
+      )
       .slice(0, 2)
   }
 
@@ -129,12 +132,19 @@
         const fullSelector = cssPath(current)
         const globalSelector =
           stableClasses(current).length > 0
-            ? `${current.tagName.toLowerCase()}.${stableClasses(current).map((name) => CSS.escape(name)).join('.')}`
+            ? `${current.tagName.toLowerCase()}.${stableClasses(current)
+                .map((name) => CSS.escape(name))
+                .join('.')}`
             : current.tagName.toLowerCase()
         const matches = queryAll(globalSelector)
         const detailLinkCount = countUniqueDetailLinks(current)
 
-        if (matches.length >= 3 && matches.length <= 160 && detailLinkCount >= 1 && detailLinkCount <= 3) {
+        if (
+          matches.length >= 3 &&
+          matches.length <= 160 &&
+          detailLinkCount >= 1 &&
+          detailLinkCount <= 3
+        ) {
           const existing = candidates.get(globalSelector) || {
             selector: globalSelector,
             sampleAbsoluteSelector: fullSelector,
@@ -153,7 +163,10 @@
     return [...candidates.values()]
       .map((candidate) => ({
         ...candidate,
-        sampleTitles: uniqueBy(candidate.sampleTitles.filter(Boolean), (value) => value).slice(0, 3),
+        sampleTitles: uniqueBy(candidate.sampleTitles.filter(Boolean), (value) => value).slice(
+          0,
+          3,
+        ),
         score:
           Math.max(0, 140 - Math.abs(candidate.matchedCards - getDetailAnchors(document).length)) +
           (candidate.sampleDetailLinksPerCard === 1 ? 80 : 20),
@@ -169,14 +182,18 @@
       return {
         chosenSelector: chosen.selector,
         candidates,
-        elements: queryAll(chosen.selector).filter((element) => countUniqueDetailLinks(element) >= 1),
+        elements: queryAll(chosen.selector).filter(
+          (element) => countUniqueDetailLinks(element) >= 1,
+        ),
       }
     }
 
     const anchors = getDetailAnchors(document)
     const elements = uniqueBy(
       anchors
-        .map((anchor) => anchor.closest('article, li, [class*="card" i], [class*="listing" i], div'))
+        .map((anchor) =>
+          anchor.closest('article, li, [class*="card" i], [class*="listing" i], div'),
+        )
         .filter(Boolean),
       (element) => cssPath(element),
     )

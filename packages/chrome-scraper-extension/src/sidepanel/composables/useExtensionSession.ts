@@ -142,9 +142,9 @@ class BrowserRunStoppedError extends Error {
 }
 
 function isBrowserRunStoppedError(error: unknown): error is BrowserRunStoppedError {
-  return error instanceof BrowserRunStoppedError || (
-    error instanceof Error &&
-    error.message === BROWSER_RUN_STOP_MESSAGE
+  return (
+    error instanceof BrowserRunStoppedError ||
+    (error instanceof Error && error.message === BROWSER_RUN_STOP_MESSAGE)
   )
 }
 
@@ -861,8 +861,7 @@ export function useExtensionSession() {
   })
 
   const detailFollowFields = computed({
-    get: () =>
-      session.value.draft.config.fields.filter((field) => field.scope === 'detail-follow'),
+    get: () => session.value.draft.config.fields.filter((field) => field.scope === 'detail-follow'),
     set: (fields) => {
       setFieldsForScope('detail-follow', fields)
     },
@@ -890,13 +889,10 @@ export function useExtensionSession() {
       (session.value.preset.appliedPresetId !== matchedPreset.value.id ||
         session.value.preset.isDraftDirty ||
         !session.value.preset.appliedDraftFingerprint),
-      ),
+    ),
   )
 
-  function syncAnalysisSnapshot(
-    analysis: AutoDetectedAnalysis,
-    options: { mutateDraft: boolean },
-  ) {
+  function syncAnalysisSnapshot(analysis: AutoDetectedAnalysis, options: { mutateDraft: boolean }) {
     if (options.mutateDraft) {
       applyAnalysisToSession(session.value, analysis)
     } else {
@@ -1044,9 +1040,7 @@ export function useExtensionSession() {
     }
 
     if (match.context !== 'search') {
-      throw new Error(
-        `Open a supported search results page before loading ${match.label}.`,
-      )
+      throw new Error(`Open a supported search results page before loading ${match.label}.`)
     }
 
     statusMessage.value =
@@ -1317,17 +1311,13 @@ export function useExtensionSession() {
       session.value.fixtureCapture.lastCapture = summary
 
       statusMessage.value = `Downloaded ${htmlFileName}, ${pngFileName}, and ${metaFileName}.`
-      recordDebugEvent(
-        'fixture-capture-complete',
-        `Downloaded fixture files for ${template}.`,
-        {
-          template,
-          fileStem,
-          pageUrl: captureResponse.page.url,
-          pageType: captureResponse.analysis.pageType,
-          pageState: captureResponse.analysis.pageState,
-        },
-      )
+      recordDebugEvent('fixture-capture-complete', `Downloaded fixture files for ${template}.`, {
+        template,
+        fileStem,
+        pageUrl: captureResponse.page.url,
+        pageType: captureResponse.analysis.pageType,
+        pageState: captureResponse.analysis.pageState,
+      })
     } catch (error: unknown) {
       const message =
         error instanceof Error ? error.message : 'Could not capture the current fixture page.'
@@ -1622,9 +1612,7 @@ export function useExtensionSession() {
         chrome.tabs
           .get(tabId)
           .then(resolve)
-          .catch(() =>
-            reject(new Error('The tab closed before the helper could continue.')),
-          )
+          .catch(() => reject(new Error('The tab closed before the helper could continue.')))
       }, timeoutMs)
 
       const updatedListener = (
@@ -1838,16 +1826,20 @@ export function useExtensionSession() {
   }
 
   function buildBrowserRecordIdentity(record: BrowserScrapeRecord) {
-    return record.url || record.listingId || `${record.source}:${record.title || ''}:${record.location || ''}`
+    return (
+      record.url ||
+      record.listingId ||
+      `${record.source}:${record.title || ''}:${record.location || ''}`
+    )
   }
 
   function hasStructuredDetailFields(record: Partial<BrowserScrapeRecord>) {
     return Boolean(
       record.contactInfo ||
-        record.otherDetails ||
-        record.features ||
-        record.propulsion ||
-        record.specifications,
+      record.otherDetails ||
+      record.features ||
+      record.propulsion ||
+      record.specifications,
     )
   }
 
@@ -2100,8 +2092,12 @@ export function useExtensionSession() {
     return await response.blob()
   }
 
-  async function downloadBrowserRunCsv(draft: ScraperPipelineDraft, records: BrowserScrapeRecord[]) {
-    const stem = sanitizeFileStem(draft.name || draft.boatSource || 'browser-scrape') || 'browser-scrape'
+  async function downloadBrowserRunCsv(
+    draft: ScraperPipelineDraft,
+    records: BrowserScrapeRecord[],
+  ) {
+    const stem =
+      sanitizeFileStem(draft.name || draft.boatSource || 'browser-scrape') || 'browser-scrape'
     const fileName = `${stem}-${formatCsvTimestamp()}.csv`
     const blob = new Blob([buildBrowserRunCsv(records)], {
       type: 'text/csv;charset=utf-8',
@@ -2125,7 +2121,8 @@ export function useExtensionSession() {
     }
     const localRunController: ActiveBrowserRunController = { stopRequested: false }
 
-    statusMessage.value = 'Boat Search is unavailable, so the helper is scraping locally and preparing a CSV...'
+    statusMessage.value =
+      'Boat Search is unavailable, so the helper is scraping locally and preparing a CSV...'
     recordDebugEvent(
       'browser-scrape-csv-fallback-started',
       'Boat Search failed, so the helper is retrying as a local CSV export.',
@@ -2200,9 +2197,7 @@ export function useExtensionSession() {
       })
     } catch (error: unknown) {
       const message =
-        error instanceof Error
-          ? error.message
-          : 'The helper could not reach Boat Search.'
+        error instanceof Error ? error.message : 'The helper could not reach Boat Search.'
       recordDebugEvent('boat-search-request-failed', message, {
         method,
         path,
@@ -2253,9 +2248,13 @@ export function useExtensionSession() {
       session.value.connection.verifiedName = result.user.name
       session.value.connection.imageUploadEnabled = result.imageUploadEnabled
       statusMessage.value = `Connected to Boat Search as ${result.user.email}.`
-      recordDebugEvent('boat-search-authenticated', `Connected to Boat Search as ${result.user.email}.`, {
-        imageUploadEnabled: result.imageUploadEnabled,
-      })
+      recordDebugEvent(
+        'boat-search-authenticated',
+        `Connected to Boat Search as ${result.user.email}.`,
+        {
+          imageUploadEnabled: result.imageUploadEnabled,
+        },
+      )
       return result
     } catch (error: unknown) {
       session.value.connection.verifiedAt = null
@@ -3078,7 +3077,9 @@ export function useExtensionSession() {
               pass: 'initial',
             })
             searchRecords.splice(recordIndex, 1, recordToPersist)
-            const retryQueued = detailRetryQueue.includes(buildBrowserRecordIdentity(recordToPersist))
+            const retryQueued = detailRetryQueue.includes(
+              buildBrowserRecordIdentity(recordToPersist),
+            )
 
             detailPagesCompleted += 1
             browserRunProgress.value = {
@@ -3287,10 +3288,14 @@ export function useExtensionSession() {
     stoppingRemoteRun.value = true
     errorMessage.value = ''
     statusMessage.value = 'Stopping browser scrape after the current step finishes...'
-    void persistBrowserRunStopToBoatSearch(activeRemoteRunMeta.value, BROWSER_RUN_STOP_MESSAGE).catch(
-      () => {},
+    void persistBrowserRunStopToBoatSearch(
+      activeRemoteRunMeta.value,
+      BROWSER_RUN_STOP_MESSAGE,
+    ).catch(() => {})
+    recordDebugEvent(
+      'browser-scrape-stop-requested',
+      'User requested that the browser scrape stop.',
     )
-    recordDebugEvent('browser-scrape-stop-requested', 'User requested that the browser scrape stop.')
   }
 
   async function startScrapeInBoatSearch() {
@@ -3361,18 +3366,14 @@ export function useExtensionSession() {
         run.existingBoatIdentities,
         run.refreshableBoatIdentities,
       )
-      recordDebugEvent(
-        'browser-scrape-started',
-        'Boat Search accepted the browser scrape run.',
-        {
-          pipelineId: run.pipelineId,
-          jobId: run.jobId,
-          knownListingIds: existingIdentityState.knownListingIds.size,
-          knownNormalizedUrls: existingIdentityState.knownNormalizedUrls.size,
-          refreshableListingIds: existingIdentityState.refreshableListingIds.size,
-          refreshableNormalizedUrls: existingIdentityState.refreshableNormalizedUrls.size,
-        },
-      )
+      recordDebugEvent('browser-scrape-started', 'Boat Search accepted the browser scrape run.', {
+        pipelineId: run.pipelineId,
+        jobId: run.jobId,
+        knownListingIds: existingIdentityState.knownListingIds.size,
+        knownNormalizedUrls: existingIdentityState.knownNormalizedUrls.size,
+        refreshableListingIds: existingIdentityState.refreshableListingIds.size,
+        refreshableNormalizedUrls: existingIdentityState.refreshableNormalizedUrls.size,
+      })
       if (!imageUploadEnabled) {
         recordDebugEvent(
           'browser-scrape-images-preserved',
@@ -3504,7 +3505,8 @@ export function useExtensionSession() {
                   pagesVisited: browserRunProgress.value?.pagesVisited ?? 0,
                   itemsSeen: browserRunProgress.value?.itemsSeen ?? 0,
                   itemsExtracted: browserRunProgress.value?.itemsExtracted ?? 0,
-                  skippedExisting: browserRunProgress.value?.skippedExisting ?? runState.skippedExisting,
+                  skippedExisting:
+                    browserRunProgress.value?.skippedExisting ?? runState.skippedExisting,
                   visitedUrls: [],
                   warnings: [],
                 },
@@ -3534,15 +3536,12 @@ export function useExtensionSession() {
         return
       }
 
-      const fallbackDraft = activeDraft ? cloneSerializableValue(activeDraft) : cloneSerializableValue(session.value.draft)
+      const fallbackDraft = activeDraft
+        ? cloneSerializableValue(activeDraft)
+        : cloneSerializableValue(session.value.draft)
       if (isBoatSearchRequestError(error)) {
         try {
-          await runCsvFallbackScrape(
-            fallbackDraft,
-            activePresetId,
-            error.message,
-            scrapedRecords,
-          )
+          await runCsvFallbackScrape(fallbackDraft, activePresetId, error.message, scrapedRecords)
           return
         } catch (fallbackError: unknown) {
           recordDebugEvent(
@@ -3648,7 +3647,8 @@ export function useExtensionSession() {
 
   function clearScrapeState() {
     session.value = buildClearedScrapeSession(session.value, createConfiguredDefaultSession())
-    statusMessage.value = 'Scrape state cleared. Use Scan current page to analyze the active tab again.'
+    statusMessage.value =
+      'Scrape state cleared. Use Scan current page to analyze the active tab again.'
     clearTransientState()
   }
 

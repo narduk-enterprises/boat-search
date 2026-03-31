@@ -78,7 +78,9 @@ try {
 
   console.log('\nManual capture flow:')
   console.log('1. Use the opened Chrome window with your trusted profile.')
-  console.log('2. Solve any challenge, dismiss cookie banners, and navigate to the exact page state to save.')
+  console.log(
+    '2. Solve any challenge, dismiss cookie banners, and navigate to the exact page state to save.',
+  )
   console.log('3. Return here and press Enter to capture the current page HTML.')
   console.log('4. Type "skip" and press Enter to exit without writing files.\n')
 
@@ -88,11 +90,7 @@ try {
     process.exit(0)
   }
 
-  const [html, title, finalUrl] = await Promise.all([
-    page.content(),
-    page.title(),
-    page.url(),
-  ])
+  const [html, title, finalUrl] = await Promise.all([page.content(), page.title(), page.url()])
 
   await mkdir(dirname(outputHtmlPath), { recursive: true })
   await writeFile(outputHtmlPath, html, 'utf8')

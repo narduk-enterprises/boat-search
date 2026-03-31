@@ -606,7 +606,10 @@ export function buildRecommendationPromptPayload(
 function recommendationContextSummaries(context: BuyerContext, relaxedConstraints: string[]) {
   return {
     hardConstraints: relaxedConstraints.length
-      ? [...context.filterSummary.hardConstraintSummary, `Relaxed: ${relaxedConstraints.join(', ')}`]
+      ? [
+          ...context.filterSummary.hardConstraintSummary,
+          `Relaxed: ${relaxedConstraints.join(', ')}`,
+        ]
       : context.filterSummary.hardConstraintSummary,
     softPreferences: context.filterSummary.softPreferenceSummary,
     reflectiveContext: context.filterSummary.reflectiveSummary,
@@ -652,7 +655,9 @@ async function requestAiRecommendationSummary(
 
   try {
     const response = await callXAI(event, apiKey, messages, RECOMMENDATION_AI_OPTIONS)
-    const parsed = parseAiJson(response.content, (value) => recommendationSummarySchema.parse(value))
+    const parsed = parseAiJson(response.content, (value) =>
+      recommendationSummarySchema.parse(value),
+    )
     const trace = recommendationAiTraceSchema.parse({
       attemptedAt,
       status: parsed ? 'success' : 'parse-failed',
@@ -1033,7 +1038,9 @@ function parseSessionRow(row: {
 }): RecommendationSession {
   return recommendationSessionSchema.parse({
     ...parseSessionBaseRow(row),
-    aiTrace: row.aiTraceJson ? recommendationAiTraceSchema.parse(JSON.parse(row.aiTraceJson)) : null,
+    aiTrace: row.aiTraceJson
+      ? recommendationAiTraceSchema.parse(JSON.parse(row.aiTraceJson))
+      : null,
   })
 }
 

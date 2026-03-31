@@ -10,9 +10,7 @@ import {
 } from '@/shared/fixtureCapture'
 import type { AutoDetectedAnalysis } from '@/shared/types'
 
-function createAnalysis(
-  overrides: Partial<AutoDetectedAnalysis> = {},
-): AutoDetectedAnalysis {
+function createAnalysis(overrides: Partial<AutoDetectedAnalysis> = {}): AutoDetectedAnalysis {
   return {
     pageType: 'search',
     pageState: 'ok',
@@ -91,11 +89,22 @@ describe('fixture capture helpers', () => {
 
   it('normalizes persisted fixture-capture session data', () => {
     const fallback = createDefaultFixtureCaptureSessionState()
-    const normalized = normalizeFixtureCaptureSessionState({
-      selectedTemplate: 'detail-ok',
-      customLabel: 'Noisy Gallery',
-      captured: {
-        'detail-ok': {
+    const normalized = normalizeFixtureCaptureSessionState(
+      {
+        selectedTemplate: 'detail-ok',
+        customLabel: 'Noisy Gallery',
+        captured: {
+          'detail-ok': {
+            template: 'detail-ok',
+            fileStem: 'boats-com--detail-ok',
+            files: ['boats-com--detail-ok.html'],
+            currentUrl: 'https://www.boats.com/power-boats/example-123/',
+            pageType: 'detail',
+            pageState: 'ok',
+            capturedAt: '2026-03-29T05:05:00.000Z',
+          },
+        },
+        lastCapture: {
           template: 'detail-ok',
           fileStem: 'boats-com--detail-ok',
           files: ['boats-com--detail-ok.html'],
@@ -105,16 +114,8 @@ describe('fixture capture helpers', () => {
           capturedAt: '2026-03-29T05:05:00.000Z',
         },
       },
-      lastCapture: {
-        template: 'detail-ok',
-        fileStem: 'boats-com--detail-ok',
-        files: ['boats-com--detail-ok.html'],
-        currentUrl: 'https://www.boats.com/power-boats/example-123/',
-        pageType: 'detail',
-        pageState: 'ok',
-        capturedAt: '2026-03-29T05:05:00.000Z',
-      },
-    }, fallback)
+      fallback,
+    )
 
     expect(normalized.selectedTemplate).toBe('detail-ok')
     expect(normalized.customLabel).toBe('Noisy Gallery')

@@ -86,7 +86,10 @@ async function prepareDist() {
     })),
   }
 
-  await writeFile(resolveFromRoot('dist', 'manifest.json'), `${JSON.stringify(distManifest, null, 2)}\n`)
+  await writeFile(
+    resolveFromRoot('dist', 'manifest.json'),
+    `${JSON.stringify(distManifest, null, 2)}\n`,
+  )
 }
 
 async function buildScripts() {

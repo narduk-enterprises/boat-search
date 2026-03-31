@@ -128,13 +128,13 @@ produces a **double-framed** look.
   `definePageMeta({ fullBleed: true })` is set, or when the active layout is
   named `landing`, `blank`, `auth`, or `preset-surface`. Prefer `fullBleed` for
   custom layout names.
-- **Marketing vs app chrome**: prefer a dedicated `landing` (or similar)
-  layout for public pages; reserve `LayerAppShell` + header/footer patterns for
+- **Marketing vs app chrome**: prefer a dedicated `landing` (or similar) layout
+  for public pages; reserve `LayerAppShell` + header/footer patterns for
   experiences that share one app chrome.
 - **Layer `layouts/landing.vue`**: the layer ships a minimal full-width
   `landing` layout; downstream apps can override it in `apps/web/app/layouts/`
-  or add `dashboard` / `admin` / `auth` / `blank` alongside it. Nuxt resolves the
-  app layout first when names collide.
+  or add `dashboard` / `admin` / `auth` / `blank` alongside it. Nuxt resolves
+  the app layout first when names collide.
 
 ## Integrating this Layer into a New Project
 

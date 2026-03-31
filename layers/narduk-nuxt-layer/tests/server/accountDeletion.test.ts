@@ -157,7 +157,12 @@ describe('deleteCurrentUserAccount', () => {
       callOrder.push('beforeDelete')
     })
 
-    await deleteCurrentUserAccount(event, user, { currentPassword: 'password123' }, { beforeDelete })
+    await deleteCurrentUserAccount(
+      event,
+      user,
+      { currentPassword: 'password123' },
+      { beforeDelete },
+    )
 
     expect(beforeDelete).toHaveBeenCalledWith(event, user.id)
     expect(callOrder).toEqual(['beforeDelete', 'db.delete'])
