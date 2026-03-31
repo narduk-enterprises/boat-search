@@ -32,6 +32,23 @@ export interface MfaEnrollmentResult {
   uri: string
 }
 
+export interface ApiKeyRecord {
+  id: string
+  name: string
+  keyPrefix: string
+  lastUsedAt: string | null
+  expiresAt: number | null
+  createdAt: string
+}
+
+export interface ApiKeyCreateResult {
+  id: string
+  name: string
+  keyPrefix: string
+  rawKey: string
+  createdAt: string
+}
+
 export function useAuthApi() {
   const nuxtApp = useNuxtApp()
   const csrfFetch = (nuxtApp.$csrfFetch ?? $fetch) as typeof $fetch
@@ -129,6 +146,28 @@ export function useAuthApi() {
     })
   }
 
+  function listApiKeys() {
+    return csrfFetch<ApiKeyRecord[]>('/api/auth/api-keys', {
+      method: 'GET',
+      headers: csrfHeaders,
+    })
+  }
+
+  function createApiKey(payload: { name: string }) {
+    return csrfFetch<ApiKeyCreateResult>('/api/auth/api-keys', {
+      method: 'POST',
+      body: payload,
+      headers: csrfHeaders,
+    })
+  }
+
+  function deleteApiKey(id: string) {
+    return csrfFetch<{ success: boolean }>(`/api/auth/api-keys/${id}`, {
+      method: 'DELETE',
+      headers: csrfHeaders,
+    })
+  }
+
   return {
     login,
     register,
@@ -141,5 +180,8 @@ export function useAuthApi() {
     requestPasswordReset,
     enrollMfa,
     verifyMfa,
+    listApiKeys,
+    createApiKey,
+    deleteApiKey,
   }
 }
