@@ -111,9 +111,21 @@ const emptyMessage = computed(() =>
           @click="submitSearchFromField"
         />
       </div>
-      <p class="text-xs text-dimmed">
-        Press Enter or Search to apply, together with any filters you set in the bar.
-      </p>
+      <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+        <p class="text-xs text-dimmed">
+          Press Enter or Search to apply, together with any filters you set in the bar.
+        </p>
+        <UButton
+          v-if="hasUnsavedChanges"
+          label="Apply draft changes"
+          icon="i-lucide-check"
+          color="primary"
+          variant="soft"
+          size="xs"
+          class="w-full justify-center sm:w-auto"
+          @click="submitSearchFromField"
+        />
+      </div>
 
       <div
         v-if="activeFilterChips.length || hasActiveFilters"
@@ -153,6 +165,7 @@ const emptyMessage = computed(() =>
             variant="ghost"
             icon="i-lucide-rotate-ccw"
             label="Clear all"
+            class="w-full justify-center sm:w-auto"
             @click="emit('clearFilters')"
           />
         </div>
@@ -198,13 +211,19 @@ const emptyMessage = computed(() =>
         <p class="mx-auto max-w-2xl text-sm text-muted">{{ errorMessage }}</p>
       </div>
       <div class="flex flex-wrap justify-center gap-2">
-        <UButton label="Retry" icon="i-lucide-refresh-cw" @click="emit('retry')" />
+        <UButton
+          label="Retry"
+          icon="i-lucide-refresh-cw"
+          class="w-full justify-center sm:w-auto"
+          @click="emit('retry')"
+        />
         <UButton
           v-if="hasActiveFilters"
           color="neutral"
           variant="soft"
           label="Clear filters"
           icon="i-lucide-rotate-ccw"
+          class="w-full justify-center sm:w-auto"
           @click="emit('clearFilters')"
         />
       </div>
@@ -222,6 +241,7 @@ const emptyMessage = computed(() =>
             v-if="hasActiveFilters"
             label="Clear all filters"
             icon="i-lucide-rotate-ccw"
+            class="w-full justify-center sm:w-auto"
             @click="emit('clearFilters')"
           />
           <UButton
@@ -230,6 +250,7 @@ const emptyMessage = computed(() =>
             icon="i-lucide-compass"
             color="neutral"
             variant="soft"
+            class="w-full justify-center sm:w-auto"
           />
         </div>
       </div>

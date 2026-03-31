@@ -94,8 +94,13 @@ const boatDescription = computed(
           {{ boatDescription }}
         </p>
 
-        <div class="flex flex-wrap gap-3">
-          <UButton :to="detailTo" label="Open boat" icon="i-lucide-ship-wheel" />
+        <div class="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:gap-3">
+          <UButton
+            :to="detailTo"
+            label="Open boat"
+            icon="i-lucide-ship-wheel"
+            class="w-full justify-center sm:w-auto"
+          />
           <UButton
             v-if="externalListingUrl"
             :to="externalListingUrl"
@@ -104,6 +109,7 @@ const boatDescription = computed(
             variant="soft"
             icon="i-lucide-arrow-up-right"
             target="_blank"
+            class="w-full justify-center sm:w-auto"
           />
         </div>
       </div>

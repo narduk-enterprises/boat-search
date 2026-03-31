@@ -81,6 +81,7 @@ async function handleRerunProfile(profileId: number | null | undefined, sessionI
             color="neutral"
             variant="soft"
             icon="i-lucide-user-round"
+            class="w-full justify-center sm:w-auto"
           />
         </div>
       </div>
@@ -102,7 +103,7 @@ async function handleRerunProfile(profileId: number | null | undefined, sessionI
           shortlists.
         </p>
         <UButton
-          class="mt-6"
+          class="mt-6 w-full justify-center sm:w-auto"
           to="/account/profile"
           label="AI Boat Profiles"
           icon="i-lucide-sparkles"
@@ -151,11 +152,12 @@ async function handleRerunProfile(profileId: number | null | undefined, sessionI
               </p>
             </div>
 
-            <div class="flex flex-wrap gap-2">
+            <div class="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
               <UButton
                 :to="{ path: '/search', query: { sessionId: String(session.id) } }"
                 label="Open shortlist"
                 icon="i-lucide-arrow-right"
+                class="w-full justify-center sm:w-auto"
               />
               <UButton
                 label="Rerun profile"
@@ -164,6 +166,7 @@ async function handleRerunProfile(profileId: number | null | undefined, sessionI
                 variant="soft"
                 size="sm"
                 :loading="rerunningSessionId === session.id"
+                class="w-full justify-center sm:w-auto"
                 @click="handleRerunProfile(session.buyerProfileId, session.id)"
               />
             </div>

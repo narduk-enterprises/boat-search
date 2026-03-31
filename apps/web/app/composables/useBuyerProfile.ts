@@ -7,24 +7,7 @@ import {
   normalizeBuyerAnswersDraft,
   normalizeBuyerProfileDraft,
 } from '~~/lib/boatFinder'
-
-interface BuyerProfileDetailResponse {
-  id: number
-  name: string
-  isActive: boolean
-  profile: BuyerProfileDraft
-  effectiveAnswers: BuyerAnswersDraft
-  isComplete: boolean
-  lastRunAt: string | null
-  createdAt: string
-  updatedAt: string
-  canRunNow: boolean
-  nextRunAvailableAt: string | null
-  latestSessionId: number | null
-  dailyRunCount: number
-  dailyRunLimit: number
-  runsRemaining: number
-}
+import type { BuyerProfileDetailResponse } from '~~/app/types/buyer-profile'
 
 interface SaveProfileResponse {
   profile: BuyerProfileDraft

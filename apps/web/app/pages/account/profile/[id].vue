@@ -144,7 +144,7 @@ const cooldownLabel = computed(() => {
               </div>
             </ClientOnly>
           </div>
-          <div class="flex shrink-0 flex-wrap gap-2">
+          <div class="flex shrink-0 flex-col gap-2 sm:flex-row sm:flex-wrap">
             <BuyerAiPromptPreviewCard :answers="displayAnswers" />
             <UButton
               label="Edit in Wizard"
@@ -152,6 +152,7 @@ const cooldownLabel = computed(() => {
               color="neutral"
               variant="soft"
               size="sm"
+              class="w-full justify-center sm:w-auto"
               :to="{ path: '/ai-boat-finder', query: { profileId: String(profileId) } }"
             />
             <UButton
@@ -160,6 +161,7 @@ const cooldownLabel = computed(() => {
               size="sm"
               :loading="rerunning"
               :disabled="!canRunNow"
+              class="w-full justify-center sm:w-auto"
               @click="handleRerun"
             />
           </div>
@@ -182,7 +184,7 @@ const cooldownLabel = computed(() => {
                 class="card-base border-default"
                 :ui="{ body: 'px-4 py-3' }"
               >
-                <div class="flex items-center justify-between gap-3">
+                <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                   <div class="min-w-0 space-y-0.5">
                     <div class="flex flex-wrap items-center gap-2">
                       <UBadge
@@ -213,6 +215,7 @@ const cooldownLabel = computed(() => {
                     color="neutral"
                     variant="soft"
                     size="xs"
+                    class="w-full justify-center sm:w-auto"
                   />
                 </div>
               </UCard>

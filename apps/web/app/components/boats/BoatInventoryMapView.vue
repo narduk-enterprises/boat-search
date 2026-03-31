@@ -184,6 +184,7 @@ function detailTo(boatId: number) {
             variant="ghost"
             icon="i-lucide-rotate-ccw"
             label="Clear all"
+            class="w-full justify-center sm:w-auto"
             @click="emit('clearFilters')"
           />
         </div>
@@ -204,14 +205,14 @@ function detailTo(boatId: number) {
 
     <div
       v-else
-      class="grid h-[calc(100vh-14rem)] min-h-[40rem] gap-5 xl:grid-cols-[22rem_minmax(0,1fr)]"
+      class="grid gap-5 xl:min-h-[40rem] xl:grid-cols-[22rem_minmax(0,1fr)] xl:[grid-template-rows:minmax(0,1fr)]"
     >
       <UCard
-        class="brand-surface flex flex-col overflow-hidden"
-        :ui="{ body: 'p-0 h-full flex flex-col overflow-hidden' }"
+        class="brand-surface order-2 flex flex-col overflow-hidden xl:order-1"
+        :ui="{ body: 'flex h-full flex-col overflow-hidden p-0' }"
       >
-        <div class="flex min-h-0 flex-1 flex-col">
-          <div class="border-b border-default px-5 py-4 shrink-0">
+        <div class="flex h-full flex-1 flex-col xl:min-h-0">
+          <div class="shrink-0 border-b border-default px-5 py-4">
             <p class="text-xs font-semibold uppercase tracking-[0.18em] text-dimmed">Sidebar</p>
             <h2 class="mt-2 text-lg font-semibold text-default">
               {{ selectedBoat ? 'Selected boat' : 'Map-ready results' }}
@@ -221,7 +222,7 @@ function detailTo(boatId: number) {
             </p>
           </div>
 
-          <div class="min-h-0 flex-1 space-y-4 overflow-y-auto px-4 py-4">
+          <div class="space-y-4 px-4 py-4 xl:min-h-0 xl:flex-1 xl:overflow-y-auto">
             <UCard
               v-if="selectedBoat"
               class="brand-surface-soft shrink-0 rounded-[1.25rem]"
@@ -251,11 +252,12 @@ function detailTo(boatId: number) {
                 </p>
               </div>
 
-              <div class="flex flex-wrap gap-2">
+              <div class="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
                 <UButton
                   :to="detailTo(selectedBoat.boatId)"
                   label="Open boat"
                   icon="i-lucide-ship-wheel"
+                  class="w-full justify-center sm:w-auto"
                 />
                 <UButton
                   v-if="selectedBoat.boat.url"
@@ -265,6 +267,7 @@ function detailTo(boatId: number) {
                   variant="soft"
                   icon="i-lucide-arrow-up-right"
                   target="_blank"
+                  class="w-full justify-center sm:w-auto"
                 />
               </div>
             </UCard>
@@ -302,7 +305,7 @@ function detailTo(boatId: number) {
             </div>
           </div>
 
-          <div v-if="props.pageCount > 1" class="border-t border-default shrink-0 px-4 py-4">
+          <div v-if="props.pageCount > 1" class="shrink-0 border-t border-default px-4 py-4">
             <div class="space-y-3">
               <p class="text-sm text-muted">
                 Page {{ props.currentPage }} of {{ props.pageCount }}
@@ -314,6 +317,7 @@ function detailTo(boatId: number) {
                   color="neutral"
                   variant="soft"
                   :disabled="!props.hasPreviousPage"
+                  class="w-full justify-center sm:w-auto"
                   @click="emit('changePage', props.currentPage - 1)"
                 />
                 <UButton
@@ -322,6 +326,7 @@ function detailTo(boatId: number) {
                   :label="String(page)"
                   :color="page === props.currentPage ? 'primary' : 'neutral'"
                   :variant="page === props.currentPage ? 'soft' : 'ghost'"
+                  class="min-w-11 justify-center"
                   @click="emit('changePage', page)"
                 />
                 <UButton
@@ -330,6 +335,7 @@ function detailTo(boatId: number) {
                   color="neutral"
                   variant="soft"
                   :disabled="!props.hasNextPage"
+                  class="w-full justify-center sm:w-auto"
                   @click="emit('changePage', props.currentPage + 1)"
                 />
               </div>
@@ -338,8 +344,11 @@ function detailTo(boatId: number) {
         </div>
       </UCard>
 
-      <UCard class="brand-surface h-full overflow-hidden" :ui="{ body: 'p-0 h-full' }">
-        <div class="relative h-full w-full">
+      <UCard
+        class="brand-surface order-1 overflow-hidden xl:order-2 xl:h-full"
+        :ui="{ body: 'p-0 xl:h-full' }"
+      >
+        <div class="relative h-[18rem] w-full sm:h-[22rem] xl:h-full">
           <div
             v-if="props.status === 'pending' && !mappableBoats.length"
             class="absolute inset-0 z-10 flex items-center justify-center bg-default/75 backdrop-blur-sm"

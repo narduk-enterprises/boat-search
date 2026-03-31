@@ -7,71 +7,16 @@ import type {
   BoatInventorySort,
 } from '~~/app/types/boat-inventory'
 import { BOAT_INVENTORY_SEARCH_PATH } from '~~/app/utils/boatBrowse'
-
-const DEFAULT_SORT: BoatInventorySort = 'updated-desc'
-
-function normalizeQueryValue(value: unknown) {
-  return typeof value === 'string' ? value.trim() : ''
-}
-
-function normalizeNumericFilter(value: string) {
-  if (!value.trim()) return ''
-
-  const parsed = Number(value)
-  return Number.isFinite(parsed) && parsed >= 0 ? String(parsed) : ''
-}
-
-function normalizePage(value: unknown) {
-  if (typeof value !== 'string') return 1
-
-  const parsed = Number.parseInt(value, 10)
-  return Number.isFinite(parsed) && parsed > 0 ? parsed : 1
-}
-
-function normalizeSort(value: unknown): BoatInventorySort {
-  if (value === 'price-asc') return value
-  if (value === 'price-desc') return value
-  if (value === 'year-desc') return value
-  return DEFAULT_SORT
-}
-
-function createEmptyFilters(): BoatInventoryFilters {
-  return {
-    q: '',
-    make: '',
-    location: '',
-    minPrice: '',
-    maxPrice: '',
-    minLength: '',
-    maxLength: '',
-  }
-}
-
-function routeQueryToFilters(query: Record<string, unknown>): BoatInventoryFilters {
-  return {
-    q: normalizeQueryValue(query.q),
-    make: normalizeQueryValue(query.make),
-    location: normalizeQueryValue(query.location),
-    minPrice: normalizeNumericFilter(normalizeQueryValue(query.minPrice)),
-    maxPrice: normalizeNumericFilter(normalizeQueryValue(query.maxPrice)),
-    minLength: normalizeNumericFilter(normalizeQueryValue(query.minLength)),
-    maxLength: normalizeNumericFilter(normalizeQueryValue(query.maxLength)),
-  }
-}
-
-function filtersToQuery(filters: BoatInventoryFilters) {
-  const query: Record<string, string> = {}
-
-  if (filters.q.trim()) query.q = filters.q.trim()
-  if (filters.make.trim()) query.make = filters.make.trim()
-  if (filters.location.trim()) query.location = filters.location.trim()
-  if (filters.minPrice.trim()) query.minPrice = normalizeNumericFilter(filters.minPrice)
-  if (filters.maxPrice.trim()) query.maxPrice = normalizeNumericFilter(filters.maxPrice)
-  if (filters.minLength.trim()) query.minLength = normalizeNumericFilter(filters.minLength)
-  if (filters.maxLength.trim()) query.maxLength = normalizeNumericFilter(filters.maxLength)
-
-  return Object.fromEntries(Object.entries(query).filter(([, value]) => value))
-}
+import {
+  boatInventoryFiltersToQuery,
+  boatInventoryFilterQuerySignature,
+  buildBoatInventoryNavigationQuery,
+  createEmptyBoatInventoryFilters,
+  DEFAULT_BOAT_INVENTORY_SORT,
+  normalizeBoatInventoryPage,
+  normalizeBoatInventorySort,
+  routeQueryToBoatInventoryFilters,
+} from '~~/app/utils/boatInventorySearch'
 
 function buildActiveFilterChips(filters: BoatInventoryFilters): BoatInventoryActiveFilterChip[] {
   const chips: BoatInventoryActiveFilterChip[] = []
@@ -119,12 +64,12 @@ function createEmptyResponse(limit: number): BoatInventorySearchResponse {
     page: 1,
     hasNextPage: false,
     hasPreviousPage: false,
-    sort: DEFAULT_SORT,
+    sort: DEFAULT_BOAT_INVENTORY_SORT,
   }
 }
 
 function queriesMatch(a: BoatInventoryFilters, b: BoatInventoryFilters) {
-  return JSON.stringify(filtersToQuery(a)) === JSON.stringify(filtersToQuery(b))
+  return boatInventoryFilterQuerySignature(a) === boatInventoryFilterQuerySignature(b)
 }
 
 export function useBoatInventorySearch(
@@ -135,28 +80,29 @@ export function useBoatInventorySearch(
   const limit = options.limit ?? 48
   const inventoryPath = computed(() => route.path || BOAT_INVENTORY_SEARCH_PATH)
 
-  const draftFilters = ref<BoatInventoryFilters>(createEmptyFilters())
+  const draftFilters = ref<BoatInventoryFilters>(createEmptyBoatInventoryFilters())
 
   function syncDraftFiltersFromRoute() {
-    draftFilters.value = routeQueryToFilters(route.query)
+    draftFilters.value = routeQueryToBoatInventoryFilters(route.query)
   }
 
   syncDraftFiltersFromRoute()
 
-  watch(
-    () => route.query,
-    () => {
-      syncDraftFiltersFromRoute()
-    },
+  const appliedFilters = computed(() => routeQueryToBoatInventoryFilters(route.query))
+  const appliedFilterSignature = computed(() =>
+    boatInventoryFilterQuerySignature(appliedFilters.value),
   )
 
-  const appliedFilters = computed(() => routeQueryToFilters(route.query))
-  const currentSort = computed(() => normalizeSort(route.query.sort))
-  const currentPage = computed(() => normalizePage(route.query.page))
+  watch(appliedFilterSignature, () => {
+    syncDraftFiltersFromRoute()
+  })
+
+  const currentSort = computed(() => normalizeBoatInventorySort(route.query.sort))
+  const currentPage = computed(() => normalizeBoatInventoryPage(route.query.page))
   const currentOffset = computed(() => (currentPage.value - 1) * limit)
 
   const requestQuery = computed(() => ({
-    ...filtersToQuery(appliedFilters.value),
+    ...boatInventoryFiltersToQuery(appliedFilters.value),
     limit: String(limit),
     offset: String(currentOffset.value),
     sort: currentSort.value,
@@ -174,21 +120,9 @@ export function useBoatInventorySearch(
     sort: BoatInventorySort,
     page: number,
   ) {
-    const query: Record<string, string> = {
-      ...filtersToQuery(filters),
-    }
-
-    if (sort !== DEFAULT_SORT) {
-      query.sort = sort
-    }
-
-    if (page > 1) {
-      query.page = String(page)
-    }
-
     await router.push({
       path: inventoryPath.value || BOAT_INVENTORY_SEARCH_PATH,
-      query,
+      query: buildBoatInventoryNavigationQuery({ filters, sort, page }),
       hash: route.hash || undefined,
     })
   }
@@ -198,8 +132,8 @@ export function useBoatInventorySearch(
   }
 
   async function clearFilters() {
-    draftFilters.value = createEmptyFilters()
-    await pushInventoryQuery(createEmptyFilters(), currentSort.value, 1)
+    draftFilters.value = createEmptyBoatInventoryFilters()
+    await pushInventoryQuery(createEmptyBoatInventoryFilters(), currentSort.value, 1)
   }
 
   async function removeFilter(key: BoatInventoryFilterKey) {
@@ -229,10 +163,17 @@ export function useBoatInventorySearch(
   const total = computed(() => data.value.total)
   const pageCount = computed(() => Math.max(1, Math.ceil(total.value / limit)))
   const hasActiveFilters = computed(
-    () => Object.keys(filtersToQuery(appliedFilters.value)).length > 0,
+    () => Object.keys(boatInventoryFiltersToQuery(appliedFilters.value)).length > 0,
   )
   const activeFilterChips = computed(() => buildActiveFilterChips(appliedFilters.value))
   const hasUnsavedChanges = computed(() => !queriesMatch(draftFilters.value, appliedFilters.value))
+  const navigationQuery = computed(() =>
+    buildBoatInventoryNavigationQuery({
+      filters: hasUnsavedChanges.value ? draftFilters.value : appliedFilters.value,
+      sort: currentSort.value,
+      page: hasUnsavedChanges.value ? 1 : currentPage.value,
+    }),
+  )
   const visibleStart = computed(() => (boats.value.length ? currentOffset.value + 1 : 0))
   const visibleEnd = computed(() => currentOffset.value + boats.value.length)
   const resultsLabel = computed(() => {
@@ -247,6 +188,10 @@ export function useBoatInventorySearch(
 
     if (!total.value) {
       return 'Inventory is still filling in. Check back after the next import run.'
+    }
+
+    if (hasUnsavedChanges.value) {
+      return 'Draft filters are staged locally. Press Search or Apply filters to refresh results.'
     }
 
     if (activeFilterChips.value.length) {
@@ -270,6 +215,7 @@ export function useBoatInventorySearch(
     hasPreviousPage: computed(() => data.value.hasPreviousPage),
     hasActiveFilters,
     hasUnsavedChanges,
+    navigationQuery,
     activeFilterChips,
     resultsLabel,
     resultsContext,

@@ -169,6 +169,7 @@ async function handleRename(profileId: number, name: string) {
               icon="i-lucide-plus"
               size="sm"
               :disabled="!canCreateMore"
+              class="w-full justify-center sm:w-auto"
               @click="showCreateDialog = true"
             />
           </div>
@@ -186,7 +187,7 @@ async function handleRename(profileId: number, name: string) {
               Create your first buyer profile to start generating AI-ranked shortlists.
             </p>
             <UButton
-              class="mt-6"
+              class="mt-6 w-full justify-center sm:w-auto"
               label="Create first profile"
               icon="i-lucide-plus"
               @click="showCreateDialog = true"

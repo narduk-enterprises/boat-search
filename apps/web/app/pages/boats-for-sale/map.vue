@@ -30,6 +30,7 @@ const {
   status,
   error,
   draftFilters,
+  navigationQuery,
   currentSort,
   currentPage,
   total,
@@ -53,7 +54,7 @@ const resultsSection = useTemplateRef<HTMLDivElement>('resultsSection')
 
 const listViewTo = computed(() => ({
   path: '/boats-for-sale',
-  query: route.query,
+  query: navigationQuery.value,
   hash: BOAT_INVENTORY_RESULTS_HASH,
 }))
 

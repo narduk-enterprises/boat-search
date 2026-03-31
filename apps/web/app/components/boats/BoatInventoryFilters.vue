@@ -117,7 +117,7 @@ function matchesLengthPreset(minLength: string, maxLength: string) {
             <p class="text-xs font-semibold uppercase tracking-[0.18em] text-dimmed">Budget</p>
             <p class="mt-1 text-sm text-muted">Quick price ranges for fast narrowing.</p>
           </div>
-          <div class="flex flex-wrap gap-2">
+          <div class="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
             <UButton
               v-for="preset in budgetPresets"
               :key="preset.label"
@@ -125,6 +125,8 @@ function matchesLengthPreset(minLength: string, maxLength: string) {
               :color="matchesBudgetPreset(preset.minPrice, preset.maxPrice) ? 'primary' : 'neutral'"
               :variant="matchesBudgetPreset(preset.minPrice, preset.maxPrice) ? 'soft' : 'ghost'"
               size="sm"
+              type="button"
+              class="w-full justify-center sm:w-auto"
               @click="applyBudgetPreset(preset.minPrice, preset.maxPrice)"
             />
           </div>
@@ -137,7 +139,7 @@ function matchesLengthPreset(minLength: string, maxLength: string) {
             <p class="text-xs font-semibold uppercase tracking-[0.18em] text-dimmed">Length</p>
             <p class="mt-1 text-sm text-muted">Common hull-length bands.</p>
           </div>
-          <div class="flex flex-wrap gap-2">
+          <div class="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
             <UButton
               v-for="preset in lengthPresets"
               :key="preset.label"
@@ -147,6 +149,8 @@ function matchesLengthPreset(minLength: string, maxLength: string) {
               "
               :variant="matchesLengthPreset(preset.minLength, preset.maxLength) ? 'soft' : 'ghost'"
               size="sm"
+              type="button"
+              class="w-full justify-center sm:w-auto"
               @click="applyLengthPreset(preset.minLength, preset.maxLength)"
             />
           </div>
@@ -160,7 +164,7 @@ function matchesLengthPreset(minLength: string, maxLength: string) {
           <p class="text-xs font-semibold uppercase tracking-[0.18em] text-dimmed">Popular makes</p>
           <p class="mt-1 text-sm text-muted">Seed the make field with one tap.</p>
         </div>
-        <div class="flex flex-wrap gap-2">
+        <div class="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
           <UButton
             v-for="make in normalizedSuggestedMakes"
             :key="make"
@@ -168,6 +172,8 @@ function matchesLengthPreset(minLength: string, maxLength: string) {
             :color="filters.make === make ? 'primary' : 'neutral'"
             :variant="filters.make === make ? 'soft' : 'ghost'"
             size="sm"
+            type="button"
+            class="w-full justify-center sm:w-auto"
             @click="applySuggestedMake(make)"
           />
         </div>
@@ -246,22 +252,24 @@ function matchesLengthPreset(minLength: string, maxLength: string) {
       </div>
 
       <div
-        class="sticky bottom-0 z-10 -mx-5 border-t border-default bg-default/95 px-5 pb-1 pt-4 backdrop-blur-sm sm:-mx-6 sm:px-6"
+        class="sticky bottom-0 z-10 -mx-5 border-t border-default bg-default/95 px-5 pb-[calc(0.5rem+env(safe-area-inset-bottom))] pt-4 backdrop-blur-sm sm:-mx-6 sm:px-6"
       >
-        <div class="flex flex-wrap gap-3">
+        <div class="flex flex-col gap-3 sm:flex-row">
           <UButton
             type="submit"
             :label="applyLabel"
             icon="i-lucide-search"
             :loading="props.loading"
-            class="brand-button-shadow"
+            class="brand-button-shadow w-full justify-center sm:w-auto"
           />
           <UButton
+            type="button"
             label="Reset all"
             icon="i-lucide-rotate-ccw"
             color="neutral"
             variant="soft"
             :disabled="!canClear"
+            class="w-full justify-center sm:w-auto"
             @click="emit('clear')"
           />
         </div>

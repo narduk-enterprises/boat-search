@@ -1,18 +1,8 @@
 <script setup lang="ts">
-interface ProfileSummary {
-  id: number
-  name: string
-  isActive: boolean
-  isComplete: boolean
-  lastRunAt: string | null
-  createdAt: string
-  updatedAt: string
-  canRunNow: boolean
-  nextRunAvailableAt: string | null
-}
+import type { BuyerProfileSummary } from '~~/app/types/buyer-profile'
 
 const props = defineProps<{
-  profile: ProfileSummary
+  profile: BuyerProfileSummary
   rerunning?: boolean
 }>()
 
@@ -106,7 +96,7 @@ const menuItems = computed(() => {
     :ui="{ body: 'p-4 sm:p-5 space-y-3' }"
     :data-testid="`buyer-profile-card-${profile.id}`"
   >
-    <div class="flex items-start justify-between gap-3">
+    <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
       <div class="min-w-0 flex-1 space-y-1">
         <div class="flex flex-wrap items-center gap-2">
           <template v-if="renaming">
@@ -114,7 +104,7 @@ const menuItems = computed(() => {
               ref="renameInputRef"
               v-model="renameInput"
               size="sm"
-              class="w-48"
+              class="w-full sm:w-48"
               :maxlength="100"
               @keydown.enter="commitRename"
               @keydown.escape="cancelRename"
@@ -167,18 +157,20 @@ const menuItems = computed(() => {
           color="neutral"
           variant="ghost"
           size="xs"
+          class="self-end sm:self-auto"
           aria-label="Profile actions"
         />
       </UDropdownMenu>
     </div>
 
-    <div class="flex flex-wrap gap-2 pt-1">
+    <div class="flex flex-col gap-2 pt-1 sm:flex-row sm:flex-wrap">
       <UButton
         label="Edit in Wizard"
         icon="i-lucide-pencil"
         color="neutral"
         variant="soft"
         size="xs"
+        class="w-full justify-center sm:w-auto"
         @click="emit('edit', profile.id)"
       />
       <UButton
@@ -187,6 +179,7 @@ const menuItems = computed(() => {
         size="xs"
         :loading="rerunning"
         :disabled="!profile.canRunNow || !profile.isComplete || rerunning"
+        class="w-full justify-center sm:w-auto"
         @click="emit('rerun', profile.id)"
       />
       <UButton
@@ -196,6 +189,7 @@ const menuItems = computed(() => {
         color="neutral"
         variant="ghost"
         size="xs"
+        class="w-full justify-center sm:w-auto"
         @click="emit('activate', profile.id)"
       />
     </div>

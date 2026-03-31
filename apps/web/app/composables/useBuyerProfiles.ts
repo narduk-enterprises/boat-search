@@ -1,19 +1,4 @@
-interface BuyerProfileSummary {
-  id: number
-  name: string
-  isActive: boolean
-  isComplete: boolean
-  lastRunAt: string | null
-  createdAt: string
-  updatedAt: string
-  canRunNow: boolean
-  nextRunAvailableAt: string | null
-}
-
-interface BuyerProfilesResponse {
-  profiles: BuyerProfileSummary[]
-  activeProfileId: number | null
-}
+import type { BuyerProfilesResponse, BuyerProfileSummary } from '~~/app/types/buyer-profile'
 
 interface CreateProfilePayload {
   name?: string

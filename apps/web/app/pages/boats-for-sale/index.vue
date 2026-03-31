@@ -24,16 +24,13 @@ useWebPageSchema({
 })
 
 const route = useRoute()
-const mapViewTo = computed(() => ({
-  path: '/boats-for-sale/map',
-  query: route.query,
-}))
 
 const {
   boats,
   status,
   error,
   draftFilters,
+  navigationQuery,
   currentSort,
   currentPage,
   total,
@@ -52,6 +49,11 @@ const {
   goToPage,
   retry,
 } = useBoatInventorySearch({ limit: 24 })
+
+const mapViewTo = computed(() => ({
+  path: '/boats-for-sale/map',
+  query: navigationQuery.value,
+}))
 
 const filtersOpen = shallowRef(false)
 const sortOpen = shallowRef(false)
