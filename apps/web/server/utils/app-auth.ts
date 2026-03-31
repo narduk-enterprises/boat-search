@@ -9,9 +9,9 @@ import {
 } from '@supabase/auth-js'
 import { eq } from 'drizzle-orm'
 import { users, type User as LocalUser } from '#layer/orm-tables'
+import { authSessions, authUserLinks } from '#server/app-orm-tables'
 import { useDatabase } from '#layer/server/utils/database'
 import { hashUserPassword, verifyUserPassword } from '#layer/server/utils/password'
-import { authSessions, authUserLinks } from '#server/database/schema'
 import { useAppDatabase } from '#server/utils/database'
 
 const PKCE_COOKIE_NAME = 'app_auth_pkce'
@@ -530,7 +530,7 @@ async function persistSupabaseSession(
   }
 }
 
-async function getCurrentSessionUser(event: H3Event): Promise<AppSessionUser | null> {
+export async function getCurrentSessionUser(event: H3Event): Promise<AppSessionUser | null> {
   const session = await getUserSession(event)
   return session?.user ? (session.user as AppSessionUser) : null
 }
@@ -551,7 +551,7 @@ async function clearCurrentSession(event: H3Event) {
   await clearUserSession(event)
 }
 
-async function getCurrentSupabaseContext(event: H3Event) {
+export async function getCurrentSupabaseContext(event: H3Event) {
   const sessionUser = await getCurrentSessionUser(event)
   if (!sessionUser?.authSessionId) {
     throw createError({
@@ -646,7 +646,24 @@ async function commitSupabaseSessionFromClient(
 
 export async function getSessionUserResponse(event: H3Event) {
   const user = await getCurrentSessionUser(event)
-  return { user }
+  if (!user?.authSessionId) {
+    return { user }
+  }
+
+  try {
+    const context = await getCurrentSupabaseContext(event)
+    return { user: context.sessionUser }
+  } catch (error) {
+    if (
+      typeof error === 'object' &&
+      error !== null &&
+      'statusCode' in error &&
+      error.statusCode === 401
+    ) {
+      return { user: null }
+    }
+    throw error
+  }
 }
 
 export async function loginUser(event: H3Event, body: LoginInput): Promise<AuthMutationResult> {
@@ -1227,6 +1244,38 @@ export async function logoutUser(event: H3Event) {
 
   await clearCurrentSession(event)
   return { success: true }
+}
+
+/**
+ * Deletes the Supabase Auth identity that is linked to the given local user.
+ *
+ * Looks up the upstream `auth_user_id` from the `auth_user_links` bridge
+ * table, then calls the Supabase Admin API with the service-role key to
+ * permanently remove the identity.  If no link exists (e.g. the account was
+ * created before Supabase was enabled), the function is a no-op.
+ *
+ * Call this inside a `beforeDelete` hook passed to `deleteCurrentUserAccount`
+ * so that the upstream identity is removed before the local DB row is deleted.
+ */
+export async function deleteSupabaseAuthUser(event: H3Event, localUserId: string): Promise<void> {
+  const config = getAuthConfig(event)
+  const appDb = useAppDatabase(event)
+
+  const link = await appDb
+    .select({ authUserId: authUserLinks.authUserId })
+    .from(authUserLinks)
+    .where(eq(authUserLinks.localUserId, localUserId))
+    .get()
+
+  if (!link) {
+    return
+  }
+
+  const client = createSupabaseClient(event, config.serviceRoleKey)
+  const { error } = await client.admin.deleteUser(link.authUserId)
+  if (error) {
+    toSupabaseHttpError(error, 500)
+  }
 }
 
 export function getAuthUiState(event?: H3Event) {

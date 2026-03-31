@@ -4,13 +4,10 @@ export interface XaiModelCatalog {
 }
 
 const PREFERRED_CHAT_MODELS = [
-  'grok-4.20-0309-reasoning',
-  'grok-4-1-fast-reasoning',
-  'grok-4-fast-reasoning',
-  'grok-4.20-0309-non-reasoning',
-  'grok-4-1',
-  'grok-4',
+  'grok-4-1-fast-non-reasoning',
   'grok-3-mini',
+  'grok-4',
+  'grok-4.20-beta-latest-non-reasoning',
 ]
 
 export function pickPreferredModel(

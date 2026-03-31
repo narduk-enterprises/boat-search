@@ -369,3 +369,5 @@ export const scraperPipelines = sqliteTable(
     index('idx_scraper_pipelines_source').on(table.boatSource),
   ],
 )
+
+export * from '#server/database/auth-bridge-schema'
