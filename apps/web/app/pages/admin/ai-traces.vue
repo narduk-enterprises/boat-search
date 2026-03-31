@@ -23,15 +23,97 @@ const { data, status } = useAdminAiTraces()
 
 const selectedTrace = ref<AiTraceEntry | null>(null)
 const slideoverOpen = ref(false)
+
+// ── Filters ──────────────────────────────────────────────────
 const statusFilter = ref<string>('all')
+const modelFilter = ref<string>('all')
+const userFilter = ref<string>('')
+const sortField = ref<string>('attemptedAt')
+const sortDirection = ref<'asc' | 'desc'>('desc')
 
 const traces = computed(() => data.value?.traces ?? [])
 const stats = computed(() => data.value?.stats ?? null)
 
-const filteredTraces = computed(() => {
-  if (statusFilter.value === 'all') return traces.value
-  return traces.value.filter((t) => t.status === statusFilter.value)
+const uniqueModels = computed(() => {
+  const models = new Set(traces.value.map((t) => t.model).filter(Boolean))
+  return [...models].sort() as string[]
 })
+
+const modelFilterItems = computed(() => [
+  { label: 'All models', value: 'all' },
+  ...uniqueModels.value.map((m) => ({ label: m, value: m })),
+])
+
+const statusFilterItems = [
+  { label: 'All statuses', value: 'all' },
+  { label: 'Success', value: 'success' },
+  { label: 'Parse failed', value: 'parse-failed' },
+  { label: 'Request failed', value: 'request-failed' },
+]
+
+const sortFieldItems = [
+  { label: 'Time', value: 'attemptedAt' },
+  { label: 'User', value: 'userEmail' },
+  { label: 'Tokens', value: 'tokensUsed' },
+  { label: 'Candidates', value: 'candidateCount' },
+  { label: 'Recommendations', value: 'recommendationCount' },
+]
+
+function compareValues(a: unknown, b: unknown): number {
+  if (a == null && b == null) return 0
+  if (a == null) return 1
+  if (b == null) return -1
+  if (typeof a === 'number' && typeof b === 'number') return a - b
+  return String(a).localeCompare(String(b))
+}
+
+const filteredTraces = computed(() => {
+  let result = traces.value
+
+  if (statusFilter.value !== 'all') {
+    result = result.filter((t) => t.status === statusFilter.value)
+  }
+
+  if (modelFilter.value !== 'all') {
+    result = result.filter((t) => t.model === modelFilter.value)
+  }
+
+  if (userFilter.value.trim()) {
+    const query = userFilter.value.trim().toLowerCase()
+    result = result.filter(
+      (t) =>
+        t.userEmail.toLowerCase().includes(query) ||
+        (t.buyerProfileName && t.buyerProfileName.toLowerCase().includes(query)),
+    )
+  }
+
+  const field = sortField.value as keyof AiTraceEntry
+  const dir = sortDirection.value === 'asc' ? 1 : -1
+  result = [...result].sort((a, b) => dir * compareValues(a[field], b[field]))
+
+  return result
+})
+
+function toggleSortDirection() {
+  sortDirection.value = sortDirection.value === 'desc' ? 'asc' : 'desc'
+}
+
+function clearFilters() {
+  statusFilter.value = 'all'
+  modelFilter.value = 'all'
+  userFilter.value = ''
+  sortField.value = 'attemptedAt'
+  sortDirection.value = 'desc'
+}
+
+const hasActiveFilters = computed(
+  () =>
+    statusFilter.value !== 'all' ||
+    modelFilter.value !== 'all' ||
+    userFilter.value.trim() !== '' ||
+    sortField.value !== 'attemptedAt' ||
+    sortDirection.value !== 'desc',
+)
 
 function openTrace(trace: AiTraceEntry) {
   selectedTrace.value = trace
@@ -72,13 +154,6 @@ function formatTokens(tokens: number | null) {
   if (tokens == null) return '—'
   return tokens.toLocaleString()
 }
-
-const statusFilterItems = [
-  { label: 'All', value: 'all' },
-  { label: 'Success', value: 'success' },
-  { label: 'Parse failed', value: 'parse-failed' },
-  { label: 'Request failed', value: 'request-failed' },
-]
 
 const columns = [
   { accessorKey: 'attemptedAt' as const, header: 'Time' },
@@ -161,17 +236,51 @@ const columns = [
           </div>
         </div>
 
-        <!-- Filter bar -->
-        <div class="flex items-center gap-3">
-          <USelect
-            v-model="statusFilter"
-            :items="statusFilterItems"
-            placeholder="Filter by status"
-            class="w-44"
+        <!-- Filter / sort toolbar -->
+        <div
+          class="flex flex-col gap-3 rounded-xl border border-default bg-elevated p-4 sm:flex-row sm:flex-wrap sm:items-center"
+        >
+          <UInput
+            v-model="userFilter"
+            placeholder="Search user or profile…"
+            icon="i-lucide-search"
+            class="w-full sm:w-56"
           />
-          <span class="text-sm text-muted">
-            {{ filteredTraces.length }} trace{{ filteredTraces.length === 1 ? '' : 's' }}
-          </span>
+          <USelect v-model="statusFilter" :items="statusFilterItems" class="w-full sm:w-40" />
+          <USelect v-model="modelFilter" :items="modelFilterItems" class="w-full sm:w-44" />
+
+          <USeparator orientation="vertical" class="hidden h-6 sm:block" />
+
+          <div class="flex items-center gap-2">
+            <span class="text-xs text-dimmed">Sort by</span>
+            <USelect v-model="sortField" :items="sortFieldItems" class="w-36" />
+            <UButton
+              :icon="
+                sortDirection === 'desc'
+                  ? 'i-lucide-arrow-down-wide-narrow'
+                  : 'i-lucide-arrow-up-narrow-wide'
+              "
+              size="sm"
+              color="neutral"
+              variant="soft"
+              @click="toggleSortDirection"
+            />
+          </div>
+
+          <div class="flex items-center gap-3 sm:ml-auto">
+            <UButton
+              v-if="hasActiveFilters"
+              label="Clear"
+              icon="i-lucide-x"
+              size="xs"
+              color="neutral"
+              variant="ghost"
+              @click="clearFilters"
+            />
+            <span class="text-sm text-muted">
+              {{ filteredTraces.length }} trace{{ filteredTraces.length === 1 ? '' : 's' }}
+            </span>
+          </div>
         </div>
 
         <!-- Traces table -->
