@@ -23,7 +23,10 @@ export default defineConfig({
     {
       name: 'web',
       testDir: 'apps/web/tests/e2e',
-      use: { ...devices['Desktop Chrome'], baseURL: 'http://localhost:3000' },
+      use: {
+        ...devices['Desktop Chrome'],
+        baseURL: 'http://localhost:3000',
+      },
     },
   ],
 })

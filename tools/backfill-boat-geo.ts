@@ -50,7 +50,6 @@ type CachedGeocodeRow = {
   lng: number | null
   error: string | null
 }
-
 ;(
   globalThis as typeof globalThis & {
     useRuntimeConfig?: () => {

@@ -27,6 +27,7 @@ import {
   type ScraperRunRecord,
   type ScraperRunSummary,
 } from '~~/lib/scraperPipeline'
+import { isAppHostedBoatImageUrl } from '~~/lib/boatImageRefs'
 import { cleanBoatDescription } from '#server/utils/boatInventory'
 import { rebuildBoatDedupeState, upsertBoatSourceListing } from '#server/utils/boatDedupe'
 import { useAppDatabase } from '#server/utils/database'
@@ -157,25 +158,11 @@ function isHttpUrl(value: string) {
   return /^https?:\/\//i.test(value)
 }
 
-function isStoredBoatSearchImageReference(value: string) {
-  const normalized = value.trim()
-  if (!normalized) return false
-
-  try {
-    const url = normalized.startsWith('/')
-      ? new URL(normalized, 'https://boat-search.local')
-      : new URL(normalized)
-    return url.pathname.startsWith('/images/')
-  } catch {
-    return false
-  }
-}
-
 function deriveSourceImages(record: ScraperBrowserRunRecord) {
   const rawImages = toStringArray(record.rawFields.images)
   const explicitSourceImages = toStringArray(record.sourceImages)
   const externalCurrentImages = record.images.filter(
-    (image) => isHttpUrl(image) && !isStoredBoatSearchImageReference(image),
+    (image) => isHttpUrl(image) && !isAppHostedBoatImageUrl(image),
   )
 
   return dedupeStrings([...explicitSourceImages, ...rawImages, ...externalCurrentImages])
@@ -468,7 +455,7 @@ function finalizeCandidate(candidate: ExtractedBoatCandidate) {
     candidate.sourceImages.length
       ? candidate.sourceImages
       : candidate.images.filter(
-          (image) => isHttpUrl(image) && !isStoredBoatSearchImageReference(image),
+          (image) => isHttpUrl(image) && !isAppHostedBoatImageUrl(image),
         ),
   )
   deriveLocation(candidate)

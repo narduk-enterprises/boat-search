@@ -12,53 +12,65 @@ describe('boat finder profile model', () => {
   it('normalizes legacy flat profiles into the v2 grouped structure', () => {
     const normalized = normalizeBuyerProfileDraft({
       primaryUse: 'Weekend offshore trips',
-      targetWatersOrRegion: 'Galveston',
+      targetWatersOrRegion: 'Western Gulf (TX / LA)',
       budgetMax: 350000,
       crewSize: '3-4 anglers',
       experienceLevel: 'Experienced owner-operator',
       maintenanceAppetite: 'Balanced upkeep',
       storageOrTowingConstraints: 'Slip-ready only',
-      mustHaves: ['Diesel power'],
-      dealBreakers: ['Project boat'],
+      mustHaves: ['Tower or upper station'],
+      dealBreakers: ['Major refit or project boat'],
     })
 
     expect(normalized.version).toBe(2)
     expect(normalized.coreAnswers.facts.primaryUses).toEqual(['Weekend offshore trips'])
-    expect(normalized.coreAnswers.facts.targetWatersOrRegion).toBe('Galveston')
+    expect(normalized.coreAnswers.facts.targetWatersOrRegion).toBe('Western Gulf (TX / LA)')
     expect(normalized.coreAnswers.facts.budgetMax).toBe(350000)
     expect(normalized.coreAnswers.facts.crewProfile).toBe('3-4 anglers')
     expect(normalized.coreAnswers.preferences.maintenanceReality).toBe('Balanced upkeep')
     expect(normalized.coreAnswers.facts.storagePlanNotes).toBe('Slip-ready only')
-    expect(normalized.coreAnswers.preferences.mustHaves).toEqual(['Diesel power'])
-    expect(normalized.coreAnswers.preferences.dealBreakers).toEqual(['Project boat'])
+    expect(normalized.coreAnswers.preferences.mustHaves).toEqual(['Tower or upper station'])
+    expect(normalized.coreAnswers.preferences.dealBreakers).toEqual([
+      'Major refit or project boat',
+    ])
   })
 
   it('diffs and merges one-off overrides without mutating the base profile', () => {
     const base = createEmptyBuyerAnswers()
     base.facts.primaryUses = ['Weekend offshore trips']
-    base.facts.targetWatersOrRegion = 'Galveston'
+    base.facts.targetWatersOrRegion = 'Western Gulf (TX / LA)'
     base.facts.budgetMax = 350000
-    base.preferences.mustHaves = ['Diesel power']
+    base.preferences.mustHaves = ['Tower or upper station']
 
     const next = createEmptyBuyerAnswers()
     next.facts.primaryUses = ['Weekend offshore trips']
-    next.facts.targetWatersOrRegion = 'Venice, LA'
+    next.facts.targetWatersOrRegion = 'Northern Gulf (AL / MS / FL panhandle)'
     next.facts.budgetMax = 425000
-    next.preferences.mustHaves = ['Diesel power', 'Tower visibility']
+    next.preferences.mustHaves = ['Tower or upper station', 'Serious livewell capacity']
     next.openContextNote = 'Need this boat to feel worth the time away from family.'
 
     const overrides = diffBuyerAnswers(base, next)
 
-    expect(overrides.facts.targetWatersOrRegion).toBe('Venice, LA')
+    expect(overrides.facts.targetWatersOrRegion).toBe(
+      'Northern Gulf (AL / MS / FL panhandle)',
+    )
     expect(overrides.facts.budgetMax).toBe(425000)
-    expect(overrides.preferences.mustHaves).toEqual(['Diesel power', 'Tower visibility'])
+    expect(overrides.preferences.mustHaves).toEqual([
+      'Tower or upper station',
+      'Serious livewell capacity',
+    ])
     expect(overrides.openContextNote).toContain('worth the time away from family')
 
     const merged = mergeBuyerAnswers(base, overrides)
-    expect(merged.facts.targetWatersOrRegion).toBe('Venice, LA')
+    expect(merged.facts.targetWatersOrRegion).toBe(
+      'Northern Gulf (AL / MS / FL panhandle)',
+    )
     expect(merged.facts.budgetMax).toBe(425000)
-    expect(merged.preferences.mustHaves).toEqual(['Diesel power', 'Tower visibility'])
-    expect(base.facts.targetWatersOrRegion).toBe('Galveston')
+    expect(merged.preferences.mustHaves).toEqual([
+      'Tower or upper station',
+      'Serious livewell capacity',
+    ])
+    expect(base.facts.targetWatersOrRegion).toBe('Western Gulf (TX / LA)')
   })
 
   it('keeps skip and not-sure answers in uncertainties instead of turning them into hard filters', () => {
@@ -93,7 +105,7 @@ describe('boat finder profile model', () => {
     const base = createEmptyBuyerAnswers()
     base.facts.primaryUses = ['Weekend offshore trips']
     base.facts.familyUsage = ['Equal parts fishing and family time']
-    base.facts.targetWatersOrRegion = 'Venice, LA'
+    base.facts.targetWatersOrRegion = 'Western Gulf (TX / LA)'
     base.facts.budgetMax = 450000
 
     const merged = mergeBuyerAnswers(base, createEmptyBuyerAnswerOverrides())

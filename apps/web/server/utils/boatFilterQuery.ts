@@ -20,6 +20,13 @@ import type { BoatInventorySort } from '~~/app/types/boat-inventory'
 import type * as schema from '~~/server/database/schema'
 import { INVENTORY_BOAT_SELECT } from '#server/utils/boatInventory'
 
+function preprocessOptionalTrimmedString(val: unknown) {
+  if (val == null || val === '') return
+  if (typeof val !== 'string') return val
+  const trimmed = val.trim()
+  if (trimmed.length > 0) return trimmed
+}
+
 /** Filters shared by /api/boats, saved searches, and cron matching. */
 export const boatSearchFilterSchema = z.object({
   make: z.string().optional(),
@@ -28,12 +35,22 @@ export const boatSearchFilterSchema = z.object({
   maxLength: z.coerce.number().optional(),
   minPrice: z.coerce.number().optional(),
   maxPrice: z.coerce.number().optional(),
+  q: z.preprocess(preprocessOptionalTrimmedString, z.string().max(200).optional()),
 })
 
 export type BoatSearchFilter = z.infer<typeof boatSearchFilterSchema>
 
 const priceAsInteger = sql<number>`CAST(NULLIF(${boats.price}, '') AS INTEGER)`
 const lengthAsReal = sql<number>`CAST(NULLIF(${boats.length}, '') AS REAL)`
+
+function inventorySearchTokens(raw: string): string[] {
+  return raw
+    .trim()
+    .split(/\s+/)
+    .map((token) => token.replaceAll(/[%_\\]/g, '').trim())
+    .filter((token) => token.length > 0)
+    .slice(0, 16)
+}
 
 export function boatFilterConditions(filter: BoatSearchFilter): SQL[] {
   const conditions: SQL[] = []
@@ -66,6 +83,22 @@ export function boatFilterConditions(filter: BoatSearchFilter): SQL[] {
   }
   if (filter.maxPrice != null) {
     conditions.push(lte(priceAsInteger, filter.maxPrice))
+  }
+  if (filter.q) {
+    const tokens = inventorySearchTokens(filter.q)
+    for (const token of tokens) {
+      const needle = `%${token}%`
+      conditions.push(
+        or(
+          like(boats.make, needle),
+          like(boats.model, needle),
+          like(boats.description, needle),
+          like(boats.listingId, needle),
+          like(boats.features, needle),
+          like(sql<string>`CAST(${boats.year} AS TEXT)`, needle),
+        )!,
+      )
+    }
   }
   return conditions
 }

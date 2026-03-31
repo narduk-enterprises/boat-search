@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   createEmptyScraperPipelineDraft,
+  isYachtWorldDetailBackfillUrl,
   multilineToList,
   scraperBrowserRunListingAuditSchema,
   scraperBrowserRunRecordSchema,
@@ -77,6 +78,72 @@ describe('scraper pipeline draft schema', () => {
 
   it('normalizes line-separated values for textarea inputs', () => {
     expect(multilineToList(' example.com \n\n boats.com \n')).toEqual(['example.com', 'boats.com'])
+  })
+
+  it('recognizes YachtWorld listing detail URLs for backfill mode', () => {
+    expect(
+      isYachtWorldDetailBackfillUrl('https://www.yachtworld.com/yacht/2021-pathfinder-2500-hybrid-10019034/'),
+    ).toBe(true)
+    expect(isYachtWorldDetailBackfillUrl('https://yachtworld.com/yacht/foo-123456/')).toBe(true)
+    expect(isYachtWorldDetailBackfillUrl('https://www.yachtworld.com/boats-for-sale/')).toBe(false)
+    expect(isYachtWorldDetailBackfillUrl('https://www.boats.com/foo')).toBe(false)
+  })
+
+  it('accepts YachtWorld detail backfill draft when URLs and boat source match', () => {
+    const draft = createEmptyScraperPipelineDraft()
+    draft.name = 'YW backfill'
+    draft.boatSource = 'YachtWorld'
+    draft.config.detailBackfillMode = true
+    draft.config.fetchDetailPages = true
+    draft.config.startUrls = ['https://www.yachtworld.com/yacht/2021-pathfinder-2500-hybrid-10019034/']
+    draft.config.itemSelector = '.grid-item'
+
+    const parsed = scraperPipelineDraftSchema.safeParse(draft)
+
+    expect(parsed.success).toBe(true)
+    expect(parsed.data?.config.detailBackfillMode).toBe(true)
+  })
+
+  it('rejects detail backfill when boat source is not YachtWorld', () => {
+    const draft = createEmptyScraperPipelineDraft()
+    draft.name = 'Bad backfill'
+    draft.boatSource = 'boats.com'
+    draft.config.detailBackfillMode = true
+    draft.config.fetchDetailPages = true
+    draft.config.startUrls = ['https://www.yachtworld.com/yacht/2021-pathfinder-2500-hybrid-10019034/']
+    draft.config.itemSelector = '.listing'
+
+    const parsed = scraperPipelineDraftSchema.safeParse(draft)
+
+    expect(parsed.success).toBe(false)
+  })
+
+  it('rejects detail backfill when a start URL is not a YachtWorld detail link', () => {
+    const draft = createEmptyScraperPipelineDraft()
+    draft.name = 'YW backfill'
+    draft.boatSource = 'YachtWorld'
+    draft.config.detailBackfillMode = true
+    draft.config.fetchDetailPages = true
+    draft.config.startUrls = ['https://www.yachtworld.com/boats-for-sale/']
+    draft.config.itemSelector = '.grid-item'
+
+    const parsed = scraperPipelineDraftSchema.safeParse(draft)
+
+    expect(parsed.success).toBe(false)
+  })
+
+  it('rejects detail backfill when detail fetching is disabled', () => {
+    const draft = createEmptyScraperPipelineDraft()
+    draft.name = 'YW backfill'
+    draft.boatSource = 'YachtWorld'
+    draft.config.detailBackfillMode = true
+    draft.config.fetchDetailPages = false
+    draft.config.startUrls = ['https://www.yachtworld.com/yacht/2021-pathfinder-2500-hybrid-10019034/']
+    draft.config.itemSelector = '.grid-item'
+
+    const parsed = scraperPipelineDraftSchema.safeParse(draft)
+
+    expect(parsed.success).toBe(false)
   })
 
   it('accepts structured extension records with stored and source image references', () => {

@@ -74,8 +74,8 @@ const isFullBleedLayout = computed(() => {
 // vertical padding here; section spacing is tuned in app.config `ui.pageSection.slots.container`.
 const shellContentClass = computed(() =>
   isFullBleedLayout.value
-    ? 'w-full px-4 pb-10 pt-4 sm:px-6 sm:pb-14 lg:px-8'
-    : 'mx-auto w-full max-w-[94rem] px-4 pb-12 pt-3 sm:px-6 sm:pt-4 lg:px-8',
+    ? 'w-full min-w-0 px-4 pb-10 pt-4 sm:px-6 sm:pb-14 lg:px-8'
+    : 'mx-auto w-full min-w-0 max-w-[94rem] px-4 pb-12 pt-3 sm:px-6 sm:pt-4 lg:px-8',
 )
 const footerLinkClass = 'text-sm text-muted hover:text-default transition-fast'
 

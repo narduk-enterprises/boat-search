@@ -5,8 +5,21 @@ import {
   normalizeBuyerAnswersDraft,
   type BuyerAnswersDraft,
 } from '~~/lib/boatFinder'
+import {
+  firstIncompleteQuestionIndex,
+  getVisibleBoatFinderQuestions,
+  parseBoatFinderQuestionIndexQuery,
+  parseBoatFinderWizardStepQuery,
+  summarizeOptionalIncomplete,
+  type BoatFinderStepSectionId,
+} from '~~/app/utils/boatFinderQuestions'
 
-definePageMeta({ middleware: ['auth'] })
+definePageMeta({
+  middleware: ['auth'],
+  // Auth + Nuxt UI (UPage / UPageSection / app.config slot merges) can disagree on class strings
+  // between SSR and the client bundle; this page is session-gated and mostly interactive anyway.
+  ssr: false,
+})
 
 useSeo({
   title: 'AI Fishing Boat Finder',
@@ -23,10 +36,8 @@ useWebPageSchema({
   description: 'Adaptive questionnaire that turns a fishing brief into an AI-ranked shortlist.',
 })
 
-const toast = useToast()
 const route = useRoute()
 const { coreAnswers, updatedAt, saveProfile, status } = useBuyerProfile()
-const { createSession } = useRecommendationSessions()
 
 const draftAnswers = ref<BuyerAnswersDraft>(createEmptyBuyerAnswers())
 const submitting = shallowRef(false)
@@ -152,6 +163,7 @@ onBeforeUnmount(() => {
   }
 })
 
+/** Avoid locale/time in SSR output to prevent hydration mismatches with client. */
 const autosaveMessage = computed(() => {
   if (autosaveState.value === 'saving') {
     return 'Saving your buyer brief...'
@@ -162,15 +174,116 @@ const autosaveMessage = computed(() => {
   }
 
   if (autosaveState.value === 'saved' && updatedAt.value) {
-    const formatted = new Intl.DateTimeFormat('en-US', {
-      dateStyle: 'medium',
-      timeStyle: 'short',
-    }).format(new Date(updatedAt.value))
-    return `Saved to your buyer profile at ${formatted}.`
+    return 'Saved to your buyer profile.'
   }
 
   return 'Changes save into your buyer profile automatically as you answer.'
 })
+
+const canGenerateShortlist = computed(() => {
+  const a = draftAnswers.value.facts
+  return (
+    a.primaryUses.length > 0 &&
+    a.budgetMax != null &&
+    (Boolean(a.targetWatersOrRegion.trim()) || Boolean(a.travelRadius))
+  )
+})
+
+const optionalIncomplete = computed(() => summarizeOptionalIncomplete(draftAnswers.value))
+
+const showOptionalResume = computed(
+  () => optionalIncomplete.value.count > 0 && canGenerateShortlist.value,
+)
+
+const activeFinderStep = ref<BoatFinderStepSectionId>('mission')
+const activeFinderQuestionIndex = ref(0)
+
+function routeQueryString(key: string): string | undefined {
+  const v = route.query[key]
+  if (v === undefined || v === null) return undefined
+  if (Array.isArray(v)) return typeof v[0] === 'string' ? v[0] : undefined
+  return typeof v === 'string' ? v : String(v)
+}
+
+function applyRouteToFinderState() {
+  const step = parseBoatFinderWizardStepQuery(route.query.step) ?? 'mission'
+  const qs = getVisibleBoatFinderQuestions(draftAnswers.value, step)
+  const parsed = parseBoatFinderQuestionIndexQuery(route.query.q, qs.length)
+  let qIdx: number
+  if (parsed === null) {
+    qIdx = firstIncompleteQuestionIndex(qs, draftAnswers.value)
+  } else {
+    qIdx = parsed
+  }
+  const maxI = Math.max(0, qs.length - 1)
+  qIdx = Math.min(Math.max(0, qIdx), maxI)
+
+  if (activeFinderStep.value !== step) {
+    activeFinderStep.value = step
+  }
+  if (activeFinderQuestionIndex.value !== qIdx) {
+    activeFinderQuestionIndex.value = qIdx
+  }
+}
+
+function pushFinderQueryToRouter() {
+  if (import.meta.server) return
+  const step = activeFinderStep.value
+  const qs = getVisibleBoatFinderQuestions(draftAnswers.value, step)
+  const maxI = Math.max(0, qs.length - 1)
+  const qZero = Math.min(Math.max(0, activeFinderQuestionIndex.value), maxI)
+  if (qZero !== activeFinderQuestionIndex.value) {
+    activeFinderQuestionIndex.value = qZero
+    return
+  }
+  const oneBased = qZero + 1
+  const stepStr = String(step)
+  const qStr = String(oneBased)
+  if (routeQueryString('step') === stepStr && routeQueryString('q') === qStr) {
+    return
+  }
+  void navigateTo({
+    path: route.path,
+    query: { ...route.query, step: stepStr, q: qStr },
+    replace: true,
+  })
+}
+
+watch(
+  () => [route.query.step, route.query.q] as const,
+  () => {
+    applyRouteToFinderState()
+  },
+  { immediate: true },
+)
+
+watch([activeFinderStep, activeFinderQuestionIndex], () => pushFinderQueryToRouter(), {
+  flush: 'post',
+})
+
+const finderQuestionClampKey = computed(() => {
+  const step = activeFinderStep.value
+  const qs = getVisibleBoatFinderQuestions(draftAnswers.value, step)
+  return {
+    maxI: Math.max(0, qs.length - 1),
+    visibleIds: qs.map((q) => q.id).join(','),
+  }
+})
+
+watch(finderQuestionClampKey, ({ maxI }) => {
+  if (activeFinderQuestionIndex.value > maxI) {
+    activeFinderQuestionIndex.value = maxI
+  }
+})
+
+function continueOptionalQuestions() {
+  const id = optionalIncomplete.value.firstSectionId
+  if (id) {
+    activeFinderStep.value = id
+    const qs = getVisibleBoatFinderQuestions(draftAnswers.value, id)
+    activeFinderQuestionIndex.value = firstIncompleteQuestionIndex(qs, draftAnswers.value)
+  }
+}
 
 async function handleSubmit() {
   submitError.value = null
@@ -189,28 +302,15 @@ async function handleSubmit() {
     autosaveTimer = null
   }
 
-  const saved = await persistDraft()
-  if (!saved) {
-    submitError.value = autosaveError.value ?? 'Could not save the latest buyer brief.'
-    return
-  }
-
   submitting.value = true
   try {
-    const response = await createSession()
-    toast.add({
-      title: 'Shortlist ready',
-      description: 'Your buyer brief has been matched against the current inventory.',
-      color: 'success',
-    })
-    await navigateTo({
-      path: '/search',
-      query: { sessionId: String(response.session.id) },
-    })
-  } catch (error: unknown) {
-    const err = error as { data?: { statusMessage?: string }; message?: string }
-    submitError.value =
-      err.data?.statusMessage || err.message || 'Could not generate recommendations.'
+    const saved = await persistDraft({ force: true })
+    if (!saved) {
+      submitError.value = autosaveError.value ?? 'Could not save the latest buyer brief.'
+      return
+    }
+
+    await navigateTo('/ai-boat-finder/summary')
   } finally {
     submitting.value = false
   }
@@ -226,88 +326,126 @@ const backPath = computed(() => {
 </script>
 
 <template>
-  <UPage>
-    <UPageSection>
-      <div class="grid gap-6 xl:grid-cols-[1.25fr_0.75fr]">
-        <div class="space-y-5">
-          <div class="space-y-2.5">
-            <UBadge
-              label="Signed-in AI workflow"
-              color="primary"
-              variant="subtle"
-              icon="i-lucide-sparkles"
-            />
-            <h1 class="text-3xl font-bold text-default sm:text-4xl">
-              Tell us the mission, the guardrails, and the real-life baggage.
+  <UPage class="min-w-0" :ui="{ root: 'min-w-0', center: 'min-w-0' }">
+    <UPageSection
+      class="pb-20"
+      :ui="{
+        root: 'relative isolate min-w-0',
+        container:
+          'min-w-0 w-full flex flex-col lg:grid gap-6 py-8 sm:gap-10 sm:py-10 lg:gap-12 lg:py-12',
+      }"
+    >
+      <div
+        class="mx-auto w-full min-w-0 max-w-6xl space-y-8"
+        data-testid="boat-finder-page-shell"
+      >
+        <div
+          class="flex flex-col gap-6 border-b border-default pb-6 sm:flex-row sm:items-start sm:justify-between"
+        >
+          <div class="max-w-2xl space-y-3">
+            <div class="flex flex-wrap items-center gap-2">
+              <UBadge
+                label="AI boat finder"
+                color="primary"
+                variant="subtle"
+                icon="i-lucide-sparkles"
+              />
+              <UBadge
+                v-if="profileHydrated"
+                :label="
+                  autosaveState === 'saving'
+                    ? 'Saving…'
+                    : autosaveState === 'error'
+                      ? 'Save issue'
+                      : 'Draft synced'
+                "
+                :color="autosaveState === 'error' ? 'warning' : autosaveState === 'saving' ? 'neutral' : 'success'"
+                variant="soft"
+                :icon="
+                  autosaveState === 'saving'
+                    ? 'i-lucide-loader-2'
+                    : autosaveState === 'error'
+                      ? 'i-lucide-triangle-alert'
+                      : 'i-lucide-cloud-check'
+                "
+                :class="autosaveState === 'saving' ? 'animate-pulse' : ''"
+              />
+            </div>
+            <h1 class="text-2xl font-bold tracking-tight text-default sm:text-3xl">
+              Turn how you fish into a ranked shortlist
             </h1>
-            <p class="max-w-3xl text-base text-muted sm:text-lg">
-              Build one honest buyer brief on a single page, let it autosave while you work, and
-              then have AI rank the boats that actually deserve your time.
+            <p class="text-base leading-relaxed text-muted">
+              Answer in short steps. We save as you go. When mission, budget, and geography are set,
+              generate matches against live inventory — then refine optional details anytime.
             </p>
           </div>
+          <div class="flex shrink-0 flex-wrap gap-2 sm:justify-end">
+            <UButton
+              :to="backPath"
+              label="Exit"
+              color="neutral"
+              variant="ghost"
+              icon="i-lucide-arrow-left"
+            />
+            <UButton
+              to="/account/profile"
+              label="Buyer profile"
+              color="neutral"
+              variant="soft"
+              icon="i-lucide-user-round"
+            />
+          </div>
+        </div>
 
+        <div v-if="showOptionalResume" class="space-y-3" data-testid="boat-finder-optional-resume">
+          <UAlert
+            color="info"
+            variant="subtle"
+            title="Optional details still open"
+            :description="`You can generate a shortlist now and still fill in ${optionalIncomplete.count} optional question${optionalIncomplete.count === 1 ? '' : 's'} later to sharpen results.`"
+            class="border-default"
+          />
+          <UButton
+            v-if="optionalIncomplete.firstSectionId"
+            label="Jump to next optional section"
+            color="primary"
+            variant="soft"
+            size="sm"
+            data-testid="boat-finder-continue-optional"
+            @click="continueOptionalQuestions"
+          />
+        </div>
+
+        <ClientOnly>
+          <template #fallback>
+            <div
+              class="flex items-center gap-3 rounded-2xl border border-default bg-elevated px-5 py-8"
+              data-testid="boat-finder-loading"
+            >
+              <UIcon name="i-lucide-loader-2" class="size-5 animate-spin text-muted" />
+              <span class="text-sm text-muted">Loading your saved buyer brief…</span>
+            </div>
+          </template>
           <div
             v-if="status === 'pending'"
-            class="flex items-center gap-3 rounded-xl bg-muted px-4 py-3"
+            class="flex items-center gap-3 rounded-2xl border border-default bg-elevated px-5 py-8"
           >
-            <UIcon name="i-lucide-loader-2" class="animate-spin text-muted" />
+            <UIcon name="i-lucide-loader-2" class="size-5 animate-spin text-muted" />
             <span class="text-sm text-muted">Loading your saved buyer brief…</span>
           </div>
-
           <BoatFinderWizard
             v-else
-            v-model="draftAnswers"
+            v-model:answers="draftAnswers"
+            v-model:active-section-id="activeFinderStep"
+            v-model:active-question-index="activeFinderQuestionIndex"
             :submitting="submitting"
             :error="submitError"
             :autosave-state="autosaveState"
             :autosave-message="autosaveMessage"
-            submit-label="Generate shortlist"
+            submit-label="Finish up now & generate shortlist"
             @submit="handleSubmit"
           />
-        </div>
-
-        <div class="space-y-4 xl:sticky xl:top-24">
-          <UCard class="card-base border-default" :ui="{ body: 'p-4 space-y-4' }">
-            <div class="flex items-start justify-between gap-3">
-              <div class="space-y-1">
-                <h2 class="text-lg font-semibold text-default">Workflow summary</h2>
-                <p class="text-sm text-muted">
-                  One page. Autosaved profile. One shortlist grounded in the current market.
-                </p>
-              </div>
-              <UBadge label="Autosaved" color="primary" variant="soft" icon="i-lucide-save" />
-            </div>
-
-            <div class="grid gap-2 text-sm text-muted">
-              <div class="rounded-xl bg-muted px-3 py-2">
-                1. Answer everything on one page without losing your place.
-              </div>
-              <div class="rounded-xl bg-muted px-3 py-2">
-                2. Save the buyer brief automatically while you work.
-              </div>
-              <div class="rounded-xl bg-muted px-3 py-2">
-                3. Generate a linked shortlist with real boats to pursue and avoid.
-              </div>
-            </div>
-          </UCard>
-
-          <UCard class="card-base border-default" :ui="{ body: 'p-4 space-y-3' }">
-            <h2 class="text-lg font-semibold text-default">Your saved profile stays current</h2>
-            <p class="text-sm text-muted">
-              This page edits the core buyer profile directly, so the next shortlist starts from the
-              latest answers you already worked through.
-            </p>
-            <div class="flex flex-wrap gap-2">
-              <UButton
-                to="/account/profile"
-                label="Open saved profile"
-                color="neutral"
-                variant="soft"
-              />
-              <UButton :to="backPath" label="Back" color="neutral" variant="ghost" />
-            </div>
-          </UCard>
-        </div>
+        </ClientOnly>
       </div>
     </UPageSection>
   </UPage>

@@ -107,13 +107,16 @@ describe('boat recommendation prompt packaging', () => {
   it('keeps hard constraints, soft preferences, reflective context, and uncertainties separated', () => {
     const answers = createEmptyBuyerAnswers()
     answers.facts.primaryUses = ['Mixed-use sandbar and cruising', 'Nearshore family fishing']
-    answers.facts.targetWatersOrRegion = '30A and Destin'
+    answers.facts.targetWatersOrRegion = 'Northern Gulf (AL / MS / FL panhandle)'
     answers.facts.travelRadius = 'Half-day drive'
     answers.facts.budgetMax = 475000
     answers.facts.familyUsage = ['Needs to win over a spouse or partner too']
     answers.preferences.boatStyles = ['Center console', 'Express']
     answers.preferences.targetSpecies = ['Snapper and grouper']
-    answers.preferences.mustHaves = ['Easy boarding', 'Shade for family']
+    answers.preferences.mustHaves = [
+      'Easy boarding for family or guests',
+      'Strong sun / rain protection on deck',
+    ]
     answers.reflectiveAnswers.partnerAlignment = 'Supportive but cautious'
     answers.reflectiveAnswers.familyFrictionPoints = ['Too little comfort for non-anglers']
     answers.reflectiveAnswers.ownershipStressors = ['Owning something the family resents']
@@ -158,13 +161,15 @@ describe('boat recommendation prompt packaging', () => {
     )
 
     expect(hardSection).toContain('Budget ceiling: $475,000')
-    expect(hardSection).toContain('Target waters: 30A and Destin')
+    expect(hardSection).toContain(
+      'Target waters: Northern Gulf (AL / MS / FL panhandle)',
+    )
     expect(hardSection).not.toContain('Supportive but cautious')
     expect(softSection).toContain('Center console')
-    expect(softSection).toContain('Must-have: Easy boarding')
+    expect(softSection).toContain('Must-have: Easy boarding for family or guests')
     expect(reflectiveSection).toContain('Partner alignment: Supportive but cautious')
     expect(reflectiveSection).toContain(
-      'Open note: If this turns into a high-maintenance guilt machine',
+      'Buyer added context: If this turns into a high-maintenance guilt machine',
     )
     expect(uncertaintySection).toContain('Not sure: Propulsion preference')
     expect(uncertaintySection).toContain('Skipped: Dream vs practical')
@@ -177,11 +182,11 @@ describe('boat recommendation prompt packaging', () => {
   it('caps recommendation prompt candidates at 24 after deterministic scoring', () => {
     const answers = createEmptyBuyerAnswers()
     answers.facts.primaryUses = ['Offshore tournament fishing']
-    answers.facts.targetWatersOrRegion = 'Gulf Coast'
+    answers.facts.targetWatersOrRegion = 'Florida Gulf Coast'
     answers.facts.budgetMax = 900000
     answers.preferences.boatStyles = ['Convertible / sportfish']
     answers.preferences.targetSpecies = ['Billfish']
-    answers.preferences.mustHaves = ['Tower visibility']
+    answers.preferences.mustHaves = ['Tower or upper station']
 
     const parsedAnswers = buyerAnswersSchema.parse(answers)
     const profile = buildProfileFromAnswers(parsedAnswers)
@@ -212,7 +217,7 @@ describe('boat recommendation prompt packaging', () => {
   it('keeps reflective answers out of derived filters for uncertain buyers', () => {
     const answers = createEmptyBuyerAnswers()
     answers.facts.primaryUses = ['Weekend offshore trips']
-    answers.facts.targetWatersOrRegion = 'Galveston'
+    answers.facts.targetWatersOrRegion = 'Western Gulf (TX / LA)'
     answers.facts.travelRadius = 'Anywhere on the Gulf'
     answers.facts.budgetMax = 325000
     answers.preferences.targetSpecies = ['Tuna']
@@ -230,7 +235,7 @@ describe('boat recommendation prompt packaging', () => {
     const filters = deriveRecommendationFilters(profile)
 
     expect(filters.budgetMax).toBe(325000)
-    expect(filters.location).toBe('Galveston')
+    expect(filters.location).toBe('Western Gulf (TX / LA)')
     expect(filters.keywords).toContain('Weekend offshore trips')
     expect(filters.keywords).toContain('Tuna')
     expect(filters.keywords).not.toContain('Needs clear justification')
@@ -241,7 +246,7 @@ describe('boat recommendation prompt packaging', () => {
   it('builds fit-summary prompts with reflective context in tone only, not structured filters', () => {
     const answers = createEmptyBuyerAnswers()
     answers.facts.primaryUses = ['Nearshore family fishing']
-    answers.facts.targetWatersOrRegion = 'Charleston'
+    answers.facts.targetWatersOrRegion = 'Carolinas / Mid-Atlantic'
     answers.facts.budgetMax = 280000
     answers.preferences.boatStyles = ['Center console']
     answers.preferences.ownershipPriorities = ['Family comfort', 'Easy maintenance']
@@ -280,9 +285,9 @@ describe('boat recommendation prompt packaging', () => {
 
     expect(reflectiveSection).toContain('This will create tension if the boat is wrong')
     expect(reflectiveSection).toContain(
-      'Open note: This has to feel easy enough that we actually use it.',
+      'Buyer added context: This has to feel easy enough that we actually use it.',
     )
-    expect(filterSection).toContain('"location": "Charleston"')
+    expect(filterSection).toContain('"location": "Carolinas / Mid-Atlantic"')
     expect(filterSection).not.toContain('This will create tension if the boat is wrong')
     expect(payload.userPrompt).toContain('"boatId": 202')
   })

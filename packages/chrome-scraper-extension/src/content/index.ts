@@ -4,6 +4,7 @@ import {
   extractDetailPageDocument,
   extractSearchPageDocument,
 } from './analyzer'
+import { readImageSource } from './imageCandidates'
 import type {
   BackgroundMessage,
   ContentMessage,
@@ -269,29 +270,6 @@ function queryRelativeMatches(root: Element, selector: string) {
 function isVisible(element: Element) {
   const rect = element.getBoundingClientRect()
   return rect.width > 0 && rect.height > 0
-}
-
-function readFirstSrcsetUrl(value: string | null) {
-  return (
-    value
-      ?.split(',')
-      .map((entry) => entry.trim().split(/\s+/)[0] || '')
-      .find(Boolean) || ''
-  )
-}
-
-function readImageSource(target: HTMLImageElement) {
-  return (
-    target.currentSrc ||
-    target.src ||
-    target.getAttribute('data-src') ||
-    target.getAttribute('data-lazy-src') ||
-    target.getAttribute('data-original') ||
-    target.getAttribute('data-zoom-image') ||
-    readFirstSrcsetUrl(target.getAttribute('data-srcset')) ||
-    readFirstSrcsetUrl(target.getAttribute('srcset')) ||
-    ''
-  )
 }
 
 function formatFieldKey(key: ScraperFieldRule['key']) {

@@ -6,10 +6,11 @@
   "scripts": {
     "build": "nuxt build",
     "db:ready": "pnpm run db:migrate && pnpm run db:seed",
-    "dev": "(doppler run -- nuxt dev || nuxt dev)",
+    "dev": "(doppler run --config dev -- nuxt dev || (echo >&2 'Doppler failed; starting nuxt without injected secrets. Check: doppler login, repo-root doppler.yaml, doppler setup --project boat-search --config dev'; nuxt dev))",
     "quality": "echo 'Turbo dependsOn handles lint + typecheck + format:check'",
     "db:migrate": "bash ../../tools/db-migrate.sh boat-search-db --local --dir node_modules/@narduk-enterprises/narduk-nuxt-template-layer/drizzle --dir drizzle",
     "db:seed": "wrangler d1 execute boat-search-db --local --file=node_modules/@narduk-enterprises/narduk-nuxt-template-layer/drizzle/seed.sql",
+    "db:seed:admin": "wrangler d1 execute boat-search-db --local --file=drizzle/seed-local-admin.sql",
     "db:reset": "bash ../../tools/db-migrate.sh boat-search-db --local --dir node_modules/@narduk-enterprises/narduk-nuxt-template-layer/drizzle --dir drizzle --reset && pnpm run db:seed",
     "db:studio": "drizzle-kit studio",
     "generate": "nuxt generate",

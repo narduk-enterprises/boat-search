@@ -229,7 +229,7 @@ const scenarios: Scenario[] = [
     setup: () => {
       const answers = createEmptyBuyerAnswers()
       answers.facts.primaryUses = ['Offshore tournament fishing']
-      answers.facts.targetWatersOrRegion = 'Florida'
+      answers.facts.targetWatersOrRegion = 'Florida Gulf Coast'
       answers.facts.budgetMax = 1500000
       answers.facts.lengthMin = 40
       answers.facts.lengthMax = 70
@@ -241,7 +241,10 @@ const scenarios: Scenario[] = [
         'Cockpit fishability',
         'Range and ride',
       ]
-      answers.preferences.mustHaves = ['Tower visibility', 'Diesel inboards']
+      answers.preferences.mustHaves = [
+        'Tower or upper station',
+        'Twin diesels or strong twin outboards',
+      ]
       answers.reflectiveAnswers.dreamVsPractical = 'Mostly a practical fishing tool'
       answers.openContextNote =
         'This is a serious fishing platform, not a cocktail boat. I care most about fishability and offshore confidence.'
@@ -253,14 +256,17 @@ const scenarios: Scenario[] = [
     setup: () => {
       const answers = createEmptyBuyerAnswers()
       answers.facts.primaryUses = ['Nearshore family fishing', 'Mixed-use sandbar and cruising']
-      answers.facts.targetWatersOrRegion = 'Alabama'
+      answers.facts.targetWatersOrRegion = 'Northern Gulf (AL / MS / FL panhandle)'
       answers.facts.budgetMax = 500000
       answers.facts.lengthMin = 28
       answers.facts.lengthMax = 42
       answers.facts.familyUsage = ['Needs to win over a spouse or partner too']
       answers.preferences.boatStyles = ['Center console', 'Express']
       answers.preferences.ownershipPriorities = ['Family comfort', 'Easy maintenance']
-      answers.preferences.mustHaves = ['Easy boarding', 'Shade for family']
+      answers.preferences.mustHaves = [
+        'Easy boarding for family or guests',
+        'Strong sun / rain protection on deck',
+      ]
       answers.reflectiveAnswers.partnerAlignment = 'Supportive but cautious'
       answers.reflectiveAnswers.familyFrictionPoints = ['Too little comfort for non-anglers']
       answers.reflectiveAnswers.ownershipStressors = ['Owning something the family resents']
@@ -274,7 +280,7 @@ const scenarios: Scenario[] = [
     setup: () => {
       const answers = createEmptyBuyerAnswers()
       answers.facts.primaryUses = ['Weekend offshore trips']
-      answers.facts.targetWatersOrRegion = 'Texas'
+      answers.facts.targetWatersOrRegion = 'Western Gulf (TX / LA)'
       answers.facts.travelRadius = 'Anywhere on the Gulf'
       answers.facts.budgetMax = 350000
       answers.facts.lengthMin = 30

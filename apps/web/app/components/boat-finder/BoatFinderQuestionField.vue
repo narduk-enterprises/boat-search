@@ -1,11 +1,25 @@
 <script setup lang="ts">
-import { listToTextarea, textareaToList, type BuyerAnswersDraft } from '~~/lib/boatFinder'
-import type { BoatFinderQuestion, BoatFinderSectionId } from '~~/app/utils/boatFinderQuestions'
+import type { BuyerAnswersDraft } from '~~/lib/boatFinder'
+import {
+  BOAT_FINDER_BUDGET_CUSTOM_ID,
+  BOAT_FINDER_BUDGET_PRESETS,
+  matchBudgetPreset,
+  type BoatFinderBudgetPreset,
+  type BoatFinderQuestion,
+  type BoatFinderSectionId,
+} from '~~/app/utils/boatFinderQuestions'
 
-const props = defineProps<{
-  question: BoatFinderQuestion
-  section?: BoatFinderSectionId
-}>()
+type NumberRangeQuestion = Extract<BoatFinderQuestion, { kind: 'number_range' }>
+
+const props = withDefaults(
+  defineProps<{
+    question: BoatFinderQuestion
+    section?: BoatFinderSectionId
+    /** Flat layout inside wizard panel (no nested card chrome). */
+    embedded?: boolean
+  }>(),
+  { embedded: false, section: undefined },
+)
 
 const answers = defineModel<BuyerAnswersDraft>({ required: true })
 
@@ -73,11 +87,6 @@ function clearQuestionValue() {
     return
   }
 
-  if (props.question.id === 'mustHaves' || props.question.id === 'dealBreakers') {
-    setFieldValue(props.question.path, [])
-    return
-  }
-
   setFieldValue(props.question.path, '')
 }
 
@@ -133,19 +142,11 @@ const questionHelpText = computed(() =>
 )
 const textValue = computed({
   get: () => {
-    if (props.question.id === 'mustHaves' || props.question.id === 'dealBreakers') {
-      return listToTextarea((getFieldValue(props.question.path) as string[] | undefined) ?? [])
-    }
-
     const value = getFieldValue(props.question.path)
     return typeof value === 'string' ? value : ''
   },
   set: (value: string) => {
-    if (props.question.id === 'mustHaves' || props.question.id === 'dealBreakers') {
-      setFieldValue(props.question.path, textareaToList(value))
-    } else {
-      setFieldValue(props.question.path, value)
-    }
+    setFieldValue(props.question.path, value)
 
     if (value.trim()) {
       setQuestionState('answered')
@@ -196,10 +197,51 @@ const selectedValue = computed(() => {
   return typeof value === 'string' ? value : ''
 })
 
-const selectedValues = computed(() => {
+const selectedValues = computed((): string[] => {
   const value = getFieldValue(props.question.path)
-  return Array.isArray(value) ? value : []
+  return Array.isArray(value) ? [...value] : []
 })
+
+const activeNumberRangeQuestion = computed((): NumberRangeQuestion | null =>
+  props.question.kind === 'number_range' ? props.question : null,
+)
+
+const isBudgetNumberRange = computed(
+  () => props.question.id === 'budget' && props.question.kind === 'number_range',
+)
+
+const budgetUserPickedCustom = ref(false)
+
+watch(
+  () => props.question.id,
+  (id) => {
+    if (id !== 'budget') {
+      budgetUserPickedCustom.value = false
+    }
+  },
+)
+
+const activeBudgetPresetId = computed(() => {
+  if (!isBudgetNumberRange.value) return BOAT_FINDER_BUDGET_CUSTOM_ID
+  if (budgetUserPickedCustom.value) return BOAT_FINDER_BUDGET_CUSTOM_ID
+  return matchBudgetPreset(rangeMinValue.value, rangeMaxValue.value) ?? BOAT_FINDER_BUDGET_CUSTOM_ID
+})
+
+const showBudgetCustomFields = computed(
+  () => isBudgetNumberRange.value && activeBudgetPresetId.value === BOAT_FINDER_BUDGET_CUSTOM_ID,
+)
+
+function chooseBudgetPreset(p: BoatFinderBudgetPreset) {
+  if (props.question.kind !== 'number_range') return
+  budgetUserPickedCustom.value = false
+  setFieldValue(props.question.minPath, p.min ?? undefined)
+  setFieldValue(props.question.maxPath, p.max)
+  setQuestionState('answered')
+}
+
+function chooseBudgetCustom() {
+  budgetUserPickedCustom.value = true
+}
 
 function stateLabel(state?: string) {
   if (state === 'skipped') return 'Skipped'
@@ -209,38 +251,46 @@ function stateLabel(state?: string) {
 </script>
 
 <template>
-  <UCard class="card-base border-default" :ui="{ body: 'p-4 sm:p-5 space-y-4' }">
-    <div class="flex items-start justify-between gap-3">
-      <div class="space-y-1">
-        <div class="flex flex-wrap items-center gap-2">
-          <h3 class="text-base font-semibold text-default sm:text-lg">
-            {{ props.question.label }}
-          </h3>
-          <UBadge
-            v-if="props.question.required"
-            label="Required"
-            color="primary"
-            variant="subtle"
-            size="sm"
-          />
-          <UBadge
-            v-if="currentState"
-            :label="stateLabel(currentState)"
-            color="neutral"
-            variant="soft"
-            size="sm"
-          />
-        </div>
-        <p class="text-sm text-muted">
-          {{ props.question.description }}
-        </p>
+  <div
+    :class="[
+      'flex flex-col',
+      props.embedded
+        ? 'min-h-0 min-w-0 flex-1 gap-5'
+        : 'card-base gap-4 rounded-xl border border-default p-4 sm:p-5',
+    ]"
+  >
+    <div class="min-w-0 space-y-2">
+      <h3 class="text-base font-semibold text-default sm:text-lg">
+        {{ props.question.label }}
+      </h3>
+      <div class="flex flex-wrap items-center gap-2">
+        <UBadge
+          v-if="props.question.required"
+          label="Required"
+          color="primary"
+          variant="subtle"
+          size="sm"
+          class="shrink-0"
+        />
+        <UBadge
+          v-if="currentState"
+          :label="stateLabel(currentState)"
+          color="neutral"
+          variant="soft"
+          size="sm"
+          class="shrink-0"
+        />
+        <UBadge
+          class="shrink-0 capitalize"
+          :label="props.question.contextRole"
+          :color="props.question.contextRole === 'hard' ? 'primary' : 'neutral'"
+          variant="subtle"
+          size="sm"
+        />
       </div>
-      <UBadge
-        :label="props.question.contextRole"
-        :color="props.question.contextRole === 'hard' ? 'primary' : 'neutral'"
-        variant="subtle"
-        size="sm"
-      />
+      <p class="text-sm leading-relaxed text-muted">
+        {{ props.question.description }}
+      </p>
     </div>
 
     <div v-if="props.question.kind === 'single_select'" class="flex flex-wrap gap-2">
@@ -270,27 +320,82 @@ function stateLabel(state?: string) {
       />
     </div>
 
-    <div v-else-if="props.question.kind === 'number_range'" class="grid gap-4 md:grid-cols-2">
-      <UFormField :label="props.question.minLabel">
+    <div v-else-if="isBudgetNumberRange && activeNumberRangeQuestion" class="space-y-4">
+      <p class="text-sm text-muted">
+        Tap a range that fits, or
+        <span class="font-medium text-default">Custom</span>
+        to enter exact numbers.
+      </p>
+      <div class="flex flex-wrap gap-2">
+        <UButton
+          v-for="p in BOAT_FINDER_BUDGET_PRESETS"
+          :key="p.id"
+          size="lg"
+          class="min-h-11"
+          :label="p.label"
+          :color="activeBudgetPresetId === p.id ? 'primary' : 'neutral'"
+          :variant="activeBudgetPresetId === p.id ? 'solid' : 'soft'"
+          @click="chooseBudgetPreset(p)"
+        />
+        <UButton
+          size="lg"
+          class="min-h-11"
+          label="Custom"
+          icon="i-lucide-pen-line"
+          :color="activeBudgetPresetId === BOAT_FINDER_BUDGET_CUSTOM_ID ? 'primary' : 'neutral'"
+          :variant="activeBudgetPresetId === BOAT_FINDER_BUDGET_CUSTOM_ID ? 'solid' : 'soft'"
+          @click="chooseBudgetCustom"
+        />
+      </div>
+      <div
+        v-show="showBudgetCustomFields"
+        class="grid gap-4 border-t border-default pt-4 md:grid-cols-2"
+      >
+        <UFormField :label="activeNumberRangeQuestion.minLabel">
+          <UInput
+            v-model.number="rangeMinValue"
+            class="w-full"
+            type="number"
+            :placeholder="activeNumberRangeQuestion.minPlaceholder"
+          />
+        </UFormField>
+        <UFormField
+          :label="activeNumberRangeQuestion.maxLabel"
+          :required="activeNumberRangeQuestion.required"
+        >
+          <UInput
+            v-model.number="rangeMaxValue"
+            class="w-full"
+            type="number"
+            :placeholder="activeNumberRangeQuestion.maxPlaceholder"
+          />
+        </UFormField>
+      </div>
+    </div>
+
+    <div
+      v-else-if="props.question.kind === 'number_range' && activeNumberRangeQuestion"
+      class="grid gap-4 md:grid-cols-2"
+    >
+      <UFormField :label="activeNumberRangeQuestion.minLabel">
         <UInput
           v-model.number="rangeMinValue"
           class="w-full"
           type="number"
-          :placeholder="props.question.minPlaceholder"
+          :placeholder="activeNumberRangeQuestion.minPlaceholder"
         />
       </UFormField>
-      <UFormField :label="props.question.maxLabel" :required="props.question.required">
+      <UFormField
+        :label="activeNumberRangeQuestion.maxLabel"
+        :required="activeNumberRangeQuestion.required"
+      >
         <UInput
           v-model.number="rangeMaxValue"
           class="w-full"
           type="number"
-          :placeholder="props.question.maxPlaceholder"
+          :placeholder="activeNumberRangeQuestion.maxPlaceholder"
         />
       </UFormField>
-    </div>
-
-    <div v-else-if="props.question.kind === 'location'">
-      <UInput v-model="textValue" class="w-full" :placeholder="questionPlaceholder" />
     </div>
 
     <div v-else-if="props.question.kind === 'short_text_optional'">
@@ -341,5 +446,5 @@ function stateLabel(state?: string) {
         @click="clearQuestionState"
       />
     </div>
-  </UCard>
+  </div>
 </template>

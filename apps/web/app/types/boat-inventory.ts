@@ -38,6 +38,7 @@ export interface BoatInventoryStats {
 }
 
 export interface BoatInventoryFilters {
+  q: string
   make: string
   location: string
   minPrice: string

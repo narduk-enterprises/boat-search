@@ -68,6 +68,8 @@ export interface ScraperPipelineDraft {
     maxPages: number
     maxItemsPerRun: number
     fetchDetailPages: boolean
+    /** When true, `startUrls` are YachtWorld detail URLs only (no search pagination). */
+    detailBackfillMode: boolean
     fields: ScraperFieldRule[]
   }
 }
@@ -226,7 +228,7 @@ export interface BrowserScrapeSummary {
 }
 
 export interface BrowserScrapeProgress {
-  stage: 'search' | 'detail' | 'upload'
+  stage: 'search' | 'detail' | 'detail_backfill' | 'upload'
   currentUrl: string | null
   pagesVisited: number
   itemsSeen: number

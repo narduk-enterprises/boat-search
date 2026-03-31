@@ -37,6 +37,7 @@ function normalizeSort(value: unknown): BoatInventorySort {
 
 function createEmptyFilters(): BoatInventoryFilters {
   return {
+    q: '',
     make: '',
     location: '',
     minPrice: '',
@@ -48,6 +49,7 @@ function createEmptyFilters(): BoatInventoryFilters {
 
 function routeQueryToFilters(query: Record<string, unknown>): BoatInventoryFilters {
   return {
+    q: normalizeQueryValue(query.q),
     make: normalizeQueryValue(query.make),
     location: normalizeQueryValue(query.location),
     minPrice: normalizeNumericFilter(normalizeQueryValue(query.minPrice)),
@@ -60,6 +62,7 @@ function routeQueryToFilters(query: Record<string, unknown>): BoatInventoryFilte
 function filtersToQuery(filters: BoatInventoryFilters) {
   const query: Record<string, string> = {}
 
+  if (filters.q.trim()) query.q = filters.q.trim()
   if (filters.make.trim()) query.make = filters.make.trim()
   if (filters.location.trim()) query.location = filters.location.trim()
   if (filters.minPrice.trim()) query.minPrice = normalizeNumericFilter(filters.minPrice)
@@ -73,6 +76,11 @@ function filtersToQuery(filters: BoatInventoryFilters) {
 function buildActiveFilterChips(filters: BoatInventoryFilters): BoatInventoryActiveFilterChip[] {
   const chips: BoatInventoryActiveFilterChip[] = []
 
+  if (filters.q) {
+    const display =
+      filters.q.length > 48 ? `${filters.q.slice(0, 45).trimEnd()}…` : filters.q
+    chips.push({ key: 'q', label: 'Search', value: display })
+  }
   if (filters.make) {
     chips.push({ key: 'make', label: 'Make', value: filters.make })
   }

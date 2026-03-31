@@ -31,12 +31,19 @@ const props = withDefaults(
   },
 )
 
+const searchQuery = defineModel<string>('searchQuery', { default: '' })
+
 const emit = defineEmits<{
   clearFilters: []
   removeFilter: [key: BoatInventoryFilterKey]
   changePage: [page: number]
   retry: []
+  submitSearch: []
 }>()
+
+function submitSearchFromField() {
+  emit('submitSearch')
+}
 
 const visiblePages = computed(() => {
   const start = Math.max(1, props.currentPage - 2)
@@ -87,6 +94,24 @@ const emptyMessage = computed(() =>
           />
         </div>
       </div>
+
+      <div class="flex w-full max-w-2xl flex-col gap-2 sm:flex-row sm:items-stretch">
+        <UInput
+          v-model="searchQuery"
+          class="w-full min-w-0 sm:flex-1"
+          placeholder="Search make, model, or keywords…"
+          icon="i-lucide-search"
+          aria-label="Search listings"
+          @keydown.enter.prevent="submitSearchFromField"
+        />
+        <UButton
+          label="Search"
+          icon="i-lucide-search"
+          class="shrink-0 sm:min-w-28"
+          @click="submitSearchFromField"
+        />
+      </div>
+      <p class="text-xs text-dimmed">Press Enter or Search to apply, together with any filters you set in the bar.</p>
 
       <div
         v-if="activeFilterChips.length || hasActiveFilters"

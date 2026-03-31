@@ -55,6 +55,12 @@ body {
   overflow: clip;
 }
 
+/* Flex-1 main defaults to min-width:auto; without min-w-0, wide inner content can force overflow
+   and inconsistent scrollbar layout vs viewport (boat finder shell width flicker). */
+#main-content {
+  min-width: 0;
+}
+
 .app-shell::before {
   content: '';
   position: fixed;

@@ -9,6 +9,7 @@ import {
   buildPresetDraft,
   buildRuntimePresetDraft,
   canAutoApplySitePreset,
+  extractListingIdFromUrl,
   findMatchingSitePreset,
   isDefaultDraft,
   normalizePresetRecord,
@@ -319,7 +320,7 @@ describe('site presets', () => {
     expect(normalized.description).toBeNull()
     expect(normalized.length).toBe('37ft')
     expect(normalized.images).toEqual([
-      'https://images.boatsgroup.com/resize/1/27/11/2015-ocean-yachts-37-express-power-10122711-20260325035117616-1.jpg?w=1028&format=webp',
+      'https://images.boatsgroup.com/resize/1/27/11/2015-ocean-yachts-37-express-power-10122711-20260325035117616-1.jpg?w=1920&format=webp',
     ])
   })
 
@@ -362,7 +363,7 @@ describe('site presets', () => {
 
     expect(normalizedSearch.listingType).toBe('used')
     expect(normalizedSearch.images).toEqual([
-      'https://images.boatsgroup.com/resize/1/41/87/2021-sportsman-open-282-center-console-power-10094187-20260101010101010-1.jpg?w=1028&format=webp',
+      'https://images.boatsgroup.com/resize/1/41/87/2021-sportsman-open-282-center-console-power-10094187-20260101010101010-1.jpg?w=1920&format=webp',
     ])
 
     const normalizedDetail = normalizePresetRecord('yachtworld-search', normalizedSearch, {
@@ -372,7 +373,7 @@ describe('site presets', () => {
 
     expect(normalizedDetail.listingType).toBe('used')
     expect(normalizedDetail.images).toEqual([
-      'https://images.boatsgroup.com/resize/1/41/87/2021-sportsman-open-282-center-console-power-10094187-20260101010101010-1.jpg?w=1028&format=webp',
+      'https://images.boatsgroup.com/resize/1/41/87/2021-sportsman-open-282-center-console-power-10094187-20260101010101010-1.jpg?w=1920&format=webp',
     ])
   })
 
@@ -553,5 +554,14 @@ describe('site presets', () => {
     })
 
     expect(draft.config.maxPages).toBe(DEFAULT_BROWSER_SCRAPE_MAX_PAGES)
+  })
+
+  it('extracts listing id from YachtWorld-style URLs', () => {
+    expect(
+      extractListingIdFromUrl(
+        'https://www.yachtworld.com/yacht/2021-pathfinder-2500-hybrid-10019034/',
+      ),
+    ).toBe('10019034')
+    expect(extractListingIdFromUrl(null)).toBeNull()
   })
 })

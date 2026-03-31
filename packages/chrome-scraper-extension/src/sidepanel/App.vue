@@ -150,6 +150,9 @@ const runNote = computed(() => {
     if (stoppingRemoteRun.value) {
       return 'Stop requested. The scraper will halt after the current page step finishes.'
     }
+    if (browserRunProgress.value.stage === 'detail_backfill') {
+      return `Detail backfill: ${browserRunProgress.value.detailPagesCompleted}/${browserRunProgress.value.detailPagesTotal} URLs, ${browserRunProgress.value.recordsPersisted} records written so far.`
+    }
     const skippedSuffix =
       browserRunProgress.value.skippedExisting > 0
         ? ` and ${browserRunProgress.value.skippedExisting} existing skipped`
@@ -213,6 +216,29 @@ function formatDebugTime(value: string) {
     })
   } catch {
     return value
+  }
+}
+
+const yachtWorldPresetReady = computed(
+  () =>
+    session.value.preset.appliedPresetId === 'yachtworld-search' ||
+    matchedPreset.value?.id === 'yachtworld-search',
+)
+
+const detailBackfillStartUrlsText = computed({
+  get: () => session.value.draft.config.startUrls.join('\n'),
+  set: (text: string) => {
+    session.value.draft.config.startUrls = text
+      .split('\n')
+      .map((line) => line.trim())
+      .filter(Boolean)
+  },
+})
+
+function onDetailBackfillToggle(checked: boolean) {
+  session.value.draft.config.detailBackfillMode = checked
+  if (checked) {
+    session.value.draft.config.fetchDetailPages = true
   }
 }
 
@@ -630,6 +656,34 @@ onMounted(async () => {
       </p>
 
       <div
+        v-if="yachtWorldPresetReady"
+        class="detail-backfill-panel"
+        data-testid="yachtworld-detail-backfill"
+      >
+        <label class="detail-backfill-panel__toggle">
+          <input
+            type="checkbox"
+            :checked="session.draft.config.detailBackfillMode"
+            @change="onDetailBackfillToggle(($event.target as HTMLInputElement).checked)"
+          >
+          <span>YachtWorld detail URL backfill</span>
+        </label>
+        <p class="context-note">
+          Skip search pages: each line below is opened as a listing detail page (max
+          {{ session.draft.config.maxItemsPerRun }} per run). Syncs with the Boat Search pipeline
+          draft.
+        </p>
+        <textarea
+          v-if="session.draft.config.detailBackfillMode"
+          v-model="detailBackfillStartUrlsText"
+          class="detail-backfill-panel__urls"
+          rows="6"
+          placeholder="https://www.yachtworld.com/yacht/2024-example-boat-1234567/"
+          aria-label="YachtWorld detail URLs, one per line"
+        />
+      </div>
+
+      <div
         v-if="browserRunProgress"
         class="remote-run-card"
         data-testid="browser-scrape-progress"
@@ -640,7 +694,9 @@ onMounted(async () => {
             <strong>{{ browserRunProgress.stage }}</strong>
           </div>
           <div>
-            <span>Search pages</span>
+            <span>{{
+              browserRunProgress.stage === 'detail_backfill' ? 'Search pages (unused)' : 'Search pages'
+            }}</span>
             <strong>{{ browserRunProgress.pagesVisited }}</strong>
           </div>
           <div>
@@ -1181,6 +1237,35 @@ button:disabled {
 .scrape-debug-list__meta code {
   color: #991b1b;
   font-size: 0.72rem;
+}
+
+.detail-backfill-panel {
+  display: grid;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+  padding: 0.75rem 1rem;
+  border-radius: 0.85rem;
+  border: 1px solid rgba(59, 130, 246, 0.25);
+  background: rgba(239, 246, 255, 0.6);
+}
+
+.detail-backfill-panel__toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.detail-backfill-panel__urls {
+  width: 100%;
+  box-sizing: border-box;
+  font-family: ui-monospace, monospace;
+  font-size: 0.78rem;
+  border-radius: 0.65rem;
+  border: 1px solid rgba(148, 163, 184, 0.5);
+  padding: 0.5rem 0.65rem;
+  resize: vertical;
 }
 
 code {

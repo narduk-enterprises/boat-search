@@ -23,6 +23,7 @@ import {
   getSitePresetLabel,
   isTrustedPresetId,
   normalizePresetRecord,
+  extractListingIdFromUrl,
 } from '@/shared/sitePresets'
 import {
   consumeRefreshableBoatIdentity,
@@ -439,6 +440,10 @@ function normalizeDraft(draft: unknown, fallback: ScraperPipelineDraft): Scraper
         typeof rawConfig.fetchDetailPages === 'boolean'
           ? rawConfig.fetchDetailPages
           : fallback.config.fetchDetailPages,
+      detailBackfillMode:
+        typeof rawConfig.detailBackfillMode === 'boolean'
+          ? rawConfig.detailBackfillMode
+          : fallback.config.detailBackfillMode,
       fields: Array.isArray(rawConfig.fields)
         ? rawConfig.fields.map((field: unknown, index: number) =>
             normalizeField(field, fallback.config.fields[index] ?? fallback.config.fields[0]),
@@ -1885,6 +1890,35 @@ export function useExtensionSession() {
     }
   }
 
+  function buildYachtWorldDetailBackfillSeedRecord(
+    draft: ScraperPipelineDraft,
+    detailUrl: string,
+  ): BrowserScrapeRecord {
+    return {
+      source: draft.boatSource,
+      url: detailUrl,
+      listingId: extractListingIdFromUrl(detailUrl),
+      title: null,
+      make: null,
+      model: null,
+      year: null,
+      length: null,
+      price: null,
+      currency: null,
+      location: null,
+      city: null,
+      state: null,
+      country: null,
+      description: null,
+      sellerType: null,
+      listingType: null,
+      images: [],
+      fullText: null,
+      rawFields: {},
+      warnings: [],
+    }
+  }
+
   function upsertBrowserRunRecord(records: BrowserScrapeRecord[], record: BrowserScrapeRecord) {
     const identity = buildBrowserRecordIdentity(record)
     const existingIndex = records.findIndex(
@@ -2579,6 +2613,198 @@ export function useExtensionSession() {
     const crawlTab = await getVisibleCrawlTab(draft.config.startUrls[0]!)
     if (!crawlTab.id) {
       throw new Error('Could not open the active scraper tab.')
+    }
+
+    if (draft.config.detailBackfillMode) {
+      const detailQueue = draft.config.startUrls.slice(0, draft.config.maxItemsPerRun)
+      const validDetailUrls: string[] = []
+      for (const url of detailQueue) {
+        if (!isAllowedDomainUrl(url, allowedDomains)) {
+          searchWarnings.push(`Blocked cross-domain detail backfill URL: ${url}`)
+          continue
+        }
+        validDetailUrls.push(url)
+      }
+
+      if (!validDetailUrls.length) {
+        throw new Error(
+          'Detail backfill has no allowed URLs. Check allowed domains and YachtWorld detail links.',
+        )
+      }
+
+      itemsSeen = validDetailUrls.length
+      detailPagesTotal = validDetailUrls.length
+      visitedUrls.push(...validDetailUrls)
+
+      for (let idx = 0; idx < validDetailUrls.length; idx++) {
+        throwIfBrowserRunStopped(controller)
+        const detailUrl = validDetailUrls[idx]!
+        const seedRecord = buildYachtWorldDetailBackfillSeedRecord(draft, detailUrl)
+        searchRecords.push(seedRecord)
+        const recordIndex = searchRecords.length - 1
+        const recordIdentity = buildBrowserRecordIdentity(seedRecord)
+        listingDuplicateDecisions.set(recordIdentity, 'new')
+        listingPageNumbers.set(recordIdentity, idx + 1)
+
+        await onListingAudit(
+          buildListingAuditFromRecord(runId, seedRecord, {
+            pageNumber: idx + 1,
+            duplicateDecision: 'new',
+            detailStatus: 'queued',
+            detailAttempts: 0,
+            retryQueued: false,
+            auditJson: {
+              stage: 'detail_backfill',
+              detailUrl,
+            },
+          }),
+        )
+
+        browserRunProgress.value = {
+          stage: 'detail_backfill',
+          currentUrl: detailUrl,
+          pagesVisited,
+          itemsSeen,
+          itemsExtracted: searchRecords.length,
+          skippedExisting: runState.skippedExisting,
+          detailPagesCompleted,
+          detailPagesTotal,
+          recordsPersisted: runState.recordsPersisted,
+          imagesUploaded: runState.imagesUploaded,
+        }
+        statusMessage.value = `Detail backfill ${detailPagesCompleted + 1} of ${detailPagesTotal}: ${detailUrl}`
+        await emitBrowserRunProgress()
+
+        const recordToPersist = await scrapeDetailPage(crawlTab.id, seedRecord, {
+          pass: 'initial',
+        })
+        searchRecords.splice(recordIndex, 1, recordToPersist)
+
+        const retryQueued = detailRetryQueue.includes(buildBrowserRecordIdentity(recordToPersist))
+
+        detailPagesCompleted += 1
+        browserRunProgress.value = {
+          stage: 'detail_backfill',
+          currentUrl: detailUrl,
+          pagesVisited,
+          itemsSeen,
+          itemsExtracted: searchRecords.length,
+          skippedExisting: runState.skippedExisting,
+          detailPagesCompleted,
+          detailPagesTotal,
+          recordsPersisted: runState.recordsPersisted,
+          imagesUploaded: runState.imagesUploaded,
+        }
+
+        await persistBrowserRunRecord(
+          recordToPersist,
+          buildListingAuditFromRecord(runId, recordToPersist, {
+            pageNumber: idx + 1,
+            duplicateDecision: 'new',
+            detailStatus: retryQueued ? 'retry_queued' : 'scraped',
+            detailAttempts: 1,
+            retryQueued,
+            auditJson: {
+              stage: 'detail_backfill',
+              followPageAttempted: draft.config.fields.some(
+                (field) => field.scope === 'detail-follow',
+              ),
+            },
+          }),
+        )
+      }
+
+      if (detailRetryQueue.length) {
+        detailPagesTotal += detailRetryQueue.length
+
+        for (const identity of detailRetryQueue) {
+          throwIfBrowserRunStopped(controller)
+          const recordIndex = searchRecords.findIndex(
+            (record) => buildBrowserRecordIdentity(record) === identity,
+          )
+          const record = recordIndex >= 0 ? searchRecords[recordIndex] : null
+
+          if (!record?.url) {
+            continue
+          }
+          const duplicateDecision = listingDuplicateDecisions.get(identity) || 'new'
+          const discoveredOnPage = listingPageNumbers.get(identity) ?? null
+
+          browserRunProgress.value = {
+            stage: 'detail_backfill',
+            currentUrl: record.url,
+            pagesVisited,
+            itemsSeen,
+            itemsExtracted: searchRecords.length,
+            skippedExisting: runState.skippedExisting,
+            detailPagesCompleted,
+            detailPagesTotal,
+            recordsPersisted: runState.recordsPersisted,
+            imagesUploaded: runState.imagesUploaded,
+          }
+          statusMessage.value = `Retrying weak detail backfill ${detailPagesCompleted + 1} of ${detailPagesTotal}: ${record.url}`
+          await emitBrowserRunProgress({
+            eventType: 'detail_retry_started',
+            message: `Retrying weak detail page for ${record.url}`,
+            pageNumber: discoveredOnPage,
+            searchUrl: record.url,
+          })
+
+          const refreshedRecord = await scrapeDetailPage(crawlTab.id, record, {
+            pass: 'retry',
+          })
+          searchRecords.splice(recordIndex, 1, refreshedRecord)
+
+          if (shouldRetryWeakDetailRecord(refreshedRecord)) {
+            searchWarnings.push(`Detail retry still produced a weak record for ${record.url}.`)
+          }
+
+          detailPagesCompleted += 1
+          browserRunProgress.value = {
+            stage: 'detail_backfill',
+            currentUrl: record.url,
+            pagesVisited,
+            itemsSeen,
+            itemsExtracted: searchRecords.length,
+            skippedExisting: runState.skippedExisting,
+            detailPagesCompleted,
+            detailPagesTotal,
+            recordsPersisted: runState.recordsPersisted,
+            imagesUploaded: runState.imagesUploaded,
+          }
+          await persistBrowserRunRecord(
+            refreshedRecord,
+            buildListingAuditFromRecord(runId, refreshedRecord, {
+              pageNumber: discoveredOnPage,
+              duplicateDecision,
+              detailStatus: 'retry_scraped',
+              detailAttempts: 2,
+              retryQueued: false,
+              auditJson: {
+                stage: 'detail_backfill-retry',
+                pageUrl: record.url,
+              },
+            }),
+          )
+          await emitBrowserRunProgress({
+            eventType: 'detail_retry_finished',
+            message: `Finished retrying detail page for ${record.url}`,
+            pageNumber: discoveredOnPage,
+            searchUrl: record.url,
+          })
+        }
+      }
+
+      return {
+        summary: buildBrowserScrapeSummarySnapshot(
+          searchWarnings,
+          searchRecords,
+          visitedUrls,
+          pagesVisited,
+          itemsSeen,
+          runState.skippedExisting,
+        ),
+      }
     }
 
     for (const startUrl of draft.config.startUrls) {

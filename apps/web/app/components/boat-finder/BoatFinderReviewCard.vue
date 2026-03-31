@@ -6,12 +6,20 @@ const props = withDefaults(
     context: BuyerContext
     saveOverrides?: boolean
     allowSaveToggle?: boolean
+    /** Dense rail: summary + expandable details (wizard sidebar). */
+    compact?: boolean
+    /** Strip card chrome when nested inside another surface (e.g. wizard rail). */
+    embedded?: boolean
   }>(),
   {
     saveOverrides: false,
     allowSaveToggle: true,
+    compact: false,
+    embedded: false,
   },
 )
+
+const detailsOpen = ref(false)
 
 const emit = defineEmits<{
   'update:saveOverrides': [value: boolean]
@@ -23,27 +31,60 @@ function handleSaveOverridesUpdate(value: boolean | string) {
 </script>
 
 <template>
-  <UCard class="card-base border-default" :ui="{ body: 'p-4 sm:p-5 space-y-5' }">
+  <UCard
+    class="card-base border-default"
+    :class="[props.embedded && 'border-0 bg-transparent shadow-none ring-0']"
+    :ui="{ body: props.compact ? 'p-0 space-y-3 sm:p-0' : 'p-4 sm:p-5 space-y-5' }"
+  >
     <div class="space-y-2">
       <div class="flex flex-wrap items-center gap-2">
-        <UBadge label="What we heard" color="primary" variant="subtle" icon="i-lucide-brain" />
-        <UBadge label="Review before generate" color="neutral" variant="soft" />
+        <UBadge
+          :label="props.compact ? 'Live brief' : 'What we heard'"
+          color="primary"
+          variant="subtle"
+          :icon="props.compact ? 'i-lucide-clipboard-list' : 'i-lucide-brain'"
+        />
+        <UBadge
+          v-if="!props.compact"
+          label="Review before generate"
+          color="neutral"
+          variant="soft"
+        />
       </div>
-      <h3 class="text-lg font-semibold text-default">Pressure-test the brief before we rank.</h3>
-      <p class="text-sm text-muted">
+      <h3 class="text-base font-semibold text-default sm:text-lg">
+        {{
+          props.compact
+            ? 'How we read your answers so far'
+            : 'Pressure-test the brief before we rank.'
+        }}
+      </h3>
+      <p v-if="!props.compact" class="text-sm text-muted">
         Hard guardrails drive filtering. Softer preferences and life-fit context shape ranking and
         commentary.
       </p>
     </div>
 
-    <div class="space-y-3">
+    <div class="space-y-2">
       <p class="text-xs font-semibold uppercase tracking-[0.18em] text-dimmed">Buyer brief</p>
-      <p class="rounded-2xl bg-muted px-4 py-3 text-sm text-default">
+      <p
+        class="rounded-xl bg-muted px-3 py-2.5 text-sm text-default"
+        :class="props.compact ? 'line-clamp-4' : ''"
+      >
         {{ props.context.buyerBrief }}
       </p>
+      <UButton
+        v-if="props.compact"
+        label="Show hard / soft / life-fit detail"
+        color="neutral"
+        variant="ghost"
+        size="xs"
+        :trailing-icon="detailsOpen ? 'i-lucide-chevron-up' : 'i-lucide-chevron-down'"
+        class="transition-fast -mx-1"
+        @click="detailsOpen = !detailsOpen"
+      />
     </div>
 
-    <div class="grid gap-4 lg:grid-cols-3">
+    <div v-show="!props.compact || detailsOpen" class="grid gap-4 lg:grid-cols-3">
       <div class="space-y-2">
         <p class="text-xs font-semibold uppercase tracking-[0.18em] text-dimmed">Hard guardrails</p>
         <div class="flex flex-wrap gap-2">
@@ -120,7 +161,7 @@ function handleSaveOverridesUpdate(value: boolean | string) {
     </div>
 
     <div
-      v-if="props.allowSaveToggle"
+      v-if="props.allowSaveToggle && !props.compact"
       class="rounded-2xl border border-default bg-default px-4 py-3 text-sm text-default"
     >
       <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">

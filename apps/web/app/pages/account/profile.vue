@@ -8,6 +8,8 @@ import {
 
 definePageMeta({ middleware: ['auth'] })
 
+const showFullEditor = shallowRef(false)
+
 useSeo({
   title: 'Buyer Profile',
   description: 'Edit the saved fishing brief that powers your shortlist and boat commentary.',
@@ -88,42 +90,73 @@ async function handleSaveAndRerun() {
 
 <template>
   <UPage>
-    <UPageSection>
-      <div class="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-        <div>
-          <h1 class="text-3xl font-bold text-default">Saved buyer profile</h1>
-          <p class="mt-2 max-w-3xl text-muted">
-            This is the durable brief the finder uses unless you deliberately run one-off overrides.
-          </p>
+    <UPageSection class="pb-10 sm:pb-12">
+      <div class="mx-auto max-w-3xl space-y-5">
+        <div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+          <div class="min-w-0 space-y-1">
+            <h1 class="text-xl font-bold tracking-tight text-default sm:text-2xl">Buyer profile</h1>
+            <p class="text-sm text-muted">
+              Below is the buyer side of what we send when we run the shortlist model — same sections as
+              the prompt payload (brief, constraints, preferences, life-fit, uncertainties, filters). The
+              API also adds system instructions, inventory candidates, and any relaxed search rules, so
+              this is not the entire request.
+            </p>
+          </div>
+          <div class="flex shrink-0 flex-wrap gap-2">
+            <UButton
+              to="/ai-boat-finder"
+              label="AI finder"
+              icon="i-lucide-sparkles"
+              color="neutral"
+              variant="ghost"
+              size="sm"
+            />
+            <UButton
+              label="Save"
+              icon="i-lucide-save"
+              color="neutral"
+              variant="soft"
+              size="sm"
+              :loading="saving"
+              @click="handleSave"
+            />
+            <UButton
+              label="Save & rerun"
+              icon="i-lucide-refresh-cw"
+              size="sm"
+              :loading="rerunning"
+              @click="handleSaveAndRerun"
+            />
+          </div>
         </div>
 
-        <div class="flex flex-wrap gap-2">
-          <UButton
-            label="Save profile"
-            icon="i-lucide-save"
-            color="neutral"
-            variant="soft"
-            :loading="saving"
-            @click="handleSave"
-          />
-          <UButton
-            label="Save and rerun finder"
-            icon="i-lucide-sparkles"
-            :loading="rerunning"
-            @click="handleSaveAndRerun"
-          />
+        <div v-if="status === 'pending'" class="flex justify-center py-16">
+          <UIcon name="i-lucide-loader-2" class="size-8 animate-spin text-muted" />
         </div>
-      </div>
-    </UPageSection>
 
-    <UPageSection>
-      <div v-if="status === 'pending'" class="flex items-center justify-center py-24">
-        <UIcon name="i-lucide-loader-2" class="animate-spin text-3xl text-muted" />
-      </div>
+        <template v-else>
+          <BuyerAiPromptPreviewCard :answers="draftAnswers" />
 
-      <UCard v-else class="card-base border-default" :ui="{ body: 'p-5 sm:p-6 space-y-6' }">
-        <BoatFinderProfileFields v-model="draftAnswers" />
-      </UCard>
+          <div class="flex flex-wrap items-center justify-between gap-3">
+            <UButton
+              :label="showFullEditor ? 'Hide full questionnaire' : 'Edit full questionnaire'"
+              color="neutral"
+              variant="outline"
+              size="sm"
+              :icon="showFullEditor ? 'i-lucide-chevron-up' : 'i-lucide-panels-top-left'"
+              @click="showFullEditor = !showFullEditor"
+            />
+          </div>
+
+          <UCard
+            v-show="showFullEditor"
+            class="card-base border-default"
+            :ui="{ body: 'p-4 sm:p-5' }"
+          >
+            <BoatFinderProfileFields v-model="draftAnswers" />
+          </UCard>
+        </template>
+      </div>
     </UPageSection>
   </UPage>
 </template>

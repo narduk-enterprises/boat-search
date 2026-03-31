@@ -261,7 +261,7 @@ function splitLocationParts(location: string | null | undefined) {
   }
 }
 
-function extractListingIdFromUrl(url: string | null | undefined) {
+export function extractListingIdFromUrl(url: string | null | undefined) {
   return normalizeTitle(url).match(/-(\d{6,})(?:\/|$)/)?.[1] || null
 }
 
@@ -608,6 +608,38 @@ function normalizeImageIdentity(url: string) {
   }
 }
 
+/** Boats Group CDN caps listing photos below this width in galleries; bump for inventory quality. */
+const YACHTWORLD_CDN_LISTING_MIN_WIDTH = 1920
+
+function upgradeYachtWorldCdnListingImageUrl(url: string): string {
+  try {
+    const parsed = new URL(url)
+    const host = parsed.hostname.toLowerCase()
+    if (
+      host !== 'images.yachtworld.com' &&
+      !host.endsWith('boatsgroup.com') &&
+      host !== 'imt.boatwizard.com'
+    ) {
+      return url
+    }
+
+    const path = parsed.pathname.toLowerCase()
+    if (!path.includes('/resize/') || path.includes('/upload/') || path.includes('/profiles/')) {
+      return url
+    }
+
+    const current = Number(parsed.searchParams.get('w')) || 0
+    if (current >= YACHTWORLD_CDN_LISTING_MIN_WIDTH) {
+      return url
+    }
+
+    parsed.searchParams.set('w', String(YACHTWORLD_CDN_LISTING_MIN_WIDTH))
+    return parsed.toString()
+  } catch {
+    return url
+  }
+}
+
 function isYachtWorldBoatImageUrl(url: string, listingId: string | null | undefined) {
   try {
     const parsed = new URL(url)
@@ -651,7 +683,8 @@ function isYachtWorldBoatImageUrl(url: string, listingId: string | null | undefi
 function normalizeYachtWorldImages(images: string[], listingId: string | null | undefined) {
   const deduped = new Map<string, string>()
 
-  for (const image of images) {
+  for (const raw of images) {
+    const image = upgradeYachtWorldCdnListingImageUrl(raw)
     if (!isYachtWorldBoatImageUrl(image, listingId)) {
       continue
     }
@@ -663,7 +696,8 @@ function normalizeYachtWorldImages(images: string[], listingId: string | null | 
   }
 
   if (!deduped.size) {
-    for (const image of images) {
+    for (const raw of images) {
+      const image = upgradeYachtWorldCdnListingImageUrl(raw)
       try {
         const parsed = new URL(image)
         const hostname = parsed.hostname.toLowerCase()

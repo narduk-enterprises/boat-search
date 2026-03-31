@@ -27,6 +27,20 @@ export const SCRAPER_FIELD_TRANSFORMS = ['text', 'price', 'year', 'integer', 'ur
 export const SCRAPER_PIPELINE_MAX_PAGES = 500
 export const SCRAPER_PIPELINE_MAX_ITEMS_PER_RUN = 2000
 
+/** Detail backfill (v1): only YachtWorld listing detail URLs in `startUrls`. */
+export function isYachtWorldDetailBackfillUrl(url: string): boolean {
+  try {
+    const parsed = new URL(url)
+    const host = parsed.hostname.toLowerCase()
+    if (host !== 'www.yachtworld.com' && host !== 'yachtworld.com') {
+      return false
+    }
+    return /\/yacht\//i.test(parsed.pathname)
+  } catch {
+    return false
+  }
+}
+
 export type ScraperFieldKey = (typeof SCRAPER_FIELD_KEYS)[number]
 export type ScraperFieldScope = (typeof SCRAPER_FIELD_SCOPES)[number]
 export type ScraperFieldExtractType = (typeof SCRAPER_FIELD_EXTRACT_TYPES)[number]
@@ -88,6 +102,7 @@ export const scraperPipelineConfigSchema = z
     maxPages: z.number().int().min(1).max(SCRAPER_PIPELINE_MAX_PAGES).default(1),
     maxItemsPerRun: z.number().int().min(1).max(SCRAPER_PIPELINE_MAX_ITEMS_PER_RUN).default(50),
     fetchDetailPages: z.boolean().default(false),
+    detailBackfillMode: z.boolean().default(false),
     fields: z.array(scraperFieldSchema).min(1, 'Add at least one field rule'),
   })
   .superRefine((config, ctx) => {
@@ -123,13 +138,43 @@ export const scraperPipelineConfigSchema = z
     }
   })
 
-export const scraperPipelineDraftSchema = z.object({
-  name: z.string().trim().min(1, 'Pipeline name is required').max(120),
-  boatSource: z.string().trim().min(1, 'Boat source is required').max(80),
-  description: z.string().trim().max(500).default(''),
-  active: z.boolean().default(true),
-  config: scraperPipelineConfigSchema,
-})
+export const scraperPipelineDraftSchema = z
+  .object({
+    name: z.string().trim().min(1, 'Pipeline name is required').max(120),
+    boatSource: z.string().trim().min(1, 'Boat source is required').max(80),
+    description: z.string().trim().max(500).default(''),
+    active: z.boolean().default(true),
+    config: scraperPipelineConfigSchema,
+  })
+  .superRefine((draft, ctx) => {
+    if (!draft.config.detailBackfillMode) {
+      return
+    }
+    if (!draft.config.fetchDetailPages) {
+      ctx.addIssue({
+        code: 'custom',
+        message: 'Detail backfill requires fetching detail pages.',
+        path: ['config', 'fetchDetailPages'],
+      })
+    }
+    if (draft.boatSource.trim().toLowerCase() !== 'yachtworld') {
+      ctx.addIssue({
+        code: 'custom',
+        message: 'Detail backfill is only supported when boat source is YachtWorld.',
+        path: ['config', 'detailBackfillMode'],
+      })
+    }
+    for (const [index, url] of draft.config.startUrls.entries()) {
+      if (!isYachtWorldDetailBackfillUrl(url)) {
+        ctx.addIssue({
+          code: 'custom',
+          message:
+            'Each start URL must be a YachtWorld listing detail link (www.yachtworld.com/.../yacht/...).',
+          path: ['config', 'startUrls', index],
+        })
+      }
+    }
+  })
 
 export const scraperPipelineMutationSchema = scraperPipelineDraftSchema
 export const scraperPipelinePreviewSchema = scraperPipelineDraftSchema
@@ -670,6 +715,7 @@ export function createEmptyScraperPipelineDraft(): ScraperPipelineDraft {
       maxPages: 1,
       maxItemsPerRun: 40,
       fetchDetailPages: true,
+      detailBackfillMode: false,
       fields: createDefaultScraperFieldRules(),
     },
   }

@@ -153,6 +153,7 @@ watch(
         class="mx-auto max-w-6xl scroll-mt-24"
       >
         <BoatInventoryResults
+          v-model:search-query="draftFilters.q"
           :boats="boats"
           :status="status"
           :error-message="errorMessage"
@@ -171,6 +172,7 @@ watch(
           @remove-filter="handleRemoveFilter"
           @change-page="handlePageChange"
           @retry="handleRetry"
+          @submit-search="handleApplyFilters"
         />
       </div>
     </UPageSection>

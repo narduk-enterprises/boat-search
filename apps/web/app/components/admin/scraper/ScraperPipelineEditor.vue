@@ -50,6 +50,15 @@ const allowedDomainsText = computed({
     draft.value.config.allowedDomains = multilineToList(value)
   },
 })
+
+watch(
+  () => draft.value.config.detailBackfillMode,
+  (enabled) => {
+    if (enabled) {
+      draft.value.config.fetchDetailPages = true
+    }
+  },
+)
 </script>
 
 <template>
@@ -141,17 +150,34 @@ const allowedDomainsText = computed({
       <div>
         <h3 class="text-lg font-semibold text-default">Page discovery</h3>
         <p class="mt-1 text-sm text-muted">
-          One start URL or hostname per line. Pagination is optional and stops at the page cap.
+          <span v-if="draft.config.detailBackfillMode">
+            YachtWorld detail backfill: one listing detail URL per line (www.yachtworld.com/yacht/…).
+            Max rows per run is capped by “Max items per run”. Boat source must be YachtWorld.
+          </span>
+          <span v-else>
+            One start URL or hostname per line. Pagination is optional and stops at the page cap.
+          </span>
         </p>
       </div>
 
+      <div class="rounded-xl border border-default bg-elevated px-4 py-3">
+        <UCheckbox
+          v-model="draft.config.detailBackfillMode"
+          label="YachtWorld detail URL backfill (skip search; scrape each start URL as a listing page)"
+        />
+      </div>
+
       <div class="grid gap-4 xl:grid-cols-2">
-        <UFormField label="Start URLs" required>
+        <UFormField :label="draft.config.detailBackfillMode ? 'Detail URLs' : 'Start URLs'" required>
           <UTextarea
             v-model="startUrlsText"
             class="w-full min-h-32"
             autoresize
-            placeholder="https://example.com/boats-for-sale"
+            :placeholder="
+              draft.config.detailBackfillMode
+                ? 'https://www.yachtworld.com/yacht/2024-example-1234567/'
+                : 'https://example.com/boats-for-sale'
+            "
           />
         </UFormField>
 
@@ -203,6 +229,7 @@ const allowedDomainsText = computed({
       <div class="rounded-xl border border-default bg-elevated px-4 py-3">
         <UCheckbox
           v-model="draft.config.fetchDetailPages"
+          :disabled="draft.config.detailBackfillMode"
           label="Fetch detail and follow pages for any rule using detail scopes"
         />
       </div>

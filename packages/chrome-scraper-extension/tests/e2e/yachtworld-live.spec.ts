@@ -42,7 +42,7 @@ type DebugSnapshot = {
     message: string
   } | null
   browserRunProgress: {
-    stage: 'search' | 'detail' | 'upload'
+    stage: 'search' | 'detail' | 'detail_backfill' | 'upload'
     pagesVisited: number
     itemsSeen: number
     itemsExtracted: number

@@ -55,6 +55,7 @@ export function createEmptyDraft(): ScraperPipelineDraft {
       maxPages: DEFAULT_BROWSER_SCRAPE_MAX_PAGES,
       maxItemsPerRun: DEFAULT_BROWSER_SCRAPE_MAX_ITEMS_PER_RUN,
       fetchDetailPages: true,
+      detailBackfillMode: false,
       fields: [
         createFieldRule('url', 'item', 'a', { extract: 'attr', attribute: 'href', transform: 'url' }),
         createFieldRule('title', 'item', 'a'),

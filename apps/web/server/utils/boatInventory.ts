@@ -1,7 +1,7 @@
 import { and, desc, eq, gte, inArray, isNull, like, lte, or, sql, type SQL } from 'drizzle-orm'
 import type { DrizzleD1Database } from 'drizzle-orm/d1'
 import {
-  buildBuyerContext,
+  deriveRecommendationFiltersFromAnswers,
   getEffectiveBuyerAnswers,
   type BuyerProfile,
   type RecommendationFilters,
@@ -277,26 +277,7 @@ export function hydrateBoatRow(row: BoatRow): InventoryBoat {
 }
 
 export function deriveRecommendationFilters(profile: BuyerProfile): RecommendationFilters {
-  const effectiveAnswers = getEffectiveBuyerAnswers(profile)
-  const context = buildBuyerContext(effectiveAnswers)
-  const keywordPool = [
-    ...effectiveAnswers.facts.primaryUses,
-    ...effectiveAnswers.preferences.targetSpecies,
-    ...effectiveAnswers.preferences.boatStyles,
-    ...effectiveAnswers.preferences.ownershipPriorities,
-    ...effectiveAnswers.preferences.mustHaves,
-  ]
-
-  return {
-    budgetMin: effectiveAnswers.facts.budgetMin,
-    budgetMax: effectiveAnswers.facts.budgetMax,
-    lengthMin: effectiveAnswers.facts.lengthMin,
-    lengthMax: effectiveAnswers.facts.lengthMax,
-    location: effectiveAnswers.facts.targetWatersOrRegion || undefined,
-    keywords: [...new Set(keywordPool.map((item) => item.trim()).filter(Boolean))]
-      .concat(context.softPreferences.slice(0, 4))
-      .slice(0, 20),
-  }
+  return deriveRecommendationFiltersFromAnswers(getEffectiveBuyerAnswers(profile))
 }
 
 export async function resolveActiveBoatId(db: AppDb, boatId: number) {

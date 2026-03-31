@@ -35,6 +35,8 @@
     "boats:geo:backfill:production": "pnpm exec tsx tools/backfill-boat-geo.ts --production",
     "boats:dedupe:rebuild": "pnpm exec tsx tools/rebuild-boat-dedupe.ts",
     "boats:dedupe:rebuild:production": "pnpm exec tsx tools/rebuild-boat-dedupe.ts --production",
+    "boats:inventory:validate": "pnpm exec tsx tools/validate-boat-inventory.ts",
+    "boats:inventory:validate:production": "doppler run --config prd -- pnpm exec tsx tools/validate-boat-inventory.ts --production",
     "extension:build": "pnpm --filter chrome-scraper-extension run build",
     "extension:lint": "pnpm --filter chrome-scraper-extension run lint",
     "extension:typecheck": "pnpm --filter chrome-scraper-extension run typecheck",
@@ -91,6 +93,7 @@
     "node": "22.22.0"
   },
   "devDependencies": {
+    "@aws-sdk/client-s3": "^3.1020.0",
     "@playwright/test": "^1.49.0",
     "@types/better-sqlite3": "^7.6.13",
     "@types/node": "^22.19.13",

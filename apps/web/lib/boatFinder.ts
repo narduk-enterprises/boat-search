@@ -16,6 +16,49 @@ export const TRAVEL_RADIUS_OPTIONS = [
   'Anywhere in the US',
 ] as const
 
+export const TARGET_WATERS_OR_REGION_OPTIONS = [
+  'Western Gulf (TX / LA)',
+  'Northern Gulf (AL / MS / FL panhandle)',
+  'Florida Gulf Coast',
+  'Florida Atlantic (Miami–Jax)',
+  'Carolinas / Mid-Atlantic',
+  'Northeast',
+  'Pacific / West Coast',
+  'Great Lakes',
+  'Caribbean / Bahamas runs',
+  'Inland / lakes and rivers',
+] as const
+
+export const MUST_HAVE_OPTIONS = [
+  'Twin diesels or strong twin outboards',
+  'Tower or upper station',
+  'Serious livewell capacity',
+  'Large insulated fish boxes',
+  'Seakeeping over raw speed',
+  'Shallow draft for home waters',
+  'Trailerable or easy haul-out',
+  'Generator',
+  'Air conditioned cabin or helm',
+  'Hardtop or full enclosure',
+  'Outriggers / tournament rigging',
+  'Bow thruster or joystick docking',
+  'Easy boarding for family or guests',
+  'Strong sun / rain protection on deck',
+] as const
+
+export const DEAL_BREAKER_OPTIONS = [
+  'Gas-only power',
+  'Major refit or project boat',
+  'Too small for usual crew',
+  'Poor or unknown service history',
+  'Draft too deep for home port',
+  'Dated electronics only',
+  'Single engine only (need twins)',
+  'No professional survey allowed',
+  'Layout fights how we fish',
+  'Too little family or guest comfort',
+] as const
+
 export const CREW_PROFILE_OPTIONS = [
   'Solo or duo',
   '3-4 anglers',
@@ -178,7 +221,7 @@ export const BUYER_QUESTION_LABELS = {
   familyFrictionPoints: 'Family friction points',
   ownershipStressors: 'Ownership stressors',
   dreamVsPractical: 'Dream vs practical',
-  openContextNote: 'Open context note',
+  openContextNote: 'Anything else',
 } as const
 
 export const RECOMMENDATION_RATINGS = ['best-fit', 'strong-fit', 'stretch'] as const
@@ -189,7 +232,6 @@ export type BuyerQuestionId = keyof typeof BUYER_QUESTION_LABELS
 
 const optionalMoneySchema = z.number().int().min(0).optional()
 const optionalLengthSchema = z.number().min(10).max(120).optional()
-const checklistSchema = z.array(z.string().trim().min(1).max(120)).max(8).default([])
 const optionalShortTextSchema = z.string().trim().max(160).default('')
 const optionalLongTextSchema = z.string().trim().max(1200).default('')
 const questionStateSchema = z.enum(['answered', 'skipped', 'not_sure'])
@@ -208,7 +250,7 @@ function enumArray<const TValue extends readonly [string, ...string[]]>(
 
 const buyerFactsBaseSchema = z.object({
   primaryUses: enumArray(PRIMARY_USE_OPTIONS, 3),
-  targetWatersOrRegion: z.string().trim().max(120).default(''),
+  targetWatersOrRegion: enumOrEmpty(TARGET_WATERS_OR_REGION_OPTIONS).default(''),
   travelRadius: enumOrEmpty(TRAVEL_RADIUS_OPTIONS).default(''),
   crewProfile: enumOrEmpty(CREW_PROFILE_OPTIONS).default(''),
   familyUsage: enumArray(FAMILY_USAGE_OPTIONS, 2),
@@ -244,8 +286,8 @@ const buyerPreferencesBaseSchema = z.object({
   targetSpecies: enumArray(TARGET_SPECIES_OPTIONS, 3),
   boatStyles: enumArray(BOAT_STYLE_OPTIONS, 3),
   ownershipPriorities: enumArray(OWNERSHIP_PRIORITY_OPTIONS, 4),
-  mustHaves: checklistSchema,
-  dealBreakers: checklistSchema,
+  mustHaves: enumArray(MUST_HAVE_OPTIONS, 8),
+  dealBreakers: enumArray(DEAL_BREAKER_OPTIONS, 8),
   maintenanceReality: enumOrEmpty(MAINTENANCE_REALITY_OPTIONS).default(''),
   conditionTolerance: enumOrEmpty(CONDITION_TOLERANCE_OPTIONS).default(''),
   overnightComfort: enumOrEmpty(OVERNIGHT_COMFORT_OPTIONS).default(''),
@@ -458,15 +500,6 @@ function parseOptionalNumber(value: unknown) {
   }
 }
 
-function parseChecklist(value: unknown): string[] {
-  if (!Array.isArray(value)) return []
-
-  return value
-    .map((item) => (typeof item === 'string' ? item.trim() : ''))
-    .filter(Boolean)
-    .slice(0, 8)
-}
-
 function normalizeQuestionStates(value: unknown): Record<string, BuyerQuestionState> {
   if (!value || typeof value !== 'object') return {}
 
@@ -487,8 +520,10 @@ function normalizeLegacyBuyerAnswers(raw: Record<string, unknown>): BuyerAnswers
       primaryUses: raw.primaryUse
         ? normalizeOptionList([raw.primaryUse], PRIMARY_USE_OPTIONS, 3)
         : [],
-      targetWatersOrRegion:
-        typeof raw.targetWatersOrRegion === 'string' ? raw.targetWatersOrRegion.trim() : '',
+      targetWatersOrRegion: normalizeOptionValue(
+        raw.targetWatersOrRegion,
+        TARGET_WATERS_OR_REGION_OPTIONS,
+      ),
       travelRadius: '',
       crewProfile: normalizeOptionValue(raw.crewSize, CREW_PROFILE_OPTIONS),
       familyUsage: [],
@@ -508,8 +543,8 @@ function normalizeLegacyBuyerAnswers(raw: Record<string, unknown>): BuyerAnswers
       targetSpecies: [],
       boatStyles: [],
       ownershipPriorities: [],
-      mustHaves: parseChecklist(raw.mustHaves),
-      dealBreakers: parseChecklist(raw.dealBreakers),
+      mustHaves: normalizeOptionList(raw.mustHaves, MUST_HAVE_OPTIONS, 8),
+      dealBreakers: normalizeOptionList(raw.dealBreakers, DEAL_BREAKER_OPTIONS, 8),
       maintenanceReality: normalizeOptionValue(
         raw.maintenanceAppetite,
         MAINTENANCE_REALITY_OPTIONS,
@@ -607,8 +642,10 @@ export function normalizeBuyerAnswersDraft(input: unknown): BuyerAnswersDraft {
     return {
       facts: {
         primaryUses: normalizeOptionList(facts.primaryUses, PRIMARY_USE_OPTIONS, 3),
-        targetWatersOrRegion:
-          typeof facts.targetWatersOrRegion === 'string' ? facts.targetWatersOrRegion.trim() : '',
+        targetWatersOrRegion: normalizeOptionValue(
+          facts.targetWatersOrRegion,
+          TARGET_WATERS_OR_REGION_OPTIONS,
+        ),
         travelRadius: normalizeOptionValue(facts.travelRadius, TRAVEL_RADIUS_OPTIONS),
         crewProfile: normalizeOptionValue(facts.crewProfile, CREW_PROFILE_OPTIONS),
         familyUsage: normalizeOptionList(facts.familyUsage, FAMILY_USAGE_OPTIONS, 2),
@@ -630,8 +667,8 @@ export function normalizeBuyerAnswersDraft(input: unknown): BuyerAnswersDraft {
           OWNERSHIP_PRIORITY_OPTIONS,
           4,
         ),
-        mustHaves: parseChecklist(preferences.mustHaves),
-        dealBreakers: parseChecklist(preferences.dealBreakers),
+        mustHaves: normalizeOptionList(preferences.mustHaves, MUST_HAVE_OPTIONS, 8),
+        dealBreakers: normalizeOptionList(preferences.dealBreakers, DEAL_BREAKER_OPTIONS, 8),
         maintenanceReality: normalizeOptionValue(
           preferences.maintenanceReality,
           MAINTENANCE_REALITY_OPTIONS,
@@ -886,7 +923,7 @@ export function buildBuyerContext(input: unknown): BuyerContext {
     ...answers.reflectiveAnswers.ownershipStressors.map((item) => `Ownership stressor: ${item}`),
     answers.reflectiveAnswers.dreamVsPractical &&
       `Purchase mindset: ${answers.reflectiveAnswers.dreamVsPractical}`,
-    answers.openContextNote && `Open note: ${answers.openContextNote}`,
+    answers.openContextNote && `Buyer added context: ${answers.openContextNote}`,
   ]
 
   for (const signal of reflectiveSignals) {
@@ -951,6 +988,36 @@ export function buildBuyerContext(input: unknown): BuyerContext {
   })
 }
 
+/**
+ * Numeric/keyword filters we pass with the buyer context to ranking + shortlist AI prompts
+ * (`Structured filters applied` in `boatRecommendations.ts`). Kept in lib so the client can
+ * preview the same object without importing server inventory code.
+ */
+export function deriveRecommendationFiltersFromAnswers(
+  answers: BuyerAnswersDraft,
+): RecommendationFilters {
+  const normalized = normalizeBuyerAnswersDraft(answers)
+  const context = buildBuyerContext(normalized)
+  const keywordPool = [
+    ...normalized.facts.primaryUses,
+    ...normalized.preferences.targetSpecies,
+    ...normalized.preferences.boatStyles,
+    ...normalized.preferences.ownershipPriorities,
+    ...normalized.preferences.mustHaves,
+  ]
+
+  return {
+    budgetMin: normalized.facts.budgetMin,
+    budgetMax: normalized.facts.budgetMax,
+    lengthMin: normalized.facts.lengthMin,
+    lengthMax: normalized.facts.lengthMax,
+    location: normalized.facts.targetWatersOrRegion || undefined,
+    keywords: [...new Set(keywordPool.map((item) => item.trim()).filter(Boolean))]
+      .concat(context.softPreferences.slice(0, 4))
+      .slice(0, 20),
+  }
+}
+
 export function normalizeBuyerProfile(input: unknown): BuyerProfile {
   const normalized = normalizeBuyerProfileDraft(input)
   return {
@@ -958,18 +1025,6 @@ export function normalizeBuyerProfile(input: unknown): BuyerProfile {
     normalizedContext:
       normalized.normalizedContext ?? buildBuyerContext(getEffectiveBuyerAnswers(normalized)),
   }
-}
-
-export function listToTextarea(items: string[]) {
-  return items.join('\n')
-}
-
-export function textareaToList(text: string) {
-  return text
-    .split('\n')
-    .map((item) => item.trim())
-    .filter(Boolean)
-    .slice(0, 8)
 }
 
 /** Aligns with server scoring labels in `boatRecommendations.ts` (badge + numeric score). */

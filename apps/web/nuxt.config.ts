@@ -13,6 +13,10 @@ const supabasePublishableKey =
   ''
 const supabaseServiceRoleKey =
   process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_AUTH_SERVICE_ROLE_KEY || ''
+
+// Login target: set AUTH_BACKEND=local to use D1 users + password_hash (e.g. seed admin@example.com).
+// If AUTH_BACKEND is unset and both AUTH_AUTHORITY_URL + SUPABASE_AUTH_ANON_KEY exist, auth is Supabase
+// (D1-only seeded passwords will not apply).
 const configuredAuthBackend = process.env.AUTH_BACKEND
 const authBackend =
   configuredAuthBackend === 'supabase' || configuredAuthBackend === 'local'
