@@ -69,7 +69,7 @@ const menuItems = computed(() => {
   > = [
     [
       {
-        label: 'Edit questionnaire',
+        label: 'Edit in Wizard',
         icon: 'i-lucide-pencil',
         onSelect: () => emit('edit', props.profile.id),
       },
@@ -174,7 +174,7 @@ const menuItems = computed(() => {
 
     <div class="flex flex-wrap gap-2 pt-1">
       <UButton
-        label="Update Profile"
+        label="Edit in Wizard"
         icon="i-lucide-pencil"
         color="neutral"
         variant="soft"

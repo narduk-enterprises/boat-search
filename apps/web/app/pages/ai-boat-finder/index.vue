@@ -21,16 +21,16 @@ definePageMeta({
 useSeo({
   title: 'AI Fishing Boat Finder',
   description:
-    'Answer a richer fishing questionnaire and get an AI-ranked shortlist grounded in the current offshore inventory.',
+    'Answer the guided wizard and get an AI-ranked shortlist grounded in the current offshore inventory.',
   ogImage: {
     title: 'AI Fishing Boat Finder',
-    description: 'Adaptive buyer questionnaire plus AI-ranked fishing boat matches.',
+    description: 'Adaptive buyer wizard plus AI-ranked fishing boat matches.',
     icon: '⛵',
   },
 })
 useWebPageSchema({
   name: 'AI Fishing Boat Finder',
-  description: 'Adaptive questionnaire that turns a fishing brief into an AI-ranked shortlist.',
+  description: 'Adaptive wizard that turns a fishing brief into an AI-ranked shortlist.',
 })
 
 const route = useRoute()

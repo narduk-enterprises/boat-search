@@ -43,7 +43,7 @@ const verdictTone = computed(() => {
 
     <div v-if="!props.loggedIn" class="space-y-3">
       <p class="text-sm text-muted">
-        Sign in and complete the guided questionnaire to see personalized pros, cons, and fit
+        Sign in and complete the buyer profile wizard to see personalized pros, cons, and fit
         commentary on each boat.
       </p>
       <UButton :to="props.loginTo" label="Sign in for fit summary" icon="i-lucide-log-in" />

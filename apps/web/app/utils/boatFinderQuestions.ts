@@ -145,7 +145,7 @@ export interface BoatFinderBudgetPreset {
 
 export const BOAT_FINDER_BUDGET_CUSTOM_ID = 'custom' as const
 
-/** Preset ceilings for the buyer questionnaire; exact min/max pairs map back to chips. */
+/** Preset ceilings for the buyer wizard; exact min/max pairs map back to chips. */
 export const BOAT_FINDER_BUDGET_PRESETS: readonly BoatFinderBudgetPreset[] = [
   { id: 'to-200k', label: 'Up to $200k', max: 200_000 },
   { id: '200-400', label: '$200k – $400k', min: 200_000, max: 400_000 },
@@ -514,7 +514,7 @@ export const BOAT_FINDER_STEP_SECTION_IDS = BOAT_FINDER_SECTIONS.filter(
 
 export type BoatFinderStepSectionId = (typeof BOAT_FINDER_STEP_SECTION_IDS)[number]
 
-/** Legacy `?step=brief` URLs map to the last questionnaire section (buyer-brief screen removed). */
+/** Legacy `?step=brief` URLs map to the last wizard section (buyer-brief screen removed). */
 export const BOAT_FINDER_BRIEF_STEP_ID = 'brief' as const
 
 export function isBoatFinderStepSectionId(value: string): value is BoatFinderStepSectionId {

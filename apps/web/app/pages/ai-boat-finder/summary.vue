@@ -41,8 +41,7 @@ const queryProfileId = computed(() => {
 })
 const resolvedProfileId = computed(() => queryProfileId.value ?? activeProfileId.value)
 
-const { coreAnswers, canRunNow, nextRunAvailableAt, status, refresh } =
-  useBuyerProfile(resolvedProfileId)
+const { coreAnswers, canRunNow, nextRunAvailableAt, status } = useBuyerProfile(resolvedProfileId)
 const { createSession } = useRecommendationSessions()
 
 const generating = shallowRef(false)
@@ -53,10 +52,6 @@ const answers = computed<BuyerAnswersDraft>(() =>
 )
 
 const answersValid = computed(() => buyerAnswersSchema.safeParse(answers.value).success)
-
-onMounted(() => {
-  void refresh()
-})
 
 const cooldownLabel = computed(() => {
   if (!nextRunAvailableAt.value) return null

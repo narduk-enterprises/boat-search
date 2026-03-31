@@ -34,8 +34,7 @@ function handleClose() {
     <template #body>
       <div class="space-y-4">
         <p class="text-sm text-muted">
-          A new profile starts with a blank questionnaire. You can also duplicate an existing
-          profile from the library.
+          A new profile starts blank. You can also duplicate an existing profile from the library.
         </p>
         <UInput
           v-model="name"

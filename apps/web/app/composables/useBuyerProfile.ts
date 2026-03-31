@@ -42,6 +42,10 @@ export function useBuyerProfile(profileId: MaybeRefOrGetter<number | null | unde
     },
     {
       watch: [profileIdRef],
+      // Never serve stale cached data when navigating between pages (e.g. Wizard → Summary).
+      // Each page mount fetches fresh profile data from the server.
+      // eslint-disable-next-line unicorn/no-useless-undefined -- getCachedData must return undefined (not void) to signal "no cached data" to useAsyncData
+      getCachedData: () => undefined,
     },
   )
 

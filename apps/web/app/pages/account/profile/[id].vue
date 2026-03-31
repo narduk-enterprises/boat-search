@@ -1,11 +1,6 @@
 <script setup lang="ts">
 import BuyerAiPromptPreviewCard from '~~/app/components/boat-finder/BuyerAiPromptPreviewCard.vue'
-import {
-  buyerAnswersSchema,
-  createEmptyBuyerAnswers,
-  normalizeBuyerAnswersDraft,
-  type BuyerAnswersDraft,
-} from '~~/lib/boatFinder'
+import { normalizeBuyerAnswersDraft, type BuyerAnswersDraft } from '~~/lib/boatFinder'
 
 definePageMeta({ middleware: ['auth'] })
 
@@ -26,189 +21,46 @@ const {
   status,
   canRunNow,
   nextRunAvailableAt,
-  saveProfile,
   refresh: refreshProfile,
 } = useBuyerProfile(profileId)
 const { createSession } = useRecommendationSessions()
 const { profileSessions, refresh: refreshRunHistory } = useProfileRunHistory(profileId)
 
 const seoTitle = computed(() =>
-  profileName.value ? `${profileName.value} — Edit Profile` : 'Edit Buyer Profile',
+  profileName.value ? `${profileName.value} — Buyer Profile` : 'Buyer Profile',
 )
 
 useSeo({
   title: seoTitle.value,
-  description: 'Edit the questionnaire for this buyer profile.',
+  description: 'View your buyer profile, run history, and launch the AI boat finder wizard.',
   ogImage: {
-    title: 'Edit Buyer Profile',
-    description: 'Questionnaire editor for a named buyer profile.',
+    title: 'Buyer Profile',
+    description: 'Profile dashboard with run history and brief preview.',
     icon: '⛵',
   },
 })
 useWebPageSchema({
-  name: 'Edit Buyer Profile',
-  description: 'Edit the questionnaire for a named buyer profile.',
+  name: 'Buyer Profile',
+  description: 'View buyer profile details, run history, and AI brief preview.',
 })
 
 const toast = useToast()
-const showFullEditor = shallowRef(false)
-
-const draftAnswers = ref<BuyerAnswersDraft>(createEmptyBuyerAnswers())
-const saving = shallowRef(false)
 const rerunning = shallowRef(false)
-const autosaveState = shallowRef<'idle' | 'saving' | 'saved' | 'error'>('idle')
-const autosaveError = shallowRef<string | null>(null)
-const profileHydrated = shallowRef(false)
-const suppressAutosave = shallowRef(true)
-const persistedSignature = shallowRef(JSON.stringify(createEmptyBuyerAnswers()))
-const activeSaveSignature = shallowRef<string | null>(null)
 
-let autosaveTimer: ReturnType<typeof setTimeout> | null = null
-let pendingSave: Promise<boolean> | null = null
-
-function currentDraftSignature() {
-  return JSON.stringify(normalizeBuyerAnswersDraft(draftAnswers.value))
-}
-
-function syncDraftFromProfile(nextAnswers: BuyerAnswersDraft) {
-  suppressAutosave.value = true
-  draftAnswers.value = normalizeBuyerAnswersDraft(nextAnswers)
-  persistedSignature.value = currentDraftSignature()
-  profileHydrated.value = true
-
-  queueMicrotask(() => {
-    suppressAutosave.value = false
-  })
-}
-
-watch(
-  coreAnswers,
-  (nextAnswers) => {
-    const normalized = normalizeBuyerAnswersDraft(nextAnswers)
-    const nextSignature = JSON.stringify(normalized)
-    const localSignature = currentDraftSignature()
-
-    if (
-      !profileHydrated.value ||
-      localSignature === persistedSignature.value ||
-      localSignature === nextSignature
-    ) {
-      syncDraftFromProfile(normalized)
-      return
-    }
-
-    persistedSignature.value = nextSignature
-  },
-  { immediate: true },
+/** Read-only answers derived from the fetched profile. */
+const displayAnswers = computed<BuyerAnswersDraft>(() =>
+  normalizeBuyerAnswersDraft(coreAnswers.value),
 )
 
-async function persistDraft(options: { force?: boolean } = {}) {
-  const normalized = normalizeBuyerAnswersDraft(draftAnswers.value)
-  const signature = JSON.stringify(normalized)
-
-  if (!options.force && signature === persistedSignature.value) {
-    autosaveState.value = profileHydrated.value ? 'saved' : 'idle'
-    autosaveError.value = null
-    return true
-  }
-
-  if (pendingSave && activeSaveSignature.value === signature) {
-    return pendingSave
-  }
-
-  autosaveState.value = 'saving'
-  autosaveError.value = null
-  activeSaveSignature.value = signature
-
-  pendingSave = saveProfile(normalized)
-    .then(() => {
-      persistedSignature.value = signature
-      autosaveState.value = 'saved'
-      return true
-    })
-    .catch((error: unknown) => {
-      const err = error as { data?: { statusMessage?: string }; message?: string }
-      autosaveState.value = 'error'
-      autosaveError.value =
-        err.data?.statusMessage || err.message || 'Could not save your buyer brief.'
-      return false
-    })
-    .finally(() => {
-      pendingSave = null
-      activeSaveSignature.value = null
-    })
-
-  return pendingSave
-}
-
-/* vue-official allow-deep-watch -- Autosave needs to observe nested draft answer changes. */
-watch(
-  draftAnswers,
-  () => {
-    if (import.meta.server || !profileHydrated.value || suppressAutosave.value) {
-      return
-    }
-
-    const signature = currentDraftSignature()
-    if (signature === persistedSignature.value) {
-      if (autosaveState.value !== 'saving') {
-        autosaveState.value = 'saved'
-      }
-      autosaveError.value = null
-      return
-    }
-
-    autosaveState.value = 'idle'
-
-    if (autosaveTimer) {
-      clearTimeout(autosaveTimer)
-    }
-
-    autosaveTimer = setTimeout(() => {
-      void persistDraft()
-    }, 900)
-  },
-  { deep: true },
-)
-
-onBeforeUnmount(() => {
-  if (autosaveTimer) {
-    clearTimeout(autosaveTimer)
-  }
-})
-
-function parseDraftAnswers() {
-  return buyerAnswersSchema.parse(draftAnswers.value)
-}
-
-async function handleSave() {
-  saving.value = true
-  try {
-    await saveProfile(parseDraftAnswers())
-    toast.add({ title: 'Profile saved', color: 'success' })
-  } catch (error: unknown) {
-    const err = error as { data?: { statusMessage?: string }; message?: string }
-    toast.add({
-      title: 'Could not save',
-      description: err.data?.statusMessage || err.message || 'Try again.',
-      color: 'error',
-    })
-  } finally {
-    saving.value = false
-  }
-}
-
-async function handleSaveAndRerun() {
+async function handleRerun() {
   rerunning.value = true
   try {
-    await saveProfile(parseDraftAnswers())
     await createSession({ profileId: profileId.value ?? undefined })
     toast.add({
       title: 'AI assessment complete',
-      description: 'Your updated buyer brief has been matched against current inventory.',
+      description: 'Your buyer brief has been matched against current inventory.',
       color: 'success',
     })
-    // Stay on this page — refresh profile and run history to show new run
     await Promise.all([refreshProfile(), refreshRunHistory()])
   } catch (error: unknown) {
     const err = error as {
@@ -264,22 +116,23 @@ const cooldownLabel = computed(() => {
                 aria-label="Back to profiles"
               />
               <h1 class="text-xl font-bold tracking-tight text-default sm:text-2xl">
-                {{ profileName || 'Edit profile' }}
+                {{ profileName || 'Buyer profile' }}
               </h1>
               <UBadge v-if="isActive" label="Active" color="primary" variant="subtle" size="xs" />
             </div>
             <p class="text-sm text-muted">
-              Fill out the questionnaire below, then run the AI to get a ranked shortlist matched
-              against live inventory.
+              Review your brief, view past AI runs, or open the wizard to update answers.
             </p>
-            <div v-if="cooldownLabel" class="flex items-center gap-1.5 text-xs text-warning">
-              <UIcon name="i-lucide-clock" class="size-3.5" />
-              Rerun available in {{ cooldownLabel }}
-            </div>
+            <ClientOnly>
+              <div v-if="cooldownLabel" class="flex items-center gap-1.5 text-xs text-warning">
+                <UIcon name="i-lucide-clock" class="size-3.5" />
+                Rerun available in {{ cooldownLabel }}
+              </div>
+            </ClientOnly>
           </div>
           <div class="flex shrink-0 flex-wrap gap-2">
             <UButton
-              label="Update Questionnaire"
+              label="Edit in Wizard"
               icon="i-lucide-pencil"
               color="neutral"
               variant="soft"
@@ -287,21 +140,12 @@ const cooldownLabel = computed(() => {
               :to="{ path: '/ai-boat-finder', query: { profileId: String(profileId) } }"
             />
             <UButton
-              label="Save"
-              icon="i-lucide-save"
-              color="neutral"
-              variant="soft"
-              size="sm"
-              :loading="saving"
-              @click="handleSave"
-            />
-            <UButton
               label="Run AI assessment"
               icon="i-lucide-sparkles"
               size="sm"
               :loading="rerunning"
               :disabled="!canRunNow"
-              @click="handleSaveAndRerun"
+              @click="handleRerun"
             />
           </div>
         </div>
@@ -334,9 +178,11 @@ const cooldownLabel = computed(() => {
                         variant="subtle"
                         size="xs"
                       />
-                      <span class="text-xs text-dimmed">
-                        {{ new Date(session.createdAt).toLocaleString() }}
-                      </span>
+                      <ClientOnly>
+                        <span class="text-xs text-dimmed">
+                          {{ new Date(session.createdAt).toLocaleString() }}
+                        </span>
+                      </ClientOnly>
                     </div>
                     <p class="truncate text-sm text-default">
                       {{ session.resultSummary.querySummary }}
@@ -367,16 +213,8 @@ const cooldownLabel = computed(() => {
             />
           </div>
 
-          <!-- Prompt Preview -->
-          <BuyerAiPromptPreviewCard :answers="draftAnswers" />
-
-          <UCard
-            v-show="showFullEditor"
-            class="card-base border-default"
-            :ui="{ body: 'p-4 sm:p-5' }"
-          >
-            <BoatFinderProfileFields v-model="draftAnswers" />
-          </UCard>
+          <!-- Read-only Prompt Preview -->
+          <BuyerAiPromptPreviewCard :answers="displayAnswers" />
         </template>
       </div>
     </UPageSection>
