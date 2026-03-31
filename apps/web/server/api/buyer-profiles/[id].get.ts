@@ -9,7 +9,9 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 400, statusMessage: 'Invalid profile id.' })
   }
 
-  const result = await getBuyerProfileById(event, user.id, profileId)
+  const result = await getBuyerProfileById(event, user.id, profileId, {
+    isAdmin: !!user.isAdmin,
+  })
   if (!result) {
     throw createError({ statusCode: 404, statusMessage: 'Buyer profile not found.' })
   }

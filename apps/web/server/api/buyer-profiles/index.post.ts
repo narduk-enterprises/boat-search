@@ -21,7 +21,9 @@ export default defineUserMutation(
 
     // When duplicating, auto-generate the name if user didn't override
     if (body.sourceProfileId && body.name === 'New profile') {
-      const { profiles } = await listBuyerProfiles(event, user.id)
+      const { profiles } = await listBuyerProfiles(event, user.id, {
+        isAdmin: !!user.isAdmin,
+      })
       const source = profiles.find((p) => p.id === body.sourceProfileId)
       const existingNames = profiles.map((p) => p.name)
       name = generateDuplicateName(existingNames, source?.name ?? 'Profile')

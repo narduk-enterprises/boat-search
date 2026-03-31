@@ -57,8 +57,8 @@ function parseBuyerProfileRow(row: {
   }
 }
 
-function computeRunState(lastRunAt: string | null) {
-  if (!lastRunAt) {
+function computeRunState(lastRunAt: string | null, options?: { isAdmin?: boolean }) {
+  if (options?.isAdmin || !lastRunAt) {
     return { canRunNow: true, nextRunAvailableAt: null }
   }
   const lastRunTime = new Date(lastRunAt).getTime()
@@ -86,7 +86,11 @@ export function generateDuplicateName(existingNames: string[], baseName: string)
 // List / Get
 // ---------------------------------------------------------------------------
 
-export async function listBuyerProfiles(event: H3Event, userId: string) {
+export async function listBuyerProfiles(
+  event: H3Event,
+  userId: string,
+  options?: { isAdmin?: boolean },
+) {
   const db = useAppDatabase(event)
   const rows = await db
     .select()
@@ -96,7 +100,7 @@ export async function listBuyerProfiles(event: H3Event, userId: string) {
 
   const profiles = rows.map((row) => {
     const parsed = parseBuyerProfileRow(row)
-    const runState = computeRunState(parsed.lastRunAt)
+    const runState = computeRunState(parsed.lastRunAt, options)
     return {
       id: parsed.id,
       name: parsed.name,
@@ -114,7 +118,12 @@ export async function listBuyerProfiles(event: H3Event, userId: string) {
   return { profiles, activeProfileId: activeProfile?.id ?? null }
 }
 
-export async function getBuyerProfileById(event: H3Event, userId: string, profileId: number) {
+export async function getBuyerProfileById(
+  event: H3Event,
+  userId: string,
+  profileId: number,
+  options?: { isAdmin?: boolean },
+) {
   const db = useAppDatabase(event)
   const row = await db
     .select()
@@ -125,7 +134,7 @@ export async function getBuyerProfileById(event: H3Event, userId: string, profil
   if (!row) return null
 
   const parsed = parseBuyerProfileRow(row)
-  const runState = computeRunState(parsed.lastRunAt)
+  const runState = computeRunState(parsed.lastRunAt, options)
 
   // Get latest session ID for this profile
   const latestSession = await db

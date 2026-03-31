@@ -55,8 +55,8 @@ export default defineUserMutation(
       }
     }
 
-    // Enforce cooldown if we have a resolved profile
-    if (resolvedProfileId && profileData) {
+    // Enforce cooldown if we have a resolved profile (admins bypass)
+    if (resolvedProfileId && profileData && !user.isAdmin) {
       const cooldown = checkProfileRunCooldown(profileData.lastRunAt)
       if (!cooldown.canRunNow) {
         throw createError({
