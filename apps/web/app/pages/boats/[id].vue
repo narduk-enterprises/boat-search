@@ -39,6 +39,8 @@ const {
   summary,
   status: fitStatus,
   error: fitError,
+  generate: generateFit,
+  isGenerating: fitGenerating,
 } = useBoatFitSummary(numericBoatId, fitSummarySessionId)
 
 const pageTitle = boat.value ? formatListingTitle(boat.value) : 'Boat details'
@@ -569,10 +571,11 @@ function scrollToListingBrief() {
 
             <BoatFitSummaryCard
               :summary="summary"
-              :loading="fitStatus === 'pending'"
+              :loading="fitStatus === 'pending' || fitGenerating"
               :error-message="fitErrorMessage"
               :logged-in="session.loggedIn.value"
               :login-to="loginPath"
+              @generate="generateFit"
             />
           </div>
         </div>

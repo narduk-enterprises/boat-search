@@ -125,7 +125,7 @@ watch(
 <template>
   <UPage>
     <UPageSection :ui="{ container: 'py-6 pb-28 sm:py-8 sm:pb-32' }">
-      <div class="mx-auto flex max-w-6xl items-center justify-end pb-4">
+      <div class="mx-auto flex max-w-6xl items-center justify-center pb-4">
         <div
           class="inline-flex rounded-full border border-default bg-default/80 p-1 shadow-card backdrop-blur-sm"
         >
@@ -216,18 +216,20 @@ watch(
         </div>
       </template>
 
-      <div class="space-y-2">
-        <UButton
-          v-for="option in BOAT_INVENTORY_SORT_OPTIONS"
-          :key="option.value"
-          :label="option.label"
-          class="w-full justify-between"
-          :color="currentSort === option.value ? 'primary' : 'neutral'"
-          :variant="currentSort === option.value ? 'soft' : 'ghost'"
-          :trailing-icon="currentSort === option.value ? 'i-lucide-check' : undefined"
-          @click="handleSortChange(option.value)"
-        />
-      </div>
+      <template #body>
+        <div class="space-y-2">
+          <UButton
+            v-for="option in BOAT_INVENTORY_SORT_OPTIONS"
+            :key="option.value"
+            :label="option.label"
+            class="w-full justify-between"
+            :color="currentSort === option.value ? 'primary' : 'neutral'"
+            :variant="currentSort === option.value ? 'soft' : 'ghost'"
+            :trailing-icon="currentSort === option.value ? 'i-lucide-check' : undefined"
+            @click="handleSortChange(option.value)"
+          />
+        </div>
+      </template>
 
       <template #footer>
         <div class="flex w-full justify-end">

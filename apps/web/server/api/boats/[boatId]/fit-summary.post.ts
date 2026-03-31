@@ -7,10 +7,11 @@ import {
   getLatestRecommendationSessionForUser,
   getRecommendationSessionForUser,
 } from '~~/server/utils/boatRecommendations'
-import { getBuyerProfile } from '~~/server/utils/boatFinderStore'
+import { checkDailyRunLimit, getBuyerProfile } from '~~/server/utils/boatFinderStore'
 
 const bodySchema = z.object({
   sessionId: z.number().int().positive().optional(),
+  generate: z.boolean().optional().default(false),
 })
 
 export default defineUserMutation(
@@ -49,6 +50,24 @@ export default defineUserMutation(
 
     if (cached) {
       return { summary: cached, sessionId: session?.id ?? null, cached: true }
+    }
+
+    if (!body.generate) {
+      return { summary: null, sessionId: session?.id ?? null, cached: false }
+    }
+
+    if (!user.isAdmin) {
+      const dailyUsage = await checkDailyRunLimit(event, user.id)
+      if (!dailyUsage.canRunToday) {
+        throw createError({
+          statusCode: 429,
+          statusMessage: `You've used all ${dailyUsage.dailyRunLimit} AI runs for today. Your limit resets at midnight UTC.`,
+          data: {
+            dailyRunCount: dailyUsage.dailyRunCount,
+            dailyRunLimit: dailyUsage.dailyRunLimit,
+          },
+        })
+      }
     }
 
     const config = useRuntimeConfig(event)

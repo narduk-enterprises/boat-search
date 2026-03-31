@@ -202,10 +202,16 @@ function detailTo(boatId: number) {
       </div>
     </UCard>
 
-    <div v-else class="grid gap-5 xl:grid-cols-[22rem_minmax(0,1fr)]">
-      <UCard class="brand-surface xl:max-h-[70vh]" :ui="{ body: 'p-0 h-full' }">
-        <div class="flex h-full flex-col">
-          <div class="border-b border-default px-5 py-4">
+    <div
+      v-else
+      class="grid h-[calc(100vh-14rem)] min-h-[40rem] gap-5 xl:grid-cols-[22rem_minmax(0,1fr)]"
+    >
+      <UCard
+        class="brand-surface flex flex-col overflow-hidden"
+        :ui="{ body: 'p-0 h-full flex flex-col overflow-hidden' }"
+      >
+        <div class="flex min-h-0 flex-1 flex-col">
+          <div class="border-b border-default px-5 py-4 shrink-0">
             <p class="text-xs font-semibold uppercase tracking-[0.18em] text-dimmed">Sidebar</p>
             <h2 class="mt-2 text-lg font-semibold text-default">
               {{ selectedBoat ? 'Selected boat' : 'Map-ready results' }}
@@ -218,7 +224,7 @@ function detailTo(boatId: number) {
           <div class="min-h-0 flex-1 space-y-4 overflow-y-auto px-4 py-4">
             <UCard
               v-if="selectedBoat"
-              class="brand-surface-soft rounded-[1.25rem]"
+              class="brand-surface-soft shrink-0 rounded-[1.25rem]"
               :ui="{ body: 'p-4 space-y-4' }"
             >
               <div class="space-y-2">
@@ -296,7 +302,7 @@ function detailTo(boatId: number) {
             </div>
           </div>
 
-          <div v-if="props.pageCount > 1" class="border-t border-default px-4 py-4">
+          <div v-if="props.pageCount > 1" class="border-t border-default shrink-0 px-4 py-4">
             <div class="space-y-3">
               <p class="text-sm text-muted">
                 Page {{ props.currentPage }} of {{ props.pageCount }}
@@ -332,8 +338,8 @@ function detailTo(boatId: number) {
         </div>
       </UCard>
 
-      <UCard class="brand-surface overflow-hidden" :ui="{ body: 'p-0' }">
-        <div class="relative h-[60vh] min-h-[32rem] w-full">
+      <UCard class="brand-surface h-full overflow-hidden" :ui="{ body: 'p-0 h-full' }">
+        <div class="relative h-full w-full">
           <div
             v-if="props.status === 'pending' && !mappableBoats.length"
             class="absolute inset-0 z-10 flex items-center justify-center bg-default/75 backdrop-blur-sm"

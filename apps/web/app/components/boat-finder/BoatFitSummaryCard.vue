@@ -17,6 +17,10 @@ const props = withDefaults(
   },
 )
 
+const emit = defineEmits<{
+  generate: []
+}>()
+
 const verdictTone = computed(() => {
   switch (props.summary?.verdict) {
     case 'strong-fit':
@@ -54,11 +58,11 @@ const verdictTone = computed(() => {
       <span class="text-sm text-muted">Scoring this boat against your profile…</span>
     </div>
 
-    <div
-      v-else-if="props.errorMessage"
-      class="rounded-xl border border-warning/20 bg-warning/10 px-4 py-3 text-sm text-default"
-    >
-      {{ props.errorMessage }}
+    <div v-else-if="props.errorMessage" class="space-y-4">
+      <div class="rounded-xl border border-warning/20 bg-warning/10 px-4 py-3 text-sm text-default">
+        {{ props.errorMessage }}
+      </div>
+      <UButton label="Try again" color="neutral" variant="soft" @click="emit('generate')" />
     </div>
 
     <div v-else-if="props.summary" class="space-y-4">
@@ -100,8 +104,17 @@ const verdictTone = computed(() => {
       </div>
     </div>
 
-    <p v-else class="text-sm text-muted">
-      Run the finder to generate a personalized view of how this boat fits your profile.
-    </p>
+    <div v-else class="space-y-3">
+      <p class="text-sm text-muted">
+        Run the finder to generate a personalized view of how this boat fits your profile. Note:
+        Limits apply per day.
+      </p>
+      <UButton
+        label="Score boat against profile"
+        icon="i-lucide-bot-message-square"
+        color="primary"
+        @click="emit('generate')"
+      />
+    </div>
   </UCard>
 </template>

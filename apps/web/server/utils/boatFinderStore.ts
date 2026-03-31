@@ -11,7 +11,7 @@ import {
   type BuyerAnswersDraft,
   type BuyerProfileDraft,
 } from '~~/lib/boatFinder'
-import { buyerProfiles, recommendationSessions } from '~~/server/database/schema'
+import { boatFitSummaries, buyerProfiles, recommendationSessions } from '~~/server/database/schema'
 
 const MAX_PROFILES_PER_USER = 5
 const COOLDOWN_MS = 24 * 60 * 60 * 1000 // 24 hours
@@ -443,7 +443,7 @@ export async function checkDailyRunLimit(event: H3Event, userId: string) {
   todayStart.setUTCHours(0, 0, 0, 0)
   const todayIso = todayStart.toISOString()
 
-  const result = await db
+  const rsResult = await db
     .select({ count: sql<number>`count(*)` })
     .from(recommendationSessions)
     .where(
@@ -454,7 +454,15 @@ export async function checkDailyRunLimit(event: H3Event, userId: string) {
     )
     .get()
 
-  const dailyRunCount = result?.count ?? 0
+  const bfsResult = await db
+    .select({ count: sql<number>`count(*)` })
+    .from(boatFitSummaries)
+    .where(
+      and(eq(boatFitSummaries.userId, userId), sql`${boatFitSummaries.createdAt} >= ${todayIso}`),
+    )
+    .get()
+
+  const dailyRunCount = (rsResult?.count ?? 0) + (bfsResult?.count ?? 0)
   return {
     dailyRunCount,
     dailyRunLimit: DAILY_RUN_LIMIT,
