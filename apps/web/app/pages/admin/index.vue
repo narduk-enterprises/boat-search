@@ -34,6 +34,14 @@ const adminTools = [
     cta: 'Open builder',
   },
   {
+    title: 'AI trace inspector',
+    description:
+      'Debug recommendation prompts, model selection, token usage, and response parsing across sessions.',
+    to: '/admin/ai-traces',
+    icon: 'i-lucide-brain',
+    cta: 'Open traces',
+  },
+  {
     title: 'Account settings',
     description:
       'Review your profile settings and keep the same key-management flow available there too.',
@@ -67,7 +75,7 @@ const adminTools = [
           />
         </div>
 
-        <div class="grid gap-4 xl:grid-cols-3">
+        <div class="grid gap-4 xl:grid-cols-4">
           <UCard
             v-for="tool in adminTools"
             :key="tool.to"
