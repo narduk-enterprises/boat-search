@@ -1,8 +1,6 @@
 import type { BuyerAnswersDraft, BuyerProfileDraft } from '~~/lib/boatFinder'
 import {
-  buildBuyerContext,
   createEmptyBuyerAnswers,
-  createEmptyBuyerAnswerOverrides,
   createEmptyBuyerProfile,
   getEffectiveBuyerAnswers,
   isBuyerAnswersComplete,
@@ -10,19 +8,49 @@ import {
   normalizeBuyerProfileDraft,
 } from '~~/lib/boatFinder'
 
-interface BuyerProfileResponse {
+interface BuyerProfileDetailResponse {
+  id: number
+  name: string
+  isActive: boolean
   profile: BuyerProfileDraft
   effectiveAnswers: BuyerAnswersDraft
-  updatedAt?: string
+  isComplete: boolean
+  lastRunAt: string | null
+  createdAt: string
+  updatedAt: string
+  canRunNow: boolean
+  nextRunAvailableAt: string | null
+  latestSessionId: number | null
+}
+
+interface SaveProfileResponse {
+  profile: BuyerProfileDraft
+  effectiveAnswers: BuyerAnswersDraft
+  updatedAt: string
   isComplete: boolean
 }
 
-export function useBuyerProfile() {
+export function useBuyerProfile(profileId: MaybeRefOrGetter<number | null | undefined>) {
   const appFetch = useAppFetch()
+  const profileIdRef = toRef(profileId)
 
-  const { data, refresh, status } = useFetch<BuyerProfileResponse>('/api/buyer-profile', {
-    key: 'buyer-profile',
-  })
+  const {
+    data,
+    refresh,
+    status,
+    error,
+  } = useAsyncData(
+    () => `buyer-profile-${profileIdRef.value ?? 'none'}`,
+    async () => {
+      if (!profileIdRef.value) return null
+      return appFetch<BuyerProfileDetailResponse>(
+        `/api/buyer-profiles/${profileIdRef.value}`,
+      )
+    },
+    {
+      watch: [profileIdRef],
+    },
+  )
 
   const profile = computed(() => normalizeBuyerProfileDraft(data.value?.profile))
   const coreAnswers = computed(() => profile.value.coreAnswers)
@@ -33,23 +61,50 @@ export function useBuyerProfile() {
   const isComplete = computed(
     () => data.value?.isComplete ?? isBuyerAnswersComplete(coreAnswers.value),
   )
+  const canRunNow = computed(() => data.value?.canRunNow ?? true)
+  const nextRunAvailableAt = computed(() => data.value?.nextRunAvailableAt ?? null)
+  const latestSessionId = computed(() => data.value?.latestSessionId ?? null)
+  const profileName = computed(() => data.value?.name ?? '')
+  const isActive = computed(() => data.value?.isActive ?? false)
 
   async function saveProfile(nextProfile: BuyerAnswersDraft) {
+    if (!profileIdRef.value) return null
     const normalized = normalizeBuyerAnswersDraft(nextProfile)
-    const response = await appFetch<BuyerProfileResponse>('/api/buyer-profile', {
-      method: 'PUT',
-      body: { profile: normalized },
-    })
-    data.value = response ?? {
-      profile: {
-        version: 2,
-        coreAnswers: normalized,
-        sessionOverrides: createEmptyBuyerAnswerOverrides(),
-        normalizedContext: buildBuyerContext(normalized),
+    const response = await appFetch<SaveProfileResponse>(
+      `/api/buyer-profiles/${profileIdRef.value}`,
+      {
+        method: 'PUT',
+        body: { profile: normalized },
       },
-      effectiveAnswers: normalized,
-      updatedAt: updatedAt.value ?? undefined,
-      isComplete: isBuyerAnswersComplete(normalized),
+    )
+    // Optimistically update the local data
+    if (data.value && response) {
+      data.value = {
+        ...data.value,
+        profile: response.profile,
+        effectiveAnswers: response.effectiveAnswers,
+        updatedAt: response.updatedAt,
+        isComplete: response.isComplete,
+      }
+    }
+    return response
+  }
+
+  async function renameProfile(name: string) {
+    if (!profileIdRef.value) return null
+    const response = await appFetch<{ id: number; name: string; updatedAt: string }>(
+      `/api/buyer-profiles/${profileIdRef.value}`,
+      {
+        method: 'PATCH',
+        body: { name },
+      },
+    )
+    if (data.value && response) {
+      data.value = {
+        ...data.value,
+        name: response.name,
+        updatedAt: response.updatedAt,
+      }
     }
     return response
   }
@@ -57,14 +112,21 @@ export function useBuyerProfile() {
   return {
     data,
     status,
+    error,
     refresh,
     profile,
+    profileName,
+    isActive,
     coreAnswers,
     effectiveAnswers,
     updatedAt,
     isComplete,
+    canRunNow,
+    nextRunAvailableAt,
+    latestSessionId,
     emptyProfile: createEmptyBuyerProfile,
     emptyAnswers: createEmptyBuyerAnswers,
     saveProfile,
+    renameProfile,
   }
 }

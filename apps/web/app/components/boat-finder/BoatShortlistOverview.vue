@@ -109,15 +109,15 @@ const overviewMetrics = computed(() => {
 
       <div class="flex flex-wrap gap-3">
         <UButton
-          to="/ai-boat-finder"
-          label="Run finder again"
+          to="/account/profile"
+          label="AI Boat Profiles"
           icon="i-lucide-sparkles"
           size="lg"
           class="brand-button-shadow"
         />
         <UButton
           to="/account/recommendations"
-          label="View run history"
+          label="All run history"
           color="neutral"
           variant="soft"
           icon="i-lucide-history"

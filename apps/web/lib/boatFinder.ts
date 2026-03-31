@@ -473,6 +473,8 @@ export const recommendationAiTraceSchema = z.object({
 const recommendationSessionBaseSchema = z.object({
   id: z.number().int().positive(),
   createdAt: z.string().min(1),
+  buyerProfileId: z.number().int().positive().nullable().default(null),
+  buyerProfileNameSnapshot: z.string().trim().max(100).nullable().default(null),
   profileSnapshot: buyerProfileRecordSchema,
   generatedFilters: recommendationFiltersSchema,
   resultSummary: recommendationSummarySchema,
@@ -1019,12 +1021,12 @@ export function buildBuyerContext(input: unknown): BuyerContext {
 
   return buyerContextSchema.parse({
     buyerBrief,
-    hardConstraints,
-    softPreferences,
-    reflectiveContext,
-    uncertainties,
+    hardConstraints: hardConstraints.slice(0, 12),
+    softPreferences: softPreferences.slice(0, 20),
+    reflectiveContext: reflectiveContext.slice(0, 16),
+    uncertainties: uncertainties.slice(0, 20),
     filterSummary: {
-      hardConstraintSummary: hardConstraints,
+      hardConstraintSummary: hardConstraints.slice(0, 12),
       softPreferenceSummary: softPreferences.slice(0, 8),
       reflectiveSummary: reflectiveContext.slice(0, 6),
     },

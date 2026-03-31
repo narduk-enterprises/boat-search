@@ -26,8 +26,22 @@ useWebPageSchema({
   description: 'Preview of buyer context sent to the recommendation model.',
 })
 
+const route = useRoute()
 const toast = useToast()
-const { coreAnswers, status, refresh } = useBuyerProfile()
+
+// Resolve profileId from query, or fall back to active profile
+const { activeProfileId } = useActiveBuyerProfile()
+const queryProfileId = computed(() => {
+  const raw = route.query.profileId
+  if (typeof raw === 'string') {
+    const num = Number.parseInt(raw, 10)
+    return Number.isNaN(num) ? null : num
+  }
+  return null
+})
+const resolvedProfileId = computed(() => queryProfileId.value ?? activeProfileId.value)
+
+const { coreAnswers, canRunNow, nextRunAvailableAt, status, refresh } = useBuyerProfile(resolvedProfileId)
 const { createSession } = useRecommendationSessions()
 
 const generating = shallowRef(false)
@@ -43,6 +57,17 @@ onMounted(() => {
   void refresh()
 })
 
+const cooldownLabel = computed(() => {
+  if (!nextRunAvailableAt.value) return null
+  const next = new Date(nextRunAvailableAt.value)
+  const delta = next.getTime() - Date.now()
+  if (delta <= 0) return null
+  const hours = Math.floor(delta / (1000 * 60 * 60))
+  const mins = Math.ceil((delta % (1000 * 60 * 60)) / (1000 * 60))
+  if (hours > 0) return `${hours}h ${mins}m`
+  return `${mins}m`
+})
+
 async function handleGenerateAiSummary() {
   generateError.value = null
   if (!buyerAnswersSchema.safeParse(answers.value).success) {
@@ -52,20 +77,31 @@ async function handleGenerateAiSummary() {
 
   generating.value = true
   try {
-    const response = await createSession()
+    await createSession({
+      profileId: resolvedProfileId.value ?? undefined,
+    })
     toast.add({
       title: 'Shortlist ready',
       description: 'Your buyer brief has been matched against the current inventory.',
       color: 'success',
     })
     await navigateTo({
-      path: '/search',
-      query: { sessionId: String(response.session.id) },
+      path: `/account/profile/${resolvedProfileId.value}`,
     })
   } catch (error: unknown) {
-    const err = error as { data?: { statusMessage?: string }; message?: string }
-    generateError.value =
-      err.data?.statusMessage || err.message || 'Could not generate recommendations.'
+    const err = error as {
+      data?: { statusMessage?: string; nextRunAvailableAt?: string }
+      statusCode?: number
+      message?: string
+    }
+    if (err.statusCode === 429) {
+      generateError.value = err.data?.nextRunAvailableAt
+        ? `Cooldown active — rerun available after ${new Date(err.data.nextRunAvailableAt).toLocaleString()}.`
+        : 'This profile was run recently. Please wait before rerunning.'
+    } else {
+      generateError.value =
+        err.data?.statusMessage || err.message || 'Could not generate recommendations.'
+    }
   } finally {
     generating.value = false
   }
@@ -97,6 +133,11 @@ async function handleGenerateAiSummary() {
         </div>
 
         <template v-else>
+          <div v-if="cooldownLabel" class="flex items-center gap-1.5 text-sm text-warning">
+            <UIcon name="i-lucide-clock" class="size-4" />
+            Cooldown active — rerun available in {{ cooldownLabel }}
+          </div>
+
           <UButton
             block
             label="Run AI assessment now"
@@ -105,7 +146,7 @@ async function handleGenerateAiSummary() {
             icon="i-lucide-sparkles"
             class="min-h-14 text-base sm:min-h-16 sm:text-lg"
             :loading="generating"
-            :disabled="!answersValid || generating"
+            :disabled="!answersValid || generating || !canRunNow"
             data-testid="boat-finder-summary-generate"
             @click="handleGenerateAiSummary"
           />
@@ -118,7 +159,12 @@ async function handleGenerateAiSummary() {
               description="Go back to the finder and finish mission, budget ceiling, and region or travel radius before generating."
               class="border-default"
             />
-            <UButton to="/ai-boat-finder" label="Back to finder" size="sm" variant="soft" />
+            <UButton
+              :to="resolvedProfileId ? `/account/profile/${resolvedProfileId}` : '/account/profile'"
+              label="Back to profile"
+              size="sm"
+              variant="soft"
+            />
           </div>
 
           <div
@@ -131,20 +177,22 @@ async function handleGenerateAiSummary() {
 
           <div class="flex flex-wrap gap-2">
             <UButton
-              to="/ai-boat-finder"
-              label="Edit in finder"
+              v-if="resolvedProfileId"
+              :to="`/account/profile/${resolvedProfileId}`"
+              label="Back to profile"
               color="neutral"
               variant="soft"
               size="sm"
               icon="i-lucide-arrow-left"
             />
             <UButton
+              v-else
               to="/account/profile"
-              label="Buyer profile"
+              label="AI Boat Profiles"
               color="neutral"
-              variant="ghost"
+              variant="soft"
               size="sm"
-              icon="i-lucide-user-round"
+              icon="i-lucide-arrow-left"
             />
           </div>
 

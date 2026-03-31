@@ -88,7 +88,7 @@ const isLoadingShortlist = computed(
           {{ errorMessage }}
         </p>
         <div class="mt-6 flex flex-wrap justify-center gap-2">
-          <UButton to="/ai-boat-finder" label="Open finder" icon="i-lucide-sparkles" />
+          <UButton to="/account/profile" label="AI Boat Profiles" icon="i-lucide-sparkles" />
           <UButton
             v-if="latestSessionId"
             :to="{ path: '/search', query: { sessionId: String(latestSessionId) } }"
@@ -111,8 +111,8 @@ const isLoadingShortlist = computed(
         </p>
         <UButton
           class="mt-6"
-          to="/ai-boat-finder"
-          label="Start the finder"
+          to="/account/profile"
+          label="AI Boat Profiles"
           icon="i-lucide-sparkles"
         />
       </div>

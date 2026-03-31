@@ -41,20 +41,14 @@ const navLinks = computed<NavLink[]>(() => {
       icon: 'i-lucide-map',
       matchPrefixes: ['/boats-for-sale/map'],
     },
-    {
-      label: 'AI Boat Finder',
-      to: '/ai-boat-finder',
-      icon: 'i-lucide-sparkles',
-      matchPrefixes: ['/ai-boat-finder'],
-    },
   ]
 
   if (loggedIn.value) {
     base.push({
-      label: 'Shortlist',
-      to: '/search',
-      icon: 'i-lucide-ship-wheel',
-      matchPrefixes: ['/search', '/account/recommendations'],
+      label: 'AI Boat Profiles',
+      to: '/account/profile',
+      icon: 'i-lucide-sparkles',
+      matchPrefixes: ['/account/profile', '/ai-boat-finder'],
     })
   }
 
@@ -74,7 +68,7 @@ const accountLinks = computed(() => {
   }
 
   return [
-    { label: 'Saved profile', to: '/account/profile', icon: 'i-lucide-user-round' },
+    { label: 'AI Boat Profiles', to: '/account/profile', icon: 'i-lucide-user-round' },
     { label: 'Favorites', to: '/account/favorites', icon: 'i-lucide-heart' },
     { label: 'Alerts', to: '/account/alerts', icon: 'i-lucide-bell-ring' },
   ]
@@ -153,9 +147,8 @@ function isActiveLink(link: NavLink) {
                   v-if="loggedIn"
                   class="hidden lg:block"
                   :menu-links="[
-                    { label: 'AI Boat Finder', to: '/ai-boat-finder', icon: 'i-lucide-sparkles' },
-                    { label: 'Shortlist', to: '/search', icon: 'i-lucide-ship-wheel' },
-                    { label: 'Saved profile', to: '/account/profile', icon: 'i-lucide-user-round' },
+                    { label: 'AI Boat Profiles', to: '/account/profile', icon: 'i-lucide-sparkles' },
+                    { label: 'Shortlist history', to: '/search', icon: 'i-lucide-ship-wheel' },
                     { label: 'Favorites', to: '/account/favorites', icon: 'i-lucide-heart' },
                   ]"
                   logout-redirect="/login"
@@ -245,7 +238,6 @@ function isActiveLink(link: NavLink) {
               <div class="flex flex-col gap-2">
                 <NuxtLink :class="footerLinkClass" to="/boats-for-sale">Live inventory</NuxtLink>
                 <NuxtLink :class="footerLinkClass" to="/boats-for-sale/map">Inventory map</NuxtLink>
-                <NuxtLink :class="footerLinkClass" to="/ai-boat-finder">AI Boat Finder</NuxtLink>
               </div>
             </div>
             <div class="space-y-2">
@@ -253,8 +245,8 @@ function isActiveLink(link: NavLink) {
                 Buyer tools
               </p>
               <div class="flex flex-col gap-2">
-                <NuxtLink :class="footerLinkClass" to="/search">Shortlist</NuxtLink>
-                <NuxtLink :class="footerLinkClass" to="/account/profile">Saved profile</NuxtLink>
+                <NuxtLink :class="footerLinkClass" to="/account/profile">AI Boat Profiles</NuxtLink>
+                <NuxtLink :class="footerLinkClass" to="/search">Shortlist history</NuxtLink>
                 <NuxtLink :class="footerLinkClass" to="/account/alerts">Alerts</NuxtLink>
               </div>
             </div>

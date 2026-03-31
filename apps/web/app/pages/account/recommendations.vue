@@ -17,15 +17,17 @@ useWebPageSchema({
 
 const toast = useToast()
 const { sessionsData, sessionsStatus, createSession } = useRecommendationSessions()
-const rerunning = shallowRef(false)
+const rerunningSessionId = shallowRef<number | null>(null)
 
-async function handleRerunLatest() {
-  rerunning.value = true
+async function handleRerunProfile(profileId: number | null | undefined, sessionId: number) {
+  rerunningSessionId.value = sessionId
   try {
-    const response = await createSession()
+    const response = await createSession({
+      profileId: profileId ?? undefined,
+    })
     toast.add({
       title: 'Finder rerun complete',
-      description: 'A new shortlist has been generated from your saved brief.',
+      description: 'A new shortlist has been generated from the saved brief.',
       color: 'success',
     })
     await navigateTo({
@@ -33,14 +35,28 @@ async function handleRerunLatest() {
       query: { sessionId: String(response.session.id) },
     })
   } catch (error: unknown) {
-    const err = error as { data?: { statusMessage?: string }; message?: string }
-    toast.add({
-      title: 'Could not rerun finder',
-      description: err.data?.statusMessage || err.message || 'Try again.',
-      color: 'error',
-    })
+    const err = error as {
+      data?: { statusMessage?: string; nextRunAvailableAt?: string }
+      statusCode?: number
+      message?: string
+    }
+    if (err.statusCode === 429) {
+      toast.add({
+        title: 'Cooldown active',
+        description: err.data?.nextRunAvailableAt
+          ? `This profile can be rerun after ${new Date(err.data.nextRunAvailableAt).toLocaleString()}.`
+          : 'This profile was run recently. Please wait.',
+        color: 'warning',
+      })
+    } else {
+      toast.add({
+        title: 'Could not rerun finder',
+        description: err.data?.statusMessage || err.message || 'Try again.',
+        color: 'error',
+      })
+    }
   } finally {
-    rerunning.value = false
+    rerunningSessionId.value = null
   }
 }
 </script>
@@ -60,14 +76,8 @@ async function handleRerunLatest() {
 
         <div class="flex flex-wrap gap-2">
           <UButton
-            label="Rerun saved brief"
-            icon="i-lucide-refresh-cw"
-            :loading="rerunning"
-            @click="handleRerunLatest"
-          />
-          <UButton
             to="/account/profile"
-            label="Edit buyer profile"
+            label="AI Boat Profiles"
             color="neutral"
             variant="soft"
             icon="i-lucide-user-round"
@@ -88,12 +98,12 @@ async function handleRerunLatest() {
         <UIcon name="i-lucide-history" class="mx-auto text-4xl text-dimmed" />
         <h2 class="mt-4 text-xl font-semibold text-default">No finder runs yet</h2>
         <p class="mt-2 text-muted max-w-2xl mx-auto">
-          Run the AI finder once and this page becomes your history view for saved shortlists.
+          Run the AI from a buyer profile and this page becomes your history view for saved shortlists.
         </p>
         <UButton
           class="mt-6"
-          to="/ai-boat-finder"
-          label="Open the finder"
+          to="/account/profile"
+          label="AI Boat Profiles"
           icon="i-lucide-sparkles"
         />
       </div>
@@ -114,6 +124,13 @@ async function handleRerunLatest() {
                   "
                   color="primary"
                   variant="subtle"
+                />
+                <UBadge
+                  v-if="session.buyerProfileNameSnapshot"
+                  :label="session.buyerProfileNameSnapshot"
+                  color="neutral"
+                  variant="soft"
+                  icon="i-lucide-user-round"
                 />
                 <span class="text-sm text-dimmed">
                   {{ new Date(session.createdAt).toLocaleString() }}
@@ -136,6 +153,15 @@ async function handleRerunLatest() {
                 :to="{ path: '/search', query: { sessionId: String(session.id) } }"
                 label="Open shortlist"
                 icon="i-lucide-arrow-right"
+              />
+              <UButton
+                label="Rerun profile"
+                icon="i-lucide-refresh-cw"
+                color="neutral"
+                variant="soft"
+                size="sm"
+                :loading="rerunningSessionId === session.id"
+                @click="handleRerunProfile(session.buyerProfileId, session.id)"
               />
             </div>
           </div>

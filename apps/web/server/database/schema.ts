@@ -255,15 +255,26 @@ export const xaiAnalyses = sqliteTable('xai_analyses', {
   createdAt: text('created_at').notNull(),
 })
 
-export const buyerProfiles = sqliteTable('buyer_profiles', {
-  userId: text('user_id')
-    .primaryKey()
-    .references(() => users.id, { onDelete: 'cascade' }),
-  dataJson: text('data_json').notNull().default('{}'),
-  updatedAt: text('updated_at')
-    .notNull()
-    .$defaultFn(() => new Date().toISOString()),
-})
+export const buyerProfiles = sqliteTable(
+  'buyer_profiles',
+  {
+    id: integer('id').primaryKey({ autoIncrement: true }),
+    userId: text('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    name: text('name').notNull().default('Primary profile'),
+    isActive: integer('is_active', { mode: 'boolean' }).notNull().default(true),
+    dataJson: text('data_json').notNull().default('{}'),
+    lastRunAt: text('last_run_at'),
+    createdAt: text('created_at')
+      .notNull()
+      .$defaultFn(() => new Date().toISOString()),
+    updatedAt: text('updated_at')
+      .notNull()
+      .$defaultFn(() => new Date().toISOString()),
+  },
+  (table) => [index('idx_buyer_profiles_user_id').on(table.userId)],
+)
 
 export const savedSearches = sqliteTable(
   'saved_searches',
@@ -313,6 +324,8 @@ export const recommendationSessions = sqliteTable(
     userId: text('user_id')
       .notNull()
       .references(() => users.id, { onDelete: 'cascade' }),
+    buyerProfileId: integer('buyer_profile_id'),
+    buyerProfileNameSnapshot: text('buyer_profile_name_snapshot'),
     profileSnapshotJson: text('profile_snapshot_json').notNull(),
     generatedFilterJson: text('generated_filter_json').notNull(),
     resultSummaryJson: text('result_summary_json').notNull(),

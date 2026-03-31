@@ -32,12 +32,12 @@ useWebPageSchema({
             </p>
           </div>
 
-          <div class="grid w-full max-w-4xl grid-cols-1 gap-4 sm:grid-cols-3">
+          <div class="grid w-full max-w-4xl grid-cols-1 gap-4 md:grid-cols-3">
             <UButton
               to="/boats-for-sale"
               label="View Live Inventory"
               icon="i-lucide-search"
-              class="min-h-18 w-full justify-center rounded-[1.4rem] px-6 py-5 text-lg font-semibold sm:text-xl"
+              class="min-h-18 w-full justify-center whitespace-normal rounded-[1.4rem] px-6 py-5 text-base font-semibold sm:text-lg"
             />
             <UButton
               to="/boats-for-sale/map"
@@ -45,15 +45,15 @@ useWebPageSchema({
               color="neutral"
               variant="soft"
               icon="i-lucide-map"
-              class="min-h-18 w-full justify-center rounded-[1.4rem] px-6 py-5 text-lg font-semibold sm:text-xl"
+              class="min-h-18 w-full justify-center whitespace-normal rounded-[1.4rem] px-6 py-5 text-base font-semibold sm:text-lg"
             />
             <UButton
-              to="/login"
-              label="AI Tailored Boat Suggestions"
+              to="/account/profile"
+              label="AI Boat Profiles"
               color="neutral"
               variant="ghost"
               icon="i-lucide-sparkles"
-              class="min-h-18 w-full justify-center rounded-[1.4rem] px-6 py-5 text-lg font-semibold sm:text-xl"
+              class="min-h-18 w-full justify-center whitespace-normal rounded-[1.4rem] px-6 py-5 text-base font-semibold sm:text-lg"
             />
           </div>
         </div>

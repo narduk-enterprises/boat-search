@@ -38,6 +38,7 @@ interface RecommendationSessionDetailResponse {
 }
 
 interface CreateRecommendationSessionOptions {
+  profileId?: number
   overrides?: BuyerAnswerOverrides
   saveOverrides?: boolean
 }
@@ -82,17 +83,16 @@ export function useRecommendationSessions(
   )
 
   async function createSession(options: CreateRecommendationSessionOptions = {}) {
+    const body: Record<string, unknown> = {}
+    if (options.profileId) body.profileId = options.profileId
+    if (options.overrides) body.overrides = options.overrides
+    if (options.saveOverrides != null) body.saveOverrides = options.saveOverrides
+
     const response = await appFetch<CreateRecommendationSessionResponse>(
       '/api/recommendation-sessions',
       {
         method: 'POST',
-        body:
-          options.overrides || options.saveOverrides
-            ? {
-                overrides: options.overrides,
-                saveOverrides: options.saveOverrides ?? false,
-              }
-            : {},
+        body: Object.keys(body).length > 0 ? body : {},
       },
     )
     await refreshSessions()

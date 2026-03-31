@@ -17,7 +17,7 @@ definePageMeta({ middleware: ['guest'] })
 const route = useRoute()
 const redirectPath = computed(() => {
   const r = route.query.redirect
-  if (typeof r !== 'string' || !r.startsWith('/') || r.startsWith('//')) return '/ai-boat-finder'
+  if (typeof r !== 'string' || !r.startsWith('/') || r.startsWith('//')) return '/account/profile'
   return r
 })
 </script>

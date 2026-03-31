@@ -83,8 +83,8 @@ const statCards = computed(() => [
               class="brand-button-shadow"
             />
             <UButton
-              to="/ai-boat-finder"
-              label="Use the buyer brief"
+              to="/account/profile"
+              label="AI Boat Profiles"
               color="neutral"
               variant="soft"
               icon="i-lucide-sparkles"

@@ -1001,6 +1001,8 @@ export async function buildBoatFitSummaryResult(
 function parseSessionBaseRow(row: {
   id: number
   createdAt: string
+  buyerProfileId: number | null
+  buyerProfileNameSnapshot: string | null
   profileSnapshotJson: string
   generatedFilterJson: string
   resultSummaryJson: string
@@ -1009,6 +1011,8 @@ function parseSessionBaseRow(row: {
   return {
     id: row.id,
     createdAt: row.createdAt,
+    buyerProfileId: row.buyerProfileId,
+    buyerProfileNameSnapshot: row.buyerProfileNameSnapshot,
     profileSnapshot: normalizeBuyerProfile(JSON.parse(row.profileSnapshotJson)),
     generatedFilters: JSON.parse(row.generatedFilterJson),
     resultSummary: recommendationSummarySchema.parse(JSON.parse(row.resultSummaryJson)),
@@ -1019,6 +1023,8 @@ function parseSessionBaseRow(row: {
 function parseSessionRow(row: {
   id: number
   createdAt: string
+  buyerProfileId: number | null
+  buyerProfileNameSnapshot: string | null
   profileSnapshotJson: string
   generatedFilterJson: string
   resultSummaryJson: string
@@ -1036,6 +1042,8 @@ export async function getRecommendationSessionsForUser(db: AppDb, userId: string
     .select({
       id: recommendationSessions.id,
       createdAt: recommendationSessions.createdAt,
+      buyerProfileId: recommendationSessions.buyerProfileId,
+      buyerProfileNameSnapshot: recommendationSessions.buyerProfileNameSnapshot,
       profileSnapshotJson: recommendationSessions.profileSnapshotJson,
       generatedFilterJson: recommendationSessions.generatedFilterJson,
       resultSummaryJson: recommendationSessions.resultSummaryJson,
@@ -1058,6 +1066,8 @@ export async function getRecommendationSessionForUser(
     .select({
       id: recommendationSessions.id,
       createdAt: recommendationSessions.createdAt,
+      buyerProfileId: recommendationSessions.buyerProfileId,
+      buyerProfileNameSnapshot: recommendationSessions.buyerProfileNameSnapshot,
       profileSnapshotJson: recommendationSessions.profileSnapshotJson,
       generatedFilterJson: recommendationSessions.generatedFilterJson,
       resultSummaryJson: recommendationSessions.resultSummaryJson,

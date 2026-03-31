@@ -250,8 +250,8 @@ const activeFilters = computed(() => {
       </p>
       <UButton
         class="mt-6"
-        to="/ai-boat-finder"
-        label="Refine questionnaire"
+        to="/account/profile"
+        label="Edit profile"
         icon="i-lucide-sliders-horizontal"
       />
     </div>

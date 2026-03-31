@@ -13,10 +13,17 @@ import {
   buildRecommendationSessionResult,
   getRecommendationSessionForUser,
 } from '~~/server/utils/boatRecommendations'
-import { getBuyerProfile, upsertBuyerProfile } from '~~/server/utils/boatFinderStore'
+import {
+  getActiveBuyerProfile,
+  getBuyerProfileById,
+  checkProfileRunCooldown,
+  markBuyerProfileRunSuccess,
+  saveBuyerProfile,
+} from '~~/server/utils/boatFinderStore'
 import { defineUserMutation, withOptionalValidatedBody } from '#layer/server/utils/mutation'
 
 const bodySchema = z.object({
+  profileId: z.number().int().positive().optional(),
   overrides: z.unknown().optional(),
   saveOverrides: z.boolean().optional().default(false),
 })
@@ -29,15 +36,45 @@ export default defineUserMutation(
   async ({ event, body, user }) => {
     const config = useRuntimeConfig(event)
     const db = useAppDatabase(event)
-    const storedProfile = await getBuyerProfile(event, user.id)
+
+    // Resolve profile — by explicit ID, or fall back to active profile
+    let profileData: Awaited<ReturnType<typeof getBuyerProfileById>> = null
+    let resolvedProfileId: number | null = null
+
+    if (body.profileId) {
+      profileData = await getBuyerProfileById(event, user.id, body.profileId)
+      if (!profileData) {
+        throw createError({ statusCode: 404, statusMessage: 'Buyer profile not found.' })
+      }
+      resolvedProfileId = profileData.id
+    } else {
+      const active = await getActiveBuyerProfile(event, user.id)
+      if (active) {
+        profileData = await getBuyerProfileById(event, user.id, active.id)
+        resolvedProfileId = active.id
+      }
+    }
+
+    // Enforce cooldown if we have a resolved profile
+    if (resolvedProfileId && profileData) {
+      const cooldown = checkProfileRunCooldown(profileData.lastRunAt)
+      if (!cooldown.canRunNow) {
+        throw createError({
+          statusCode: 429,
+          statusMessage: 'This profile was run recently. Try again later.',
+          data: { nextRunAvailableAt: cooldown.nextRunAvailableAt },
+        })
+      }
+    }
+
     const overrides = normalizeBuyerAnswerOverrides(body.overrides)
     const hasOverrides =
       JSON.stringify(overrides) !== JSON.stringify(createEmptyBuyerAnswerOverrides())
 
-    const baseProfile = storedProfile.profile ?? createEmptyBuyerProfile()
+    const baseProfile = profileData?.profile ?? createEmptyBuyerProfile()
     const effectiveAnswers = hasOverrides
       ? mergeBuyerAnswers(baseProfile.coreAnswers, overrides)
-      : storedProfile.effectiveAnswers
+      : profileData?.effectiveAnswers ?? baseProfile.coreAnswers
 
     if (!isBuyerAnswersComplete(effectiveAnswers)) {
       throw createError({
@@ -46,9 +83,10 @@ export default defineUserMutation(
       })
     }
 
-    const savedProfile = body.saveOverrides
-      ? await upsertBuyerProfile(event, user.id, effectiveAnswers)
-      : null
+    const savedProfile =
+      body.saveOverrides && resolvedProfileId
+        ? await saveBuyerProfile(event, user.id, resolvedProfileId, effectiveAnswers)
+        : null
 
     const sessionProfileSnapshot = savedProfile?.profile ?? {
       version: 2 as const,
@@ -67,6 +105,8 @@ export default defineUserMutation(
     const createdAt = new Date().toISOString()
     await db.insert(recommendationSessions).values({
       userId: user.id,
+      buyerProfileId: resolvedProfileId,
+      buyerProfileNameSnapshot: profileData?.name ?? null,
       profileSnapshotJson: JSON.stringify(result.profile),
       generatedFilterJson: JSON.stringify(result.filters),
       resultSummaryJson: JSON.stringify(result.summary),
@@ -87,6 +127,11 @@ export default defineUserMutation(
         statusCode: 500,
         statusMessage: 'Could not persist recommendation session',
       })
+    }
+
+    // Mark run success AFTER the session is persisted successfully
+    if (resolvedProfileId) {
+      await markBuyerProfileRunSuccess(event, user.id, resolvedProfileId)
     }
 
     const session = await getRecommendationSessionForUser(db, user.id, inserted.id)

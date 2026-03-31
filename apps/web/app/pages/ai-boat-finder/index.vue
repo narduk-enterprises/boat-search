@@ -34,7 +34,31 @@ useWebPageSchema({
 })
 
 const route = useRoute()
-const { coreAnswers, updatedAt, saveProfile, status } = useBuyerProfile()
+
+// Resolve profileId from query, or fall back to active profile
+const { activeProfileId, hasProfiles, status: profilesStatus } = useActiveBuyerProfile()
+const queryProfileId = computed(() => {
+  const raw = route.query.profileId
+  if (typeof raw === 'string') {
+    const num = Number.parseInt(raw, 10)
+    return Number.isNaN(num) ? null : num
+  }
+  return null
+})
+const resolvedProfileId = computed(() => queryProfileId.value ?? activeProfileId.value)
+
+// Redirect to library if no profiles exist
+watch(
+  [profilesStatus, hasProfiles],
+  ([s, has]) => {
+    if (s !== 'pending' && !has) {
+      void navigateTo('/account/profile')
+    }
+  },
+  { immediate: true },
+)
+
+const { coreAnswers, updatedAt, saveProfile, status } = useBuyerProfile(resolvedProfileId)
 
 const draftAnswers = ref<BuyerAnswersDraft>(createEmptyBuyerAnswers())
 const submitting = shallowRef(false)
@@ -323,7 +347,10 @@ async function handleSubmit() {
     }
 
     routeSyncPaused.value = true
-    await navigateTo('/ai-boat-finder/summary')
+    await navigateTo({
+      path: '/ai-boat-finder/summary',
+      query: resolvedProfileId.value ? { profileId: String(resolvedProfileId.value) } : {},
+    })
     navigatedToSummary = true
   } finally {
     if (!navigatedToSummary) {
@@ -406,7 +433,7 @@ const backPath = computed(() => {
             />
             <UButton
               to="/account/profile"
-              label="Buyer profile"
+              label="AI Boat Profiles"
               color="neutral"
               variant="soft"
               icon="i-lucide-user-round"

@@ -113,8 +113,8 @@ const discoverySteps = [
               icon="i-lucide-map"
             />
             <UButton
-              to="/ai-boat-finder"
-              label="Use the buyer brief"
+              to="/account/profile"
+              label="AI Boat Profiles"
               color="neutral"
               variant="ghost"
               icon="i-lucide-sparkles"
