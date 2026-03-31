@@ -127,7 +127,10 @@ const cooldownLabel = computed(() => {
             </p>
             <ClientOnly>
               <div class="flex flex-wrap items-center gap-3">
-                <div class="flex items-center gap-1.5 text-xs text-muted" data-testid="daily-run-usage">
+                <div
+                  class="flex items-center gap-1.5 text-xs text-muted"
+                  data-testid="daily-run-usage"
+                >
                   <UIcon name="i-lucide-zap" class="size-3.5" />
                   <span>
                     <strong class="text-default">{{ runsRemaining }}</strong>

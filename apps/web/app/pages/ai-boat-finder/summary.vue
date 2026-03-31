@@ -137,7 +137,10 @@ async function handleGenerateAiSummary() {
           <!-- Daily usage badge -->
           <ClientOnly>
             <div class="flex flex-wrap items-center gap-3">
-              <div class="flex items-center gap-1.5 text-sm text-muted" data-testid="daily-run-usage">
+              <div
+                class="flex items-center gap-1.5 text-sm text-muted"
+                data-testid="daily-run-usage"
+              >
                 <UIcon name="i-lucide-zap" class="size-4" />
                 <span>
                   <strong class="text-default">{{ runsRemaining }}</strong>

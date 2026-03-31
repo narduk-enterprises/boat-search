@@ -97,7 +97,9 @@ const structuredFiltersJson = computed(() =>
               v-if="profileContext.softPreferences.length"
               class="list-disc space-y-1.5 ps-5 text-sm leading-relaxed text-default"
             >
-              <li v-for="(line, i) in profileContext.softPreferences" :key="`s-${i}`">{{ line }}</li>
+              <li v-for="(line, i) in profileContext.softPreferences" :key="`s-${i}`">
+                {{ line }}
+              </li>
             </ul>
             <p v-else class="text-sm text-muted">
               Missions, species, styles, must-haves, and similar signals land here.
@@ -118,7 +120,9 @@ const structuredFiltersJson = computed(() =>
               v-if="profileContext.reflectiveContext.length"
               class="list-disc space-y-1.5 ps-5 text-sm leading-relaxed text-default"
             >
-              <li v-for="(line, i) in profileContext.reflectiveContext" :key="`r-${i}`">{{ line }}</li>
+              <li v-for="(line, i) in profileContext.reflectiveContext" :key="`r-${i}`">
+                {{ line }}
+              </li>
             </ul>
             <p v-else class="text-sm text-muted">
               Family, timing, stressors, and your free-form note appear here.
@@ -129,7 +133,9 @@ const structuredFiltersJson = computed(() =>
         <USeparator />
 
         <div class="space-y-2">
-          <h2 class="text-xs font-semibold uppercase tracking-[0.14em] text-dimmed">Uncertainties</h2>
+          <h2 class="text-xs font-semibold uppercase tracking-[0.14em] text-dimmed">
+            Uncertainties
+          </h2>
           <ul
             v-if="profileContext.uncertainties.length"
             class="list-disc space-y-1.5 ps-5 text-sm leading-relaxed text-warning"
@@ -162,7 +168,13 @@ const structuredFiltersJson = computed(() =>
 
     <template #footer>
       <div class="flex justify-end">
-        <UButton label="Close" color="neutral" variant="soft" data-testid="ai-payload-modal-close" @click="isOpen = false" />
+        <UButton
+          label="Close"
+          color="neutral"
+          variant="soft"
+          data-testid="ai-payload-modal-close"
+          @click="isOpen = false"
+        />
       </div>
     </template>
   </UModal>

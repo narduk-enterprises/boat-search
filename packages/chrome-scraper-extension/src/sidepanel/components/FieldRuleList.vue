@@ -120,27 +120,17 @@ watch(
           <strong>Show on page</strong> for fast spot checks.
         </p>
       </div>
-      <button
-        type="button"
-        class="secondary"
-        @click="emit('addField', props.scope)"
-      >
+      <button type="button" class="secondary" @click="emit('addField', props.scope)">
         Add mapping
       </button>
     </div>
 
-    <div
-      v-if="!fields.length"
-      class="field-list__empty"
-    >
+    <div v-if="!fields.length" class="field-list__empty">
       <strong>No fields yet</strong>
       <p>Add a field manually or run detection on the current page to generate suggestions.</p>
     </div>
 
-    <div
-      v-else
-      class="field-list__items"
-    >
+    <div v-else class="field-list__items">
       <article
         v-for="(field, index) in fields"
         :key="`${field.scope}-${field.key}-${index}`"
@@ -157,14 +147,8 @@ watch(
               <span class="field-chip field-chip--primary">{{ formatFieldName(field.key) }}</span>
               <span class="field-chip">{{ field.extract }}</span>
               <span class="field-chip">{{ field.transform }}</span>
-              <span
-                v-if="field.required"
-                class="field-chip field-chip--required"
-              > Required </span>
-              <span
-                v-if="field.multiple"
-                class="field-chip"
-              > Multiple </span>
+              <span v-if="field.required" class="field-chip field-chip--required"> Required </span>
+              <span v-if="field.multiple" class="field-chip"> Multiple </span>
             </div>
 
             <p class="field-card__selector">
@@ -182,72 +166,41 @@ watch(
               v-if="isPreviewed(field) && props.preview?.sampleValues.length"
               class="field-card__samples"
             >
-              <span
-                v-for="sample in props.preview.sampleValues"
-                :key="sample"
-                class="sample-chip"
-              >
+              <span v-for="sample in props.preview.sampleValues" :key="sample" class="sample-chip">
                 {{ sample }}
               </span>
             </div>
           </div>
 
           <div class="field-card__quick-actions">
-            <button
-              type="button"
-              class="secondary"
-              @click="togglePreview(field)"
-            >
+            <button type="button" class="secondary" @click="togglePreview(field)">
               {{ isPreviewed(field) ? 'Hide preview' : 'Show on page' }}
             </button>
-            <button
-              type="button"
-              class="ghost"
-              @click="toggleField(index)"
-            >
+            <button type="button" class="ghost" @click="toggleField(index)">
               {{ expandedIndex === index ? 'Hide editor' : 'Edit mapping' }}
             </button>
-            <button
-              type="button"
-              class="secondary"
-              @click="emit('pickField', field)"
-            >
+            <button type="button" class="secondary" @click="emit('pickField', field)">
               {{ isPending(field) ? 'Click page...' : 'Pick again' }}
             </button>
-            <button
-              type="button"
-              class="danger danger--ghost"
-              @click="emit('removeField', index)"
-            >
+            <button type="button" class="danger danger--ghost" @click="emit('removeField', index)">
               Remove
             </button>
           </div>
         </div>
 
-        <div
-          v-if="expandedIndex === index"
-          class="field-card__editor"
-        >
+        <div v-if="expandedIndex === index" class="field-card__editor">
           <div class="field-card__row">
             <label>
               <span>Field</span>
               <select v-model="field.key">
-                <option
-                  v-for="key in FIELD_KEYS"
-                  :key="key"
-                  :value="key"
-                >{{ key }}</option>
+                <option v-for="key in FIELD_KEYS" :key="key" :value="key">{{ key }}</option>
               </select>
             </label>
 
             <label>
               <span>Extract</span>
               <select v-model="field.extract">
-                <option
-                  v-for="extract in FIELD_EXTRACT_TYPES"
-                  :key="extract"
-                  :value="extract"
-                >
+                <option v-for="extract in FIELD_EXTRACT_TYPES" :key="extract" :value="extract">
                   {{ extract }}
                 </option>
               </select>
@@ -256,11 +209,7 @@ watch(
             <label>
               <span>Transform</span>
               <select v-model="field.transform">
-                <option
-                  v-for="transform in FIELD_TRANSFORMS"
-                  :key="transform"
-                  :value="transform"
-                >
+                <option v-for="transform in FIELD_TRANSFORMS" :key="transform" :value="transform">
                   {{ transform }}
                 </option>
               </select>
@@ -269,47 +218,29 @@ watch(
 
           <label class="field-card__stack">
             <span>Selector</span>
-            <input
-              v-model="field.selector"
-              type="text"
-              placeholder=".price, h1, a[href]"
-            >
+            <input v-model="field.selector" type="text" placeholder=".price, h1, a[href]" />
           </label>
 
           <div class="field-card__row field-card__row--secondary">
             <label>
               <span>Attribute</span>
-              <input
-                v-model="field.attribute"
-                type="text"
-                placeholder="href, src, content"
-              >
+              <input v-model="field.attribute" type="text" placeholder="href, src, content" />
             </label>
 
             <label>
               <span>Regex</span>
-              <input
-                v-model="field.regex"
-                type="text"
-                placeholder="(\\d{4})"
-              >
+              <input v-model="field.regex" type="text" placeholder="(\\d{4})" />
             </label>
           </div>
 
           <div class="field-card__footer">
             <label class="checkbox">
-              <input
-                v-model="field.multiple"
-                type="checkbox"
-              >
+              <input v-model="field.multiple" type="checkbox" />
               <span>Multiple values</span>
             </label>
 
             <label class="checkbox">
-              <input
-                v-model="field.required"
-                type="checkbox"
-              >
+              <input v-model="field.required" type="checkbox" />
               <span>Required for import</span>
             </label>
           </div>

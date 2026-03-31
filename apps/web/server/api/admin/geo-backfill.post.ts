@@ -59,9 +59,7 @@ export default defineAdminMutation(
           isNull(boats.supersededByBoatId),
           or(
             isNull(boats.geoStatus),
-            ...(retryAuthCondition
-              ? [and(eq(boats.geoStatus, 'failed'), retryAuthCondition)]
-              : []),
+            ...(retryAuthCondition ? [and(eq(boats.geoStatus, 'failed'), retryAuthCondition)] : []),
           ),
         ),
       )
@@ -169,7 +167,8 @@ export default defineAdminMutation(
       dryRun: body.dryRun,
       remaining: {
         totalActive: totals?.totalActive ?? 0,
-        needsGeocoding: (totals?.geoNull ?? 0) + (body.retryAuthFailures ? (totals?.geoFailed ?? 0) : 0),
+        needsGeocoding:
+          (totals?.geoNull ?? 0) + (body.retryAuthFailures ? (totals?.geoFailed ?? 0) : 0),
         geoNull: totals?.geoNull ?? 0,
         geoMatched: totals?.geoMatched ?? 0,
         geoFailed: totals?.geoFailed ?? 0,

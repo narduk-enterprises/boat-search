@@ -81,16 +81,13 @@ test.describe('AI payload modal & daily run limit', () => {
     const profileId = profile.id
 
     await retryFetch(page, () =>
-      page.evaluate(
-        async (id) => {
-          const res = await fetch(`/api/buyer-profiles/${id}/activate`, {
-            method: 'POST',
-            headers: { 'X-Requested-With': 'XMLHttpRequest' },
-          })
-          if (!res.ok) throw new Error(await res.text())
-        },
-        profileId,
-      ),
+      page.evaluate(async (id) => {
+        const res = await fetch(`/api/buyer-profiles/${id}/activate`, {
+          method: 'POST',
+          headers: { 'X-Requested-With': 'XMLHttpRequest' },
+        })
+        if (!res.ok) throw new Error(await res.text())
+      }, profileId),
     )
 
     const validAnswers = {
