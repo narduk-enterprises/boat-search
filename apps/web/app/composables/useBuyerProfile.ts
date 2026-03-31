@@ -21,6 +21,9 @@ interface BuyerProfileDetailResponse {
   canRunNow: boolean
   nextRunAvailableAt: string | null
   latestSessionId: number | null
+  dailyRunCount: number
+  dailyRunLimit: number
+  runsRemaining: number
 }
 
 interface SaveProfileResponse {
@@ -61,6 +64,9 @@ export function useBuyerProfile(profileId: MaybeRefOrGetter<number | null | unde
   const canRunNow = computed(() => data.value?.canRunNow ?? true)
   const nextRunAvailableAt = computed(() => data.value?.nextRunAvailableAt ?? null)
   const latestSessionId = computed(() => data.value?.latestSessionId ?? null)
+  const dailyRunCount = computed(() => data.value?.dailyRunCount ?? 0)
+  const dailyRunLimit = computed(() => data.value?.dailyRunLimit ?? 3)
+  const runsRemaining = computed(() => data.value?.runsRemaining ?? 3)
   const profileName = computed(() => data.value?.name ?? '')
   const isActive = computed(() => data.value?.isActive ?? false)
 
@@ -121,6 +127,9 @@ export function useBuyerProfile(profileId: MaybeRefOrGetter<number | null | unde
     canRunNow,
     nextRunAvailableAt,
     latestSessionId,
+    dailyRunCount,
+    dailyRunLimit,
+    runsRemaining,
     emptyProfile: createEmptyBuyerProfile,
     emptyAnswers: createEmptyBuyerAnswers,
     saveProfile,

@@ -110,7 +110,7 @@ const secondaryNarrative = computed(() => {
   <UCard
     class="brand-surface overflow-hidden border-default transition-base hover:-translate-y-1 hover:shadow-elevated"
     :class="isRecommendationPresentation ? 'rounded-[1.8rem]' : ''"
-    :ui="{ body: isRecommendationPresentation ? 'p-0' : 'p-0' }"
+    :ui="{ body: 'p-0' }"
   >
     <div v-if="isRecommendationPresentation" class="grid gap-0 xl:grid-cols-[20rem_minmax(0,1fr)]">
       <div class="relative">

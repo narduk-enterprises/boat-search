@@ -15,6 +15,7 @@ import { buyerProfiles, recommendationSessions } from '~~/server/database/schema
 
 const MAX_PROFILES_PER_USER = 5
 const COOLDOWN_MS = 24 * 60 * 60 * 1000 // 24 hours
+export const DAILY_RUN_LIMIT = 3
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -430,6 +431,36 @@ export async function deleteBuyerProfile(event: H3Event, userId: string, profile
 
 export function checkProfileRunCooldown(lastRunAt: string | null) {
   return computeRunState(lastRunAt)
+}
+
+/**
+ * Count how many recommendation sessions this user has created since midnight UTC today.
+ * Returns the count plus whether they can still run.
+ */
+export async function checkDailyRunLimit(event: H3Event, userId: string) {
+  const db = useAppDatabase(event)
+  const todayStart = new Date()
+  todayStart.setUTCHours(0, 0, 0, 0)
+  const todayIso = todayStart.toISOString()
+
+  const result = await db
+    .select({ count: sql<number>`count(*)` })
+    .from(recommendationSessions)
+    .where(
+      and(
+        eq(recommendationSessions.userId, userId),
+        sql`${recommendationSessions.createdAt} >= ${todayIso}`,
+      ),
+    )
+    .get()
+
+  const dailyRunCount = result?.count ?? 0
+  return {
+    dailyRunCount,
+    dailyRunLimit: DAILY_RUN_LIMIT,
+    canRunToday: dailyRunCount < DAILY_RUN_LIMIT,
+    runsRemaining: Math.max(0, DAILY_RUN_LIMIT - dailyRunCount),
+  }
 }
 
 export async function markBuyerProfileRunSuccess(

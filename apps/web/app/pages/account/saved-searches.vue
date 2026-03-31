@@ -111,9 +111,11 @@ function formatFilterSummary(f: Record<string, unknown>): string {
             <div class="min-w-0 flex-1">
               <h2 class="font-semibold text-default text-lg">{{ row.name }}</h2>
               <p class="text-sm text-muted mt-1">{{ formatFilterSummary(row.filter) }}</p>
-              <p v-if="row.lastNotifiedAt" class="text-xs text-dimmed mt-2">
-                Last notified {{ new Date(row.lastNotifiedAt).toLocaleString() }}
-              </p>
+              <ClientOnly>
+                <p v-if="row.lastNotifiedAt" class="text-xs text-dimmed mt-2">
+                  Last notified {{ new Date(row.lastNotifiedAt).toLocaleString() }}
+                </p>
+              </ClientOnly>
             </div>
             <div class="flex flex-wrap gap-2 lg:shrink-0">
               <UButton

@@ -2,7 +2,7 @@
 import BuyerAiPromptPreviewCard from '~~/app/components/boat-finder/BuyerAiPromptPreviewCard.vue'
 import { normalizeBuyerAnswersDraft, type BuyerAnswersDraft } from '~~/lib/boatFinder'
 
-definePageMeta({ middleware: ['auth'] })
+definePageMeta({ middleware: ['auth'], ssr: false })
 
 const route = useRoute()
 const profileId = computed(() => {
@@ -21,6 +21,8 @@ const {
   status,
   canRunNow,
   nextRunAvailableAt,
+  runsRemaining,
+  dailyRunLimit,
   refresh: refreshProfile,
 } = useBuyerProfile(profileId)
 const { createSession } = useRecommendationSessions()
@@ -124,13 +126,23 @@ const cooldownLabel = computed(() => {
               Review your brief, view past AI runs, or open the wizard to update answers.
             </p>
             <ClientOnly>
-              <div v-if="cooldownLabel" class="flex items-center gap-1.5 text-xs text-warning">
-                <UIcon name="i-lucide-clock" class="size-3.5" />
-                Rerun available in {{ cooldownLabel }}
+              <div class="flex flex-wrap items-center gap-3">
+                <div class="flex items-center gap-1.5 text-xs text-muted" data-testid="daily-run-usage">
+                  <UIcon name="i-lucide-zap" class="size-3.5" />
+                  <span>
+                    <strong class="text-default">{{ runsRemaining }}</strong>
+                    / {{ dailyRunLimit }} runs left today
+                  </span>
+                </div>
+                <div v-if="cooldownLabel" class="flex items-center gap-1.5 text-xs text-warning">
+                  <UIcon name="i-lucide-clock" class="size-3.5" />
+                  Rerun available in {{ cooldownLabel }}
+                </div>
               </div>
             </ClientOnly>
           </div>
           <div class="flex shrink-0 flex-wrap gap-2">
+            <BuyerAiPromptPreviewCard :answers="displayAnswers" />
             <UButton
               label="Edit in Wizard"
               icon="i-lucide-pencil"
@@ -212,9 +224,6 @@ const cooldownLabel = computed(() => {
               icon="i-lucide-history"
             />
           </div>
-
-          <!-- Read-only Prompt Preview -->
-          <BuyerAiPromptPreviewCard :answers="displayAnswers" />
         </template>
       </div>
     </UPageSection>

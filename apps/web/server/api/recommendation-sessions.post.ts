@@ -17,6 +17,7 @@ import {
   getActiveBuyerProfile,
   getBuyerProfileById,
   checkProfileRunCooldown,
+  checkDailyRunLimit,
   markBuyerProfileRunSuccess,
   saveBuyerProfile,
 } from '~~/server/utils/boatFinderStore'
@@ -55,7 +56,22 @@ export default defineUserMutation(
       }
     }
 
-    // Enforce cooldown if we have a resolved profile (admins bypass)
+    // Enforce global daily run limit (admins bypass)
+    if (!user.isAdmin) {
+      const dailyUsage = await checkDailyRunLimit(event, user.id)
+      if (!dailyUsage.canRunToday) {
+        throw createError({
+          statusCode: 429,
+          statusMessage: `You've used all ${dailyUsage.dailyRunLimit} AI runs for today. Your limit resets at midnight UTC.`,
+          data: {
+            dailyRunCount: dailyUsage.dailyRunCount,
+            dailyRunLimit: dailyUsage.dailyRunLimit,
+          },
+        })
+      }
+    }
+
+    // Enforce per-profile cooldown if we have a resolved profile (admins bypass)
     if (resolvedProfileId && profileData && !user.isAdmin) {
       const cooldown = checkProfileRunCooldown(profileData.lastRunAt)
       if (!cooldown.canRunNow) {

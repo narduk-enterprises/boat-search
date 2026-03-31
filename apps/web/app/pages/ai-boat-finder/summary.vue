@@ -41,7 +41,8 @@ const queryProfileId = computed(() => {
 })
 const resolvedProfileId = computed(() => queryProfileId.value ?? activeProfileId.value)
 
-const { coreAnswers, canRunNow, nextRunAvailableAt, status } = useBuyerProfile(resolvedProfileId)
+const { coreAnswers, canRunNow, nextRunAvailableAt, runsRemaining, dailyRunLimit, status } =
+  useBuyerProfile(resolvedProfileId)
 const { createSession } = useRecommendationSessions()
 
 const generating = shallowRef(false)
@@ -133,10 +134,22 @@ async function handleGenerateAiSummary() {
         </div>
 
         <template v-else>
-          <div v-if="cooldownLabel" class="flex items-center gap-1.5 text-sm text-warning">
-            <UIcon name="i-lucide-clock" class="size-4" />
-            Cooldown active — rerun available in {{ cooldownLabel }}
-          </div>
+          <!-- Daily usage badge -->
+          <ClientOnly>
+            <div class="flex flex-wrap items-center gap-3">
+              <div class="flex items-center gap-1.5 text-sm text-muted" data-testid="daily-run-usage">
+                <UIcon name="i-lucide-zap" class="size-4" />
+                <span>
+                  <strong class="text-default">{{ runsRemaining }}</strong>
+                  of {{ dailyRunLimit }} AI runs remaining today
+                </span>
+              </div>
+              <div v-if="cooldownLabel" class="flex items-center gap-1.5 text-sm text-warning">
+                <UIcon name="i-lucide-clock" class="size-4" />
+                Cooldown active — rerun available in {{ cooldownLabel }}
+              </div>
+            </div>
+          </ClientOnly>
 
           <UButton
             block
@@ -175,7 +188,7 @@ async function handleGenerateAiSummary() {
             {{ generateError }}
           </div>
 
-          <div class="flex flex-wrap gap-2">
+          <div class="flex flex-wrap items-center gap-2">
             <UButton
               v-if="resolvedProfileId"
               :to="`/account/profile/${resolvedProfileId}`"
@@ -194,9 +207,10 @@ async function handleGenerateAiSummary() {
               size="sm"
               icon="i-lucide-arrow-left"
             />
-          </div>
 
-          <BuyerAiPromptPreviewCard :answers="answers" />
+            <!-- AI prompt preview — now a button that opens a modal -->
+            <BuyerAiPromptPreviewCard :answers="answers" />
+          </div>
         </template>
       </div>
     </UPageSection>

@@ -464,7 +464,7 @@ function scrollToListingBrief() {
                 </div>
               </div>
               <div
-                class="mt-4 max-h-[min(50vh,22rem)] overflow-y-auto overscroll-y-contain rounded-xl border border-default bg-elevated/40 p-4 sm:max-h-[min(55vh,26rem)] sm:p-5"
+                class="mt-4 rounded-xl border border-default bg-elevated/40 p-4 sm:p-5"
               >
                 <div v-if="listingBriefBlocks.length" class="space-y-6">
                   <template v-for="(block, bi) in listingBriefBlocks" :key="bi">

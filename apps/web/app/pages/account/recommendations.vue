@@ -133,9 +133,11 @@ async function handleRerunProfile(profileId: number | null | undefined, sessionI
                   variant="soft"
                   icon="i-lucide-user-round"
                 />
-                <span class="text-sm text-dimmed">
-                  {{ new Date(session.createdAt).toLocaleString() }}
-                </span>
+                <ClientOnly>
+                  <span class="text-sm text-dimmed">
+                    {{ new Date(session.createdAt).toLocaleString() }}
+                  </span>
+                </ClientOnly>
               </div>
               <h2 class="text-xl font-semibold text-default">
                 {{ session.resultSummary.querySummary }}
