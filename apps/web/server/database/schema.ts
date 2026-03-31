@@ -108,6 +108,7 @@ export const boats = sqliteTable(
     searchLengthMax: integer('search_length_max'),
     searchType: text('search_type'),
     searchLocation: text('search_location'),
+    needsRescrape: integer('needs_rescrape').notNull().default(0),
   },
   (table) => [
     index('idx_boats_listing_id').on(table.listingId),

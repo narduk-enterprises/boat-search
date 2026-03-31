@@ -713,6 +713,7 @@ function toBoatInsertValues(candidate: ExtractedBoatCandidate, now: string) {
     searchLengthMax: null,
     searchType: null,
     searchLocation: null,
+    needsRescrape: 0,
   }
 }
 
