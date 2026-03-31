@@ -134,7 +134,7 @@ export default defineNuxtConfig({
         secure: true,
       },
     },
-    appleTeamId: process.env.APPLE_TEAM_ID || '',
+    appleTeamId: process.env.APPLE_TEAM_ID || process.env.APPLE_DEVELOPER_ID || '',
     appleKeyId: process.env.APPLE_KEY_ID || '',
     appleSecretKey: process.env.APPLE_PRIVATE_KEY || process.env.APPLE_SECRET_KEY || '',
     mapkitServerApiKey: process.env.MAPKIT_SERVER_API_KEY || '',

@@ -64,7 +64,7 @@ type CachedGeocodeRow = {
   mapkitServerApiKey: process.env.MAPKIT_SERVER_API_KEY?.trim() || '',
   appleSecretKey:
     process.env.APPLE_PRIVATE_KEY?.trim() || process.env.APPLE_SECRET_KEY?.trim() || '',
-  appleTeamId: process.env.APPLE_TEAM_ID?.trim() || '',
+  appleTeamId: process.env.APPLE_TEAM_ID?.trim() || process.env.APPLE_DEVELOPER_ID?.trim() || '',
   appleKeyId: process.env.APPLE_KEY_ID?.trim() || '',
 })
 
