@@ -143,6 +143,7 @@ describe('persistScraperBrowserRecord', () => {
     expect(upsertBoatSourceListing).toHaveBeenCalledWith(
       event,
       expect.objectContaining({
+        needsRescrape: 0,
         images: JSON.stringify([
           'https://images.yachtworld.com/example-1.jpg',
           'https://images.yachtworld.com/example-2.jpg',

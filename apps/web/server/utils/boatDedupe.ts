@@ -342,7 +342,7 @@ export async function listRefreshableBoatSourceListingIdentities(event: H3Event,
       and(
         eq(boats.source, source),
         isNull(boats.supersededByBoatId),
-        buildWeakSourceListingCondition(),
+        or(buildWeakSourceListingCondition(), eq(boats.needsRescrape, 1))!,
       ),
     )
     .all()
