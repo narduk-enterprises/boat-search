@@ -31,6 +31,7 @@ import {
   STALE_SYNC_PATHS,
   VERBATIM_SYNC_FILES,
   getCanonicalCiContent,
+  getCanonicalDeployMainContent,
   isIgnoredManagedPath,
 } from './sync-manifest'
 
@@ -483,6 +484,18 @@ function syncGeneratedFiles(
   for (const file of GENERATED_SYNC_FILES) {
     if (file === '.github/workflows/ci.yml') {
       writeTextFile(join(appDir, file), getCanonicalCiContent(), counters, dryRun, file, log)
+      continue
+    }
+
+    if (file === '.github/workflows/deploy-main.yml') {
+      writeTextFile(
+        join(appDir, file),
+        getCanonicalDeployMainContent(),
+        counters,
+        dryRun,
+        file,
+        log,
+      )
     }
   }
 }
@@ -868,7 +881,8 @@ function patchWebNuxtConfig(
 
   const publicBlockStart = content.indexOf('    public: {\n')
   const publicBlockBodyStart = publicBlockStart + '    public: {\n'.length
-  const publicBlockEnd = publicBlockStart === -1 ? -1 : content.indexOf('\n    },', publicBlockBodyStart)
+  const publicBlockEnd =
+    publicBlockStart === -1 ? -1 : content.indexOf('\n    },', publicBlockBodyStart)
   if (publicBlockStart !== -1 && publicBlockEnd !== -1) {
     const publicBody = content.slice(publicBlockBodyStart, publicBlockEnd)
     const publicPrefixes = [
@@ -1046,8 +1060,15 @@ function patchWebAppOrmSchemaFiles(
 
     const insertAt = sawImport ? insertionIndex : 0
     const updatedLines = [...lines]
-    updatedLines.splice(insertAt, 0, ...(sawImport ? ['', target.bridgeExport] : [target.bridgeExport, '']))
-    const updated = `${updatedLines.join('\n').replace(/\n{3,}/g, '\n\n').trimEnd()}\n`
+    updatedLines.splice(
+      insertAt,
+      0,
+      ...(sawImport ? ['', target.bridgeExport] : [target.bridgeExport, '']),
+    )
+    const updated = `${updatedLines
+      .join('\n')
+      .replace(/\n{3,}/g, '\n\n')
+      .trimEnd()}\n`
 
     if (updated === content) continue
 

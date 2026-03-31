@@ -10,6 +10,7 @@
     "build": "doppler run -- pnpm -r build",
     "preship": "node tools/check-setup.cjs && pnpm install --frozen-lockfile && pnpm audit --audit-level=critical && pnpm exec tsx tools/check-drift-ci.ts && pnpm exec tsx tools/check-sync-health.ts && pnpm run quality:check",
     "ship": "pnpm exec tsx tools/ship.ts",
+    "ship:ci": "pnpm exec tsx tools/ship.ts --ci",
     "lint": "turbo run lint",
     "typecheck": "turbo run typecheck",
     "quality": "pnpm run quality:fix && pnpm run quality:check",

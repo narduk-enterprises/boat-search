@@ -34,6 +34,10 @@ export const VERBATIM_SYNC_FILES = [
   'tools/web-deploy.cjs',
   'tools/tail.ts',
   'tools/ship.ts',
+  'tools/report-app-operation.mjs',
+  'tools/report-platform-operation.mjs',
+  'tools/repair-forgejo-lockfile.mjs',
+  'tools/verify-forgejo-package-source.mjs',
   'tools/db-migrate.sh',
   'tools/check-setup.cjs',
   'scripts/dev-kill.sh',
@@ -140,7 +144,10 @@ export const STALE_SYNC_PATHS = [
   'layers/narduk-nuxt-layer/eslint.overrides.mjs',
 ] as const
 
-export const GENERATED_SYNC_FILES = ['.github/workflows/ci.yml'] as const
+export const GENERATED_SYNC_FILES = [
+  '.github/workflows/ci.yml',
+  '.github/workflows/deploy-main.yml',
+] as const
 
 export const FLEET_ROOT_SCRIPT_PATCHES: Readonly<Record<string, string>> = {
   postinstall:
@@ -153,6 +160,7 @@ export const FLEET_ROOT_SCRIPT_PATCHES: Readonly<Record<string, string>> = {
   preship:
     'node tools/check-setup.cjs && pnpm install --frozen-lockfile && pnpm audit --audit-level=critical && pnpm exec tsx tools/check-drift-ci.ts && pnpm exec tsx tools/check-sync-health.ts && pnpm run quality:check',
   ship: 'pnpm exec tsx tools/ship.ts',
+  'ship:ci': 'pnpm exec tsx tools/ship.ts --ci',
   'sync:github-skills': 'pnpm exec tsx tools/sync-github-skills.ts',
   validate: 'pnpm exec tsx tools/validate.ts',
   'sync-template': 'pnpm exec tsx tools/sync-template.ts .',
@@ -213,6 +221,105 @@ jobs:
       DOPPLER_TOKEN: \${{ secrets.DOPPLER_TOKEN }}
       GH_PACKAGES_TOKEN: \${{ secrets.GH_PACKAGES_TOKEN }}
       FORGEJO_TOKEN: \${{ secrets.FORGEJO_TOKEN }}
+`
+}
+
+export function getCanonicalDeployMainContent(): string {
+  return `name: Deploy From Main
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-\${{ github.repository }}
+  cancel-in-progress: true
+
+env:
+  DOPPLER_TOKEN: \${{ secrets.DOPPLER_TOKEN }}
+  DOPPLER_PROJECT: \${{ github.event.repository.name }}
+  DOPPLER_CONFIG: prd
+  CONTROL_PLANE_URL: https://platform.nard.uk
+  NUXT_TELEMETRY_DISABLED: 1
+
+jobs:
+  deploy:
+    runs-on: deploy
+    timeout-minutes: 45
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Align repo git hooks for guardrails
+        run: git config core.hooksPath .githooks
+      - uses: pnpm/action-setup@v4
+        with:
+          package_json_file: package.json
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install Doppler CLI
+        run: |
+          curl -Ls https://cli.doppler.com/install.sh | sh
+          doppler --version
+
+      - name: Validate deploy environment
+        run: |
+          doppler run --config prd -- bash -lc '
+            set -euo pipefail
+
+            for key in CLOUDFLARE_API_TOKEN CLOUDFLARE_ACCOUNT_ID FORGEJO_TOKEN OPERATION_REPORT_API_KEY; do
+              if [[ -z "\${!key:-}" ]]; then
+                echo "::error::Missing $key in the Doppler production config used by this workflow."
+                exit 1
+              fi
+            done
+
+            if [[ -z "\${SITE_URL:-}" ]]; then
+              echo "::warning::SITE_URL is unset in Doppler prd; ship:ci will fall back to the canonical deploy URL."
+            fi
+
+            echo "Using Doppler project=\${DOPPLER_PROJECT} config=\${DOPPLER_CONFIG} for deploy."
+          '
+
+      - name: Report deploy start to platform
+        run: |
+          doppler run --config prd -- env APP_OPERATION_REPORT_STAGE=start node ./tools/report-app-operation.mjs
+
+      - name: Repair Forgejo lockfile package source
+        run: doppler run --config prd -- node ./tools/repair-forgejo-lockfile.mjs
+
+      - name: Verify Forgejo package source
+        run: doppler run --config prd -- node ./tools/verify-forgejo-package-source.mjs
+
+      - name: Run preship checks
+        run: |
+          set -euo pipefail
+          temp_npmrc="$(mktemp)"
+          trap 'rm -f "$temp_npmrc"' EXIT
+          cp .npmrc "$temp_npmrc"
+          doppler run --config prd -- bash -lc "printf '\\n//code.platform.nard.uk/api/packages/narduk-enterprises/npm/:_authToken=%s\\n' \\\"\\$FORGEJO_TOKEN\\\" >> \\\"$temp_npmrc\\\""
+          doppler run --config prd -- env PATH="$PATH" NPM_CONFIG_USERCONFIG="$temp_npmrc" pnpm run preship
+        env:
+          npm_config_fetch_retries: "0"
+          npm_config_fetch_retry_mintimeout: "1"
+          npm_config_fetch_retry_maxtimeout: "1"
+
+      - name: Deploy app from main
+        run: doppler run --config prd -- pnpm run ship:ci
+
+      - name: Report deploy outcome to platform
+        if: \${{ always() }}
+        env:
+          JOB_STATUS: \${{ job.status }}
+        run: |
+          doppler run --config prd -- env APP_OPERATION_REPORT_STAGE=outcome JOB_STATUS="\${JOB_STATUS}" node ./tools/report-app-operation.mjs
 `
 }
 

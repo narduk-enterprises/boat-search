@@ -1,0 +1,10 @@
+{
+  "name": "boat-search",
+  "displayName": "Boat Search",
+  "shortDescription": "Search boats by type, budget, size, and location with saved criteria, alerts, and AI guidance.",
+  "description": "Search boats by type, budget, size, and location. Save criteria, get alerts, and use AI guidance that improves as you share how you boat.",
+  "url": "https://boat-search.nard.uk",
+  "provisionedAt": "",
+  "deployProfile": "cloudflare-web",
+  "migrationMode": "auto"
+}
