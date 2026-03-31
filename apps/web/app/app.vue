@@ -14,6 +14,17 @@ const config = useRuntimeConfig()
 const appName = config.public.appName || 'Boat Search'
 const { loggedIn } = useUserSession()
 const mobileMenuOpen = shallowRef(false)
+const routeMiddleware = computed(() => {
+  const middleware = route.meta.middleware
+
+  if (Array.isArray(middleware)) {
+    return middleware
+  }
+
+  return middleware ? [middleware] : []
+})
+
+const isGuestOnlyRoute = computed(() => routeMiddleware.value.includes('guest'))
 
 const navLinks = computed<NavLink[]>(() => {
   const base: NavLink[] = [
@@ -52,6 +63,10 @@ const navLinks = computed<NavLink[]>(() => {
 
 const accountLinks = computed(() => {
   if (!loggedIn.value) {
+    if (isGuestOnlyRoute.value) {
+      return [{ label: 'About the product', to: '/about', icon: 'i-lucide-info' }]
+    }
+
     return [
       { label: 'Sign in', to: '/login', icon: 'i-lucide-log-in' },
       { label: 'About the product', to: '/about', icon: 'i-lucide-info' },
@@ -146,7 +161,7 @@ function isActiveLink(link: NavLink) {
                   logout-redirect="/login"
                 />
                 <UButton
-                  v-else
+                  v-else-if="!isGuestOnlyRoute"
                   to="/login"
                   label="Sign in"
                   color="neutral"

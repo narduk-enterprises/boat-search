@@ -52,8 +52,9 @@ async function handleRerunLatest() {
         <div>
           <h1 class="text-3xl font-bold text-default">Recommendation history</h1>
           <p class="mt-2 max-w-3xl text-muted">
-            Every finder run stores the exact buyer brief, generated filters, and ranked shortlist
-            so you can reopen or compare sessions later.
+            Every finder run stores the buyer brief, generated filters, ranked shortlist, and the
+            underlying AI prompt and response so you can reopen sessions and audit how the ranking
+            was produced later.
           </p>
         </div>
 

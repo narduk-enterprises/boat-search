@@ -227,6 +227,12 @@ export const BUYER_QUESTION_LABELS = {
 export const RECOMMENDATION_RATINGS = ['best-fit', 'strong-fit', 'stretch'] as const
 export const FIT_SUMMARY_VERDICTS = ['strong-fit', 'mixed-fit', 'weak-fit'] as const
 export const BUYER_PROFILE_VERSION = 2 as const
+export const RECOMMENDATION_SELECTION_SOURCES = [
+  'admin-override',
+  'catalog-preferred',
+  'fallback-model',
+  'not-used',
+] as const
 
 export type BuyerQuestionId = keyof typeof BUYER_QUESTION_LABELS
 
@@ -395,11 +401,11 @@ export const recommendationAvoidEntrySchema = z.object({
   score: z.number().int().min(0).max(100),
 })
 
+const recommendationSelectionSourceSchema = z.enum(RECOMMENDATION_SELECTION_SOURCES)
+
 const recommendationMetaSchema = z.object({
   resolvedModel: z.string().trim().max(120).nullable().default(null),
-  selectionSource: z
-    .enum(['admin-override', 'catalog-preferred', 'fallback-model', 'not-used'])
-    .default('not-used'),
+  selectionSource: recommendationSelectionSourceSchema.default('not-used'),
   contextSummaries: z
     .object({
       hardConstraints: z.array(z.string().trim().min(1).max(160)).default([]),
@@ -432,7 +438,39 @@ export const recommendationSummarySchema = z.object({
   }),
 })
 
-export const recommendationSessionSchema = z.object({
+export const recommendationAiTraceSchema = z.object({
+  attemptedAt: z.string().min(1),
+  status: z.enum(['success', 'parse-failed', 'request-failed']),
+  request: z.object({
+    messages: z
+      .array(
+        z.object({
+          role: z.enum(['system', 'user', 'assistant']),
+          content: z.string().min(1).max(100_000),
+        }),
+      )
+      .min(2)
+      .max(2),
+    options: z.object({
+      task: z.literal('recommendation'),
+      temperature: z.number().min(0).max(2),
+      maxTokens: z.number().int().positive(),
+      reasoningEffort: z.enum(['low', 'high']),
+    }),
+    candidateBoatIds: z.array(z.number().int().positive()).default([]),
+    relaxedConstraints: z.array(z.string().trim().min(1).max(80)).default([]),
+  }),
+  response: z.object({
+    rawText: z.string().max(100_000),
+    parsedSummary: recommendationSummarySchema.nullable().default(null),
+    model: z.string().trim().max(120).nullable().default(null),
+    selectionSource: recommendationSelectionSourceSchema.nullable().default(null),
+    tokensUsed: z.number().int().nonnegative().nullable().default(null),
+  }),
+  errorMessage: z.string().trim().min(1).max(4_000).nullable().default(null),
+})
+
+const recommendationSessionBaseSchema = z.object({
   id: z.number().int().positive(),
   createdAt: z.string().min(1),
   profileSnapshot: buyerProfileRecordSchema,
@@ -441,7 +479,11 @@ export const recommendationSessionSchema = z.object({
   rankedBoatIds: z.array(z.number().int().positive()),
 })
 
-export const recommendationSessionListItemSchema = recommendationSessionSchema.extend({
+export const recommendationSessionSchema = recommendationSessionBaseSchema.extend({
+  aiTrace: recommendationAiTraceSchema.nullable().default(null),
+})
+
+export const recommendationSessionListItemSchema = recommendationSessionBaseSchema.extend({
   topPickLabel: z.string().trim().max(160).default(''),
 })
 
@@ -465,6 +507,7 @@ export type RecommendationFilters = z.infer<typeof recommendationFiltersSchema>
 export type RecommendationEntry = z.infer<typeof recommendationEntrySchema>
 export type RecommendationAvoidEntry = z.infer<typeof recommendationAvoidEntrySchema>
 export type RecommendationSummary = z.infer<typeof recommendationSummarySchema>
+export type RecommendationAiTrace = z.infer<typeof recommendationAiTraceSchema>
 export type RecommendationSession = z.infer<typeof recommendationSessionSchema>
 export type RecommendationSessionListItem = z.infer<typeof recommendationSessionListItemSchema>
 export type BoatFitSummary = z.infer<typeof boatFitSummarySchema>

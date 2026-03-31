@@ -71,6 +71,7 @@ export default defineUserMutation(
       generatedFilterJson: JSON.stringify(result.filters),
       resultSummaryJson: JSON.stringify(result.summary),
       rankedBoatIdsJson: JSON.stringify(result.rankedBoatIds),
+      aiTraceJson: result.aiTrace ? JSON.stringify(result.aiTrace) : null,
       createdAt,
     })
 

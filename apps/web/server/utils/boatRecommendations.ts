@@ -8,11 +8,13 @@ import {
   getEffectiveBuyerAnswers,
   normalizeBuyerProfile,
   ratingFromScore,
+  recommendationAiTraceSchema,
   recommendationSessionSchema,
   recommendationSummarySchema,
   type BoatFitSummary,
   type BuyerAnswers,
   type BuyerContext,
+  type RecommendationAiTrace,
   type RecommendationEntry,
   type RecommendationAvoidEntry,
   type RecommendationFilters,
@@ -46,6 +48,13 @@ const SOFT_RELAXATION_ORDER: Array<keyof RecommendationFilters> = [
   'lengthMax',
   'lengthMin',
 ]
+
+const RECOMMENDATION_AI_OPTIONS = {
+  task: 'recommendation' as const,
+  temperature: 0.2,
+  maxTokens: 6500,
+  reasoningEffort: 'high' as const,
+}
 
 function clampScore(value: number) {
   return Math.max(0, Math.min(100, Math.round(value)))
@@ -594,6 +603,29 @@ export function buildRecommendationPromptPayload(
   )
 }
 
+function recommendationContextSummaries(context: BuyerContext, relaxedConstraints: string[]) {
+  return {
+    hardConstraints: relaxedConstraints.length
+      ? [...context.filterSummary.hardConstraintSummary, `Relaxed: ${relaxedConstraints.join(', ')}`]
+      : context.filterSummary.hardConstraintSummary,
+    softPreferences: context.filterSummary.softPreferenceSummary,
+    reflectiveContext: context.filterSummary.reflectiveSummary,
+  }
+}
+
+function describeRecommendationAiError(error: unknown) {
+  if (error instanceof Error && error.message) {
+    return error.message
+  }
+
+  if (error && typeof error === 'object') {
+    const maybeError = error as { statusMessage?: string; message?: string }
+    return maybeError.statusMessage || maybeError.message || 'Unknown xAI recommendation error.'
+  }
+
+  return 'Unknown xAI recommendation error.'
+}
+
 async function requestAiRecommendationSummary(
   event: H3Event,
   apiKey: string,
@@ -603,7 +635,7 @@ async function requestAiRecommendationSummary(
   relaxedConstraints: string[],
   candidates: InventoryBoat[],
 ) {
-  const { systemPrompt, userPrompt } = buildRecommendationPromptPayload(
+  const { systemPrompt, userPrompt, scoredCandidates } = buildRecommendationPromptPayload(
     answers,
     filters,
     context,
@@ -611,38 +643,78 @@ async function requestAiRecommendationSummary(
     candidates,
   )
 
-  const response = await callXAI(
-    event,
-    apiKey,
-    [
-      { role: 'system', content: systemPrompt },
-      { role: 'user', content: userPrompt },
-    ],
-    { task: 'recommendation', temperature: 0.2, maxTokens: 6500, reasoningEffort: 'high' },
-  )
+  const messages = [
+    { role: 'system' as const, content: systemPrompt },
+    { role: 'user' as const, content: userPrompt },
+  ]
+  const attemptedAt = new Date().toISOString()
+  const candidateBoatIds = scoredCandidates.map(({ boat }) => boat.id)
 
-  const parsed = parseAiJson(response.content, (value) => recommendationSummarySchema.parse(value))
-  if (!parsed) {
-    return null
-  }
-
-  return {
-    ...parsed,
-    meta: {
-      resolvedModel: response.model,
-      selectionSource: response.selectionSource,
-      contextSummaries: {
-        hardConstraints: relaxedConstraints.length
-          ? [
-              ...context.filterSummary.hardConstraintSummary,
-              `Relaxed: ${relaxedConstraints.join(', ')}`,
-            ]
-          : context.filterSummary.hardConstraintSummary,
-        softPreferences: context.filterSummary.softPreferenceSummary,
-        reflectiveContext: context.filterSummary.reflectiveSummary,
+  try {
+    const response = await callXAI(event, apiKey, messages, RECOMMENDATION_AI_OPTIONS)
+    const parsed = parseAiJson(response.content, (value) => recommendationSummarySchema.parse(value))
+    const trace = recommendationAiTraceSchema.parse({
+      attemptedAt,
+      status: parsed ? 'success' : 'parse-failed',
+      request: {
+        messages,
+        options: RECOMMENDATION_AI_OPTIONS,
+        candidateBoatIds,
+        relaxedConstraints,
       },
-    },
-  } satisfies RecommendationSummary
+      response: {
+        rawText: response.content,
+        parsedSummary: parsed,
+        model: response.model,
+        selectionSource: response.selectionSource,
+        tokensUsed: response.tokensUsed,
+      },
+      errorMessage: parsed
+        ? null
+        : 'The xAI response did not match the expected shortlist JSON schema.',
+    })
+
+    if (!parsed) {
+      return {
+        summary: null,
+        aiTrace: trace,
+      }
+    }
+
+    return {
+      summary: {
+        ...parsed,
+        meta: {
+          resolvedModel: response.model,
+          selectionSource: response.selectionSource,
+          contextSummaries: recommendationContextSummaries(context, relaxedConstraints),
+        },
+      } satisfies RecommendationSummary,
+      aiTrace: trace,
+    }
+  } catch (error: unknown) {
+    return {
+      summary: null,
+      aiTrace: recommendationAiTraceSchema.parse({
+        attemptedAt,
+        status: 'request-failed',
+        request: {
+          messages,
+          options: RECOMMENDATION_AI_OPTIONS,
+          candidateBoatIds,
+          relaxedConstraints,
+        },
+        response: {
+          rawText: '',
+          parsedSummary: null,
+          model: null,
+          selectionSource: null,
+          tokensUsed: null,
+        },
+        errorMessage: describeRecommendationAiError(error),
+      }),
+    }
+  }
 }
 
 async function fetchCandidatesWithRelaxations(db: AppDb, filters: RecommendationFilters) {
@@ -686,36 +758,35 @@ export async function buildRecommendationSessionResult(
     relaxed.relaxedConstraints,
   )
   let summary = fallbackSummary
+  let aiTrace: RecommendationAiTrace | null = null
 
   if (apiKey && candidates.length) {
-    try {
-      const aiSummary = await requestAiRecommendationSummary(
-        event,
-        apiKey,
-        answers,
-        filters,
-        context,
-        relaxed.relaxedConstraints,
-        candidates,
-      )
-      if (aiSummary) {
-        summary = aiSummary
-        if (summary.recommendations.length === 0 && fallbackSummary.recommendations.length > 0) {
-          summary = {
-            ...summary,
-            recommendations: fallbackSummary.recommendations,
-            topPickBoatId: summary.topPickBoatId ?? fallbackSummary.topPickBoatId,
-          }
-        }
-        if (summary.boatsToAvoid.length === 0 && fallbackSummary.boatsToAvoid.length > 0) {
-          summary = {
-            ...summary,
-            boatsToAvoid: fallbackSummary.boatsToAvoid,
-          }
+    const aiResult = await requestAiRecommendationSummary(
+      event,
+      apiKey,
+      answers,
+      filters,
+      context,
+      relaxed.relaxedConstraints,
+      candidates,
+    )
+    aiTrace = aiResult.aiTrace
+
+    if (aiResult.summary) {
+      summary = aiResult.summary
+      if (summary.recommendations.length === 0 && fallbackSummary.recommendations.length > 0) {
+        summary = {
+          ...summary,
+          recommendations: fallbackSummary.recommendations,
+          topPickBoatId: summary.topPickBoatId ?? fallbackSummary.topPickBoatId,
         }
       }
-    } catch {
-      summary = fallbackSummary
+      if (summary.boatsToAvoid.length === 0 && fallbackSummary.boatsToAvoid.length > 0) {
+        summary = {
+          ...summary,
+          boatsToAvoid: fallbackSummary.boatsToAvoid,
+        }
+      }
     }
   }
 
@@ -739,6 +810,7 @@ export async function buildRecommendationSessionResult(
     filters,
     summary,
     rankedBoatIds,
+    aiTrace,
     boats: await selectBoatsByIds(db, [
       ...new Set([...rankedBoatIds, ...summary.boatsToAvoid.map((item) => item.boatId)]),
     ]),
@@ -926,6 +998,24 @@ export async function buildBoatFitSummaryResult(
   }
 }
 
+function parseSessionBaseRow(row: {
+  id: number
+  createdAt: string
+  profileSnapshotJson: string
+  generatedFilterJson: string
+  resultSummaryJson: string
+  rankedBoatIdsJson: string
+}) {
+  return {
+    id: row.id,
+    createdAt: row.createdAt,
+    profileSnapshot: normalizeBuyerProfile(JSON.parse(row.profileSnapshotJson)),
+    generatedFilters: JSON.parse(row.generatedFilterJson),
+    resultSummary: recommendationSummarySchema.parse(JSON.parse(row.resultSummaryJson)),
+    rankedBoatIds: JSON.parse(row.rankedBoatIdsJson),
+  }
+}
+
 function parseSessionRow(row: {
   id: number
   createdAt: string
@@ -933,14 +1023,11 @@ function parseSessionRow(row: {
   generatedFilterJson: string
   resultSummaryJson: string
   rankedBoatIdsJson: string
+  aiTraceJson: string | null
 }): RecommendationSession {
   return recommendationSessionSchema.parse({
-    id: row.id,
-    createdAt: row.createdAt,
-    profileSnapshot: normalizeBuyerProfile(JSON.parse(row.profileSnapshotJson)),
-    generatedFilters: JSON.parse(row.generatedFilterJson),
-    resultSummary: recommendationSummarySchema.parse(JSON.parse(row.resultSummaryJson)),
-    rankedBoatIds: JSON.parse(row.rankedBoatIdsJson),
+    ...parseSessionBaseRow(row),
+    aiTrace: row.aiTraceJson ? recommendationAiTraceSchema.parse(JSON.parse(row.aiTraceJson)) : null,
   })
 }
 
@@ -953,6 +1040,7 @@ export async function getRecommendationSessionsForUser(db: AppDb, userId: string
       generatedFilterJson: recommendationSessions.generatedFilterJson,
       resultSummaryJson: recommendationSessions.resultSummaryJson,
       rankedBoatIdsJson: recommendationSessions.rankedBoatIdsJson,
+      aiTraceJson: recommendationSessions.aiTraceJson,
     })
     .from(recommendationSessions)
     .where(eq(recommendationSessions.userId, userId))
@@ -974,6 +1062,7 @@ export async function getRecommendationSessionForUser(
       generatedFilterJson: recommendationSessions.generatedFilterJson,
       resultSummaryJson: recommendationSessions.resultSummaryJson,
       rankedBoatIdsJson: recommendationSessions.rankedBoatIdsJson,
+      aiTraceJson: recommendationSessions.aiTraceJson,
     })
     .from(recommendationSessions)
     .where(and(eq(recommendationSessions.userId, userId), eq(recommendationSessions.id, sessionId)))

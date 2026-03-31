@@ -42,23 +42,44 @@ test.describe('AI boat finder stepped flow', () => {
     return true
   }
 
+  async function advanceWizardUntil(
+    page: import('@playwright/test').Page,
+    expectedUrl: RegExp,
+    attempts = 3,
+  ) {
+    const next = page.getByTestId('boat-finder-step-next')
+
+    for (let attempt = 0; attempt < attempts; attempt++) {
+      if (expectedUrl.test(page.url())) return
+      await next.click()
+
+      try {
+        await expect(page).toHaveURL(expectedUrl, { timeout: 5_000 })
+        return
+      } catch {
+        continue
+      }
+    }
+
+    await expect(page).toHaveURL(expectedUrl, { timeout: 5_000 })
+  }
+
   test('step query and section nav sync with URL', async ({ page }) => {
     const ok = await registerAndEnterFinder(page, '/ai-boat-finder?step=guardrails')
     test.skip(!ok, 'Registration did not establish a session (e.g. Supabase email confirmation).')
 
-    await expect(page).toHaveURL(/step=guardrails/)
-    await expect(page).toHaveURL(/[?&]q=\d+/)
+    await expect(page).toHaveURL(/step=guardrails/, { timeout: 5_000 })
+    await expect(page).toHaveURL(/[?&]q=\d+/, { timeout: 5_000 })
     await expect(page.getByRole('heading', { name: 'Guardrails', exact: true })).toBeVisible()
 
     await page.getByRole('tab', { name: /Mission/i }).click()
-    await expect(page).toHaveURL(/step=mission/)
-    await expect(page).toHaveURL(/[?&]q=\d+/)
+    await expect(page).toHaveURL(/step=mission/, { timeout: 5_000 })
+    await expect(page).toHaveURL(/[?&]q=\d+/, { timeout: 5_000 })
 
-    const next = page.getByTestId('boat-finder-step-next')
-    for (let i = 0; i < 20 && !page.url().includes('step=guardrails'); i++) {
-      await next.click()
+    for (let questionIndex = 2; questionIndex <= 7; questionIndex++) {
+      await advanceWizardUntil(page, new RegExp(`[?&]q=${questionIndex}(?:&|$)`))
     }
-    await expect(page).toHaveURL(/step=guardrails/)
+    await advanceWizardUntil(page, /step=guardrails/)
   })
 
   test('minimum answers enable finish → summary → generate reaches search', async ({ page }) => {
@@ -69,15 +90,15 @@ test.describe('AI boat finder stepped flow', () => {
     await expect(page.getByTestId('boat-finder-jump-blockers')).toBeVisible()
 
     await page.getByRole('button', { name: 'Weekend offshore trips', exact: true }).click()
-    await page.getByTestId('boat-finder-step-next').click()
+    await advanceWizardUntil(page, /[?&]q=2(?:&|$)/)
     await page.getByRole('button', { name: 'Western Gulf (TX / LA)', exact: true }).click()
-    await page.getByTestId('boat-finder-step-next').click()
+    await advanceWizardUntil(page, /[?&]q=3(?:&|$)/)
     await page.getByRole('button', { name: 'Half-day drive', exact: true }).click()
 
     await page.getByRole('tab', { name: /Guardrails/i }).click()
-    await expect(page).toHaveURL(/step=guardrails/)
+    await expect(page).toHaveURL(/step=guardrails/, { timeout: 5_000 })
 
-    await page.getByRole('textbox', { name: 'Budget ceiling' }).fill('350000')
+    await page.getByLabel(/Budget ceiling/i).fill('350000')
 
     await expect(page.getByTestId('boat-finder-optional-resume')).toBeVisible()
     const finishBtn = page.getByTestId('boat-finder-finish-submit')

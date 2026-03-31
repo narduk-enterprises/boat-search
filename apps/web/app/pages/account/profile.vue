@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import BuyerAiPromptPreviewCard from '~~/app/components/boat-finder/BuyerAiPromptPreviewCard.vue'
 import {
   buyerAnswersSchema,
   createEmptyBuyerAnswers,

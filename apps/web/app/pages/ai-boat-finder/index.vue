@@ -16,9 +16,6 @@ import {
 
 definePageMeta({
   middleware: ['auth'],
-  // Auth + Nuxt UI (UPage / UPageSection / app.config slot merges) can disagree on class strings
-  // between SSR and the client bundle; this page is session-gated and mostly interactive anyway.
-  ssr: false,
 })
 
 useSeo({
@@ -44,7 +41,9 @@ const submitting = shallowRef(false)
 const submitError = shallowRef<string | null>(null)
 const autosaveState = shallowRef<'idle' | 'saving' | 'saved' | 'error'>('idle')
 const autosaveError = shallowRef<string | null>(null)
+const hasMounted = shallowRef(false)
 const profileHydrated = shallowRef(false)
+const routeSyncPaused = shallowRef(false)
 const suppressAutosave = shallowRef(true)
 const persistedSignature = shallowRef(JSON.stringify(createEmptyBuyerAnswers()))
 const activeSaveSignature = shallowRef<string | null>(null)
@@ -163,6 +162,10 @@ onBeforeUnmount(() => {
   }
 })
 
+onMounted(() => {
+  hasMounted.value = true
+})
+
 /** Avoid locale/time in SSR output to prevent hydration mismatches with client. */
 const autosaveMessage = computed(() => {
   if (autosaveState.value === 'saving') {
@@ -191,8 +194,15 @@ const canGenerateShortlist = computed(() => {
 
 const optionalIncomplete = computed(() => summarizeOptionalIncomplete(draftAnswers.value))
 
+const pageReady = computed(
+  () => hasMounted.value && profileHydrated.value && status.value !== 'pending',
+)
+
 const showOptionalResume = computed(
-  () => optionalIncomplete.value.count > 0 && canGenerateShortlist.value,
+  () =>
+    pageReady.value &&
+    optionalIncomplete.value.count > 0 &&
+    canGenerateShortlist.value,
 )
 
 const activeFinderStep = ref<BoatFinderStepSectionId>('mission')
@@ -227,7 +237,7 @@ function applyRouteToFinderState() {
 }
 
 function pushFinderQueryToRouter() {
-  if (import.meta.server) return
+  if (import.meta.server || routeSyncPaused.value) return
   const step = activeFinderStep.value
   const qs = getVisibleBoatFinderQuestions(draftAnswers.value, step)
   const maxI = Math.max(0, qs.length - 1)
@@ -259,6 +269,7 @@ watch(
 
 watch([activeFinderStep, activeFinderQuestionIndex], () => pushFinderQueryToRouter(), {
   flush: 'post',
+  immediate: true,
 })
 
 const finderQuestionClampKey = computed(() => {
@@ -303,6 +314,7 @@ async function handleSubmit() {
   }
 
   submitting.value = true
+  let navigatedToSummary = false
   try {
     const saved = await persistDraft({ force: true })
     if (!saved) {
@@ -310,8 +322,13 @@ async function handleSubmit() {
       return
     }
 
+    routeSyncPaused.value = true
     await navigateTo('/ai-boat-finder/summary')
+    navigatedToSummary = true
   } finally {
+    if (!navigatedToSummary) {
+      routeSyncPaused.value = false
+    }
     submitting.value = false
   }
 }
@@ -351,7 +368,7 @@ const backPath = computed(() => {
                 icon="i-lucide-sparkles"
               />
               <UBadge
-                v-if="profileHydrated"
+                v-if="pageReady"
                 :label="
                   autosaveState === 'saving'
                     ? 'Saving…'
@@ -397,44 +414,40 @@ const backPath = computed(() => {
           </div>
         </div>
 
-        <div v-if="showOptionalResume" class="space-y-3" data-testid="boat-finder-optional-resume">
-          <UAlert
-            color="info"
-            variant="subtle"
-            title="Optional details still open"
-            :description="`You can generate a shortlist now and still fill in ${optionalIncomplete.count} optional question${optionalIncomplete.count === 1 ? '' : 's'} later to sharpen results.`"
-            class="border-default"
-          />
-          <UButton
-            v-if="optionalIncomplete.firstSectionId"
-            label="Jump to next optional section"
-            color="primary"
-            variant="soft"
-            size="sm"
-            data-testid="boat-finder-continue-optional"
-            @click="continueOptionalQuestions"
-          />
+        <div
+          v-if="!pageReady"
+          class="flex items-center gap-3 rounded-2xl border border-default bg-elevated px-5 py-8"
+          data-testid="boat-finder-loading"
+        >
+          <UIcon name="i-lucide-loader-2" class="size-5 animate-spin text-muted" />
+          <span class="text-sm text-muted">Loading your saved buyer brief…</span>
         </div>
 
-        <ClientOnly>
-          <template #fallback>
-            <div
-              class="flex items-center gap-3 rounded-2xl border border-default bg-elevated px-5 py-8"
-              data-testid="boat-finder-loading"
-            >
-              <UIcon name="i-lucide-loader-2" class="size-5 animate-spin text-muted" />
-              <span class="text-sm text-muted">Loading your saved buyer brief…</span>
-            </div>
-          </template>
+        <template v-else>
           <div
-            v-if="status === 'pending'"
-            class="flex items-center gap-3 rounded-2xl border border-default bg-elevated px-5 py-8"
+            v-if="showOptionalResume"
+            class="space-y-3"
+            data-testid="boat-finder-optional-resume"
           >
-            <UIcon name="i-lucide-loader-2" class="size-5 animate-spin text-muted" />
-            <span class="text-sm text-muted">Loading your saved buyer brief…</span>
+            <UAlert
+              color="info"
+              variant="subtle"
+              title="Optional details still open"
+              :description="`You can generate a shortlist now and still fill in ${optionalIncomplete.count} optional question${optionalIncomplete.count === 1 ? '' : 's'} later to sharpen results.`"
+              class="border-default"
+            />
+            <UButton
+              v-if="optionalIncomplete.firstSectionId"
+              label="Jump to next optional section"
+              color="primary"
+              variant="soft"
+              size="sm"
+              data-testid="boat-finder-continue-optional"
+              @click="continueOptionalQuestions"
+            />
           </div>
+
           <BoatFinderWizard
-            v-else
             v-model:answers="draftAnswers"
             v-model:active-section-id="activeFinderStep"
             v-model:active-question-index="activeFinderQuestionIndex"
@@ -442,10 +455,10 @@ const backPath = computed(() => {
             :error="submitError"
             :autosave-state="autosaveState"
             :autosave-message="autosaveMessage"
-            submit-label="Finish up now & generate shortlist"
+            submit-label="Finish up & show summary"
             @submit="handleSubmit"
           />
-        </ClientOnly>
+        </template>
       </div>
     </UPageSection>
   </UPage>

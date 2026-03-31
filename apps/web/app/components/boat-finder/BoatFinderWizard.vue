@@ -69,6 +69,7 @@ const activeStepIndex = computed(() => BOAT_FINDER_STEP_SECTION_IDS.indexOf(acti
 
 /** When changing section, optionally land on a specific index (e.g. last question when going Back). */
 const pendingQuestionIndex = ref<number | null>(null)
+const lastStepBlockerConfirmation = ref(false)
 
 /** Keep `q` / parent-driven index; only clamp, clear empty section, or apply `pendingQuestionIndex`. */
 watch(
@@ -210,6 +211,10 @@ function goNextInFlow() {
   if (canSubmit.value) {
     emit('submit')
   } else {
+    if (!lastStepBlockerConfirmation.value) {
+      lastStepBlockerConfirmation.value = true
+      return
+    }
     goToFirstShortlistBlocker()
   }
 }
@@ -245,7 +250,7 @@ const continueButtonLabel = computed(() => {
   }
   if (!isLastStep.value) return 'Next section'
   if (canSubmit.value) return props.submitLabel
-  return 'Complete required fields'
+  return lastStepBlockerConfirmation.value ? 'Complete required fields' : 'Continue'
 })
 
 const continueTrailingIcon = computed(() =>
@@ -253,6 +258,12 @@ const continueTrailingIcon = computed(() =>
 )
 
 const isFirstScreen = computed(() => activeStepIndex.value === 0 && activeQuestionIndex.value === 0)
+
+watch([activeSectionId, activeQuestionIndex, canSubmit], () => {
+  if (canSubmit.value || !isLastStep.value) {
+    lastStepBlockerConfirmation.value = false
+  }
+})
 
 const sectionQuestionProgress = computed(() => {
   const n = activeSectionSummary.value.questions.length
@@ -276,11 +287,12 @@ const sectionTabItems = computed(() =>
   }),
 )
 
-const tabsModelValue = computed(() => activeSectionId.value)
-
-function onTabChange(value: string | number) {
-  goToSection(value as BoatFinderStepSectionId)
-}
+const tabsModelValue = computed<BoatFinderStepSectionId>({
+  get: () => activeSectionId.value,
+  set: (value) => {
+    goToSection(value)
+  },
+})
 
 const showAutosaveBanner = computed(
   () =>
@@ -338,13 +350,13 @@ const showAutosaveBanner = computed(
 
     <div class="w-full min-w-0 overflow-x-auto pb-1" data-testid="boat-finder-step-nav">
       <UTabs
-        :model-value="tabsModelValue"
+        v-model="tabsModelValue"
         :items="sectionTabItems"
         variant="pill"
         color="primary"
+        :content="false"
         class="min-w-max sm:min-w-0"
         :ui="{ root: 'w-full min-w-0', list: 'flex-wrap sm:flex-nowrap' }"
-        @update:model-value="onTabChange"
       />
     </div>
 
@@ -358,9 +370,9 @@ const showAutosaveBanner = computed(
       <div class="shrink-0 space-y-4">
         <div class="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
           <div class="min-h-[3.25rem] min-w-0 sm:min-h-0">
-            <p class="text-xs font-semibold uppercase tracking-[0.16em] text-dimmed">
+            <h2 class="text-xs font-semibold uppercase tracking-[0.16em] text-dimmed">
               {{ activeSectionSummary.label }}
-            </p>
+            </h2>
             <p class="mt-1 line-clamp-2 text-sm text-muted sm:line-clamp-none">
               {{ activeSectionSummary.description }}
             </p>
@@ -415,7 +427,7 @@ const showAutosaveBanner = computed(
       <div class="mt-auto shrink-0 space-y-3 border-t border-default pt-5">
         <p v-if="!canSubmit" class="text-xs text-muted">
           Shortlist needs mission, budget ceiling, and region or travel radius — use Fix required,
-          your profile, or Continue on the last step to jump there.
+          the Buyer profile shortcut, or Continue on the last step to jump there.
         </p>
         <div
           class="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between"
@@ -434,13 +446,6 @@ const showAutosaveBanner = computed(
           <div
             class="flex flex-col gap-2 sm:order-2 sm:max-w-full sm:flex-1 sm:flex-row sm:flex-wrap sm:items-center sm:justify-end"
           >
-            <ULink
-              to="/account/profile"
-              class="text-center text-sm font-medium text-primary hover:underline sm:px-2"
-              data-testid="boat-finder-open-profile"
-            >
-              View buyer profile
-            </ULink>
             <UButton
               v-if="!canSubmit"
               label="Fix required fields"

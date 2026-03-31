@@ -18,6 +18,7 @@ const emit = defineEmits<{
   success: [user: { id: string; name: string | null; email: string }]
 }>()
 
+const appConfig = useAppConfig()
 const config = useRuntimeConfig()
 const route = useRoute()
 const { login, startOAuth } = useAuth()
@@ -41,7 +42,12 @@ const canUseApple = computed(
   () => config.public.authBackend === 'supabase' && config.public.authProviders.includes('apple'),
 )
 const canRegister = computed(() => config.public.authPublicSignup)
-const resolvedRedirectPath = computed(() => props.redirectPath || config.public.authRedirectPath)
+const resolvedRedirectPath = computed(
+  () =>
+    props.redirectPath ||
+    (appConfig as { auth?: { redirectPath?: string } }).auth?.redirectPath ||
+    config.public.authRedirectPath,
+)
 
 watchEffect(() => {
   if (typeof route.query.email === 'string' && !state.email) {

@@ -317,6 +317,7 @@ export const recommendationSessions = sqliteTable(
     generatedFilterJson: text('generated_filter_json').notNull(),
     resultSummaryJson: text('result_summary_json').notNull(),
     rankedBoatIdsJson: text('ranked_boat_ids_json').notNull(),
+    aiTraceJson: text('ai_trace_json'),
     createdAt: text('created_at')
       .notNull()
       .$defaultFn(() => new Date().toISOString()),

@@ -23,7 +23,7 @@ export default defineEventHandler(async (event) => {
 
   return {
     latestSessionId: sessions[0]?.id ?? null,
-    sessions: sessions.map((session) => ({
+    sessions: sessions.map(({ aiTrace: _aiTrace, ...session }) => ({
       ...session,
       topPickLabel: session.resultSummary.topPickBoatId
         ? (topPickMap.get(session.resultSummary.topPickBoatId) ?? '')

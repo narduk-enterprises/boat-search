@@ -3,5 +3,5 @@ import { defineSharedAuthContract } from '../../../../layers/narduk-nuxt-layer/t
 defineSharedAuthContract({
   appName: 'web',
   protectedPath: '/ai-boat-finder',
-  dashboardHeading: /Tell us the mission/i,
+  dashboardHeading: /Turn how you fish into a ranked shortlist/i,
 })

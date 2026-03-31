@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import BuyerAiPromptPreviewCard from '~~/app/components/boat-finder/BuyerAiPromptPreviewCard.vue'
 import {
   buyerAnswersSchema,
   createEmptyBuyerAnswers,
@@ -98,7 +99,7 @@ async function handleGenerateAiSummary() {
         <template v-else>
           <UButton
             block
-            label="Generate AI Summary now"
+            label="Run AI assessment now"
             color="primary"
             size="xl"
             icon="i-lucide-sparkles"

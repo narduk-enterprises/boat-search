@@ -15,12 +15,10 @@ test.describe('web smoke', () => {
     await waitForHydration(page)
     await expect(
       page.getByRole('heading', {
-        name: /Save one fishing brief and let AI rank the right boats/i,
+        name: /Start with the market, or jump straight to tailored suggestions\./i,
       }),
     ).toBeVisible()
-    await expect(
-      page.getByText(/signed-in buyer workflow for fishing and offshore shoppers/i).first(),
-    ).toBeVisible()
-    await expect(page).toHaveTitle(/AI Fishing Boat Finder/)
+    await expect(page.getByText(/Two paths\. No clutter\./i)).toBeVisible()
+    await expect(page).toHaveTitle(/Boat Search \| Live Inventory and AI Boat Suggestions/i)
   })
 })
