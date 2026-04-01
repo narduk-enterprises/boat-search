@@ -400,6 +400,7 @@ export async function deleteBuyerProfile(event: H3Event, userId: string, profile
   }
 
   const wasActive = target.isActive
+  let promotedProfileId: number | null = null
 
   await db.delete(buyerProfiles).where(eq(buyerProfiles.id, profileId)).run()
 
@@ -419,10 +420,11 @@ export async function deleteBuyerProfile(event: H3Event, userId: string, profile
         .set({ isActive: true, updatedAt: new Date().toISOString() })
         .where(eq(buyerProfiles.id, nextActive.id))
         .run()
+      promotedProfileId = nextActive.id
     }
   }
 
-  return { deleted: true, promotedProfileId: wasActive ? undefined : null }
+  return { deleted: true, promotedProfileId }
 }
 
 // ---------------------------------------------------------------------------

@@ -70,7 +70,7 @@ export function useRecommendationSessions(
     status: detailStatus,
     error: detailError,
   } = useAsyncData(
-    () => `recommendation-session-${resolvedSessionId.value ?? 'none'}`,
+    `recommendation-session-${resolvedSessionId.value ?? 'none'}`,
     async () => {
       if (!resolvedSessionId.value) return null
       return appFetch<RecommendationSessionDetailResponse>(

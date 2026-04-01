@@ -6,7 +6,7 @@ export function useFavoriteBoat(boatId: MaybeRefOrGetter<number | null | undefin
   const id = computed(() => boatIdRef.value ?? undefined)
 
   const { data, refresh } = useAsyncData(
-    () => `favorite-status-${id.value ?? 'none'}`,
+    `favorite-status-${id.value ?? 'none'}`,
     async () => {
       if (!session.loggedIn.value || id.value == null) {
         return { favorited: false as boolean }

@@ -50,7 +50,7 @@ export default definePublicMutation(
     rateLimit: analyzeRateLimit,
   },
   async ({ event }) => {
-    const config = useRuntimeConfig()
+    const config = useRuntimeConfig(event)
     const apiKey = config.xaiApiKey
 
     if (!apiKey) {

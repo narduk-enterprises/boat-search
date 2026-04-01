@@ -20,8 +20,7 @@ export function useBoatFitSummary(
   const isGenerating = ref(false)
 
   const { data, status, refresh, error } = useAsyncData(
-    () =>
-      `boat-fit-summary-${resolvedBoatId.value ?? 'none'}-${resolvedSessionId.value ?? 'latest'}`,
+    `boat-fit-summary-${resolvedBoatId.value ?? 'none'}-${resolvedSessionId.value ?? 'latest'}`,
     async () => {
       if (!userSession.loggedIn.value || !resolvedBoatId.value) return null
 

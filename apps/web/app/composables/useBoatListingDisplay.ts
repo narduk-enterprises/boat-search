@@ -26,7 +26,7 @@ interface BoatLocationInput {
 
 export function useBoatListingDisplay() {
   function formatPrice(price: number | null) {
-    if (!price) return 'Price on request'
+    if (price == null) return 'Price on request'
     return `$${price.toLocaleString()}`
   }
 

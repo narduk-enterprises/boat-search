@@ -48,9 +48,20 @@ export default defineEventHandler(async (event) => {
               source: r.source,
               description: r.description,
               sellerType: r.sellerType,
-              images: r.imagesJson ? (JSON.parse(r.imagesJson) as string[]) : [],
+              images: safeParseImages(r.imagesJson),
             }
           : null,
     })),
   }
 })
+
+function safeParseImages(json: string | null): string[] {
+  if (!json) return []
+  try {
+    const parsed = JSON.parse(json) as unknown
+    if (!Array.isArray(parsed)) return []
+    return parsed.filter((v): v is string => typeof v === 'string')
+  } catch {
+    return []
+  }
+}

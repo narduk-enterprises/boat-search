@@ -21,7 +21,7 @@ export function useBuyerProfile(profileId: MaybeRefOrGetter<number | null | unde
   const profileIdRef = toRef(profileId)
 
   const { data, refresh, status, error } = useAsyncData(
-    () => `buyer-profile-${profileIdRef.value ?? 'none'}`,
+    `buyer-profile-${profileIdRef.value ?? 'none'}`,
     async () => {
       if (!profileIdRef.value) return null
       return appFetch<BuyerProfileDetailResponse>(`/api/buyer-profiles/${profileIdRef.value}`)

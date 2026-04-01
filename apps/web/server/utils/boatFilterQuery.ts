@@ -52,13 +52,17 @@ function inventorySearchTokens(raw: string): string[] {
     .slice(0, 16)
 }
 
+function sanitizeLikePattern(value: string) {
+  return value.replaceAll(/[%_\\]/g, '')
+}
+
 export function boatFilterConditions(filter: BoatSearchFilter): SQL[] {
   const conditions: SQL[] = []
   if (filter.make) {
-    conditions.push(like(boats.make, `%${filter.make}%`))
+    conditions.push(like(boats.make, `%${sanitizeLikePattern(filter.make)}%`))
   }
   if (filter.location) {
-    const needle = `%${filter.location}%`
+    const needle = `%${sanitizeLikePattern(filter.location)}%`
     conditions.push(
       or(
         like(boats.normalizedLocation, needle),

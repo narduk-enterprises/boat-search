@@ -80,6 +80,8 @@ interface AnalysisResult {
 }
 
 export function useBoats() {
+  const appFetch = useAppFetch()
+
   const fetchBoats = (filters: BoatFilters = {}) => {
     const params = new URLSearchParams()
     if (filters.make) params.set('make', filters.make)
@@ -111,7 +113,7 @@ export function useBoats() {
     maxLength?: number
     userContext?: string
   }) => {
-    return $fetch<AnalysisResult>('/api/boats/analyze', {
+    return appFetch<AnalysisResult>('/api/boats/analyze', {
       method: 'POST',
       body: {
         category: options?.category || '',

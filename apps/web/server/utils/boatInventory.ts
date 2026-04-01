@@ -237,13 +237,13 @@ export function cleanBoatDescription(raw: string | null): string | null {
   if (!raw) return null
 
   let text = raw
-    .replace(/First\s*(?:&\s*)?Last\s*Name[\s\S]*/i, '')
-    .replaceAll(/EmailPhoneSubjectComments[\s\S]*/gi, '')
-    .replaceAll(/Please contact [\s\S]*/gi, '')
-    .replaceAll(/Contact Information[\s\S]*/gi, '')
-    .replaceAll(/I'd like to know if the[\s\S]*/gi, '')
-    .replaceAll(/Show\s*More[\s\S]*/gi, '')
-    .replaceAll(/Trusted\s*Partner\s*\|[\s\S]*/gi, '')
+    .replace(/First\s*(?:&\s*)?Last\s*Name[\s\S]{0,500}$/i, '')
+    .replaceAll(/EmailPhoneSubjectComments[\s\S]{0,500}$/gi, '')
+    .replaceAll(/Please contact [\s\S]{0,500}$/gi, '')
+    .replaceAll(/Contact Information[\s\S]{0,500}$/gi, '')
+    .replaceAll(/I'd like to know if the[\s\S]{0,500}$/gi, '')
+    .replaceAll(/Show\s*More[\s\S]{0,500}$/gi, '')
+    .replaceAll(/Trusted\s*Partner\s*\|[\s\S]{0,500}$/gi, '')
     .replaceAll(/\n{3,}/g, '\n\n')
     .replaceAll(/\s{2,}/g, ' ')
     .trim()
@@ -345,19 +345,19 @@ export async function selectRecommendationCandidates(
   const conditions: SQL[] = []
 
   if (filters.budgetMin != null) {
-    conditions.push(gte(sql`CAST(${boats.price} AS INTEGER)`, filters.budgetMin))
+    conditions.push(gte(sql`CAST(NULLIF(${boats.price}, '') AS INTEGER)`, filters.budgetMin))
   }
 
   if (filters.budgetMax != null) {
-    conditions.push(lte(sql`CAST(${boats.price} AS INTEGER)`, filters.budgetMax))
+    conditions.push(lte(sql`CAST(NULLIF(${boats.price}, '') AS INTEGER)`, filters.budgetMax))
   }
 
   if (filters.lengthMin != null) {
-    conditions.push(gte(sql`CAST(${boats.length} AS REAL)`, filters.lengthMin))
+    conditions.push(gte(sql`CAST(NULLIF(${boats.length}, '') AS REAL)`, filters.lengthMin))
   }
 
   if (filters.lengthMax != null) {
-    conditions.push(lte(sql`CAST(${boats.length} AS REAL)`, filters.lengthMax))
+    conditions.push(lte(sql`CAST(NULLIF(${boats.length}, '') AS REAL)`, filters.lengthMax))
   }
 
   if (filters.location) {

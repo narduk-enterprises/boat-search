@@ -83,7 +83,7 @@ function pickCandidate(availableModels: string[], candidates: readonly string[])
 }
 
 function supportsReasoningEffort(model: string) {
-  return model.includes('grok-3-mini')
+  return model.includes('grok-3-mini') || model.includes('-reasoning')
 }
 
 async function loadAvailableModels(event: H3Event, apiKey: string): Promise<string[]> {
