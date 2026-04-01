@@ -4,9 +4,9 @@
   "private": true,
   "version": "1.17.2",
   "scripts": {
-    "build": "nuxt build",
+    "build": "PLATFORM_SECRETS_ALLOW_FALLBACK=0 node ../../tools/run-with-platform-secrets.mjs --app boat-search --environment prd --profile build -- nuxt build",
     "db:ready": "pnpm run db:migrate && pnpm run db:seed",
-    "dev": "(doppler run --config dev -- nuxt dev || (echo >&2 'Doppler failed; starting nuxt without injected secrets. Check: doppler login, repo-root doppler.yaml, doppler setup --project boat-search --config dev'; nuxt dev))",
+    "dev": "PLATFORM_SECRETS_ALLOW_FALLBACK=0 node ../../tools/run-with-platform-secrets.mjs --app boat-search --environment dev --profile runtime -- nuxt dev",
     "quality": "echo 'Turbo dependsOn handles lint + typecheck + format:check'",
     "db:migrate": "bash ../../tools/db-migrate.sh boat-search-db --local --dir node_modules/@narduk-enterprises/narduk-nuxt-template-layer/drizzle --dir drizzle",
     "db:seed:core": "wrangler d1 execute boat-search-db --local --file=node_modules/@narduk-enterprises/narduk-nuxt-template-layer/drizzle/seed.sql",

@@ -24,6 +24,7 @@ type KvNamespaceListResponse = CloudflareApiResponse<KvNamespace[]> & {
   result_info?: { total_count?: number; page?: number; per_page?: number; count?: number }
 }
 type D1Row = Record<string, unknown>
+type ResolvedShipSecrets = Record<string, string>
 type DeployProfile = 'cloudflare-web' | 'cloudflare-web-plus-backend'
 type MigrationMode = 'auto' | 'none' | 'custom'
 type ProvisionDeployConfig = {
@@ -48,6 +49,27 @@ const REQUIRED_REMOTE_D1_TABLES = [
   'users',
 ] as const
 const REQUIRED_AUTH_TABLES = ['api_keys', 'sessions', 'users'] as const
+
+function shouldAllowPlatformFallback(): boolean {
+  return process.env.PLATFORM_SECRETS_ALLOW_FALLBACK !== '0'
+}
+
+function getPlatformBaseUrl(): string {
+  return (
+    process.env.PLATFORM_SECRETS_BASE_URL ||
+    process.env.CONTROL_PLANE_URL ||
+    process.env.SITE_URL ||
+    ''
+  ).trim()
+}
+
+function getPlatformSecretsToken(): string {
+  return (process.env.PLATFORM_SECRETS_TOKEN || '').trim()
+}
+
+function getTrimmedValue(value: unknown): string {
+  return typeof value === 'string' ? value.trim() : ''
+}
 
 function buildSqlStringList(values: readonly string[]): string {
   return values.map((value) => `'${value.replaceAll("'", "''")}'`).join(', ')
@@ -90,27 +112,39 @@ function parseD1Rows(raw: string): D1Row[] {
   return result.results
 }
 
-function queryRemoteD1Rows(appDir: string, databaseName: string, sql: string): D1Row[] {
-  const raw = getOutput(
-    'doppler',
-    [
-      'run',
-      '--config',
-      SHIP_DOPPLER_CONFIG,
-      '--',
-      'pnpm',
-      'exec',
-      'wrangler',
-      'd1',
-      'execute',
-      databaseName,
-      '--remote',
-      '--json',
-      '--command',
-      sql,
-    ],
-    appDir,
-  )
+function queryRemoteD1Rows(
+  appDir: string,
+  databaseName: string,
+  sql: string,
+  commandEnv?: NodeJS.ProcessEnv,
+): D1Row[] {
+  const raw = commandEnv
+    ? getOutput(
+        'pnpm',
+        ['exec', 'wrangler', 'd1', 'execute', databaseName, '--remote', '--json', '--command', sql],
+        appDir,
+        commandEnv,
+      )
+    : getOutput(
+        'doppler',
+        [
+          'run',
+          '--config',
+          SHIP_DOPPLER_CONFIG,
+          '--',
+          'pnpm',
+          'exec',
+          'wrangler',
+          'd1',
+          'execute',
+          databaseName,
+          '--remote',
+          '--json',
+          '--command',
+          sql,
+        ],
+        appDir,
+      )
 
   return parseD1Rows(raw)
 }
@@ -215,11 +249,17 @@ function normalizeShipMigrateCommand(tokens: string[]): string[] {
   return ['pnpm', 'exec', ...commandTokens]
 }
 
-function getOutput(command: string, args: string[] = [], cwd = process.cwd()): string {
+function getOutput(
+  command: string,
+  args: string[] = [],
+  cwd = process.cwd(),
+  env: NodeJS.ProcessEnv | undefined = undefined,
+): string {
   return runCommand(command, args, {
     cwd,
     encoding: 'utf-8',
     stdio: ['ignore', 'pipe', 'pipe'],
+    env,
   }).trim()
 }
 
@@ -234,6 +274,86 @@ function readJsonFileIfExists<T>(targetPath: string): T | null {
 
 function readPackageJson(cwd: string): Record<string, any> | null {
   return readJsonFileIfExists<Record<string, any>>(resolve(cwd, 'package.json'))
+}
+
+function resolveShipAppName(appDir: string): string {
+  const repoRoot = getRepoRoot(appDir)
+  const packageJson = readPackageJson(repoRoot)
+  const packageName = getTrimmedValue(packageJson?.name)
+  if (packageName) return packageName
+
+  return repoRoot.split('/').pop() || 'web'
+}
+
+async function resolvePlatformShipSecrets(appDir: string): Promise<ResolvedShipSecrets | null> {
+  const baseUrl = getPlatformBaseUrl()
+  const token = getPlatformSecretsToken()
+
+  if (!baseUrl || !token) {
+    if (shouldAllowPlatformFallback()) return null
+
+    throw new Error(
+      'PLATFORM_SECRETS_TOKEN plus PLATFORM_SECRETS_BASE_URL or CONTROL_PLANE_URL are required for pnpm ship.',
+    )
+  }
+
+  const response = await fetch(`${baseUrl.replace(/\/$/, '')}/api/secrets/resolve`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json',
+      Accept: 'application/json',
+      'X-Platform-Secrets-Token': token,
+      'X-Requested-With': 'XMLHttpRequest',
+    },
+    body: JSON.stringify({
+      appName: resolveShipAppName(appDir),
+      environment: 'prd',
+      profile: 'build',
+    }),
+  })
+
+  if (!response.ok) {
+    const body = await response.text().catch(() => '')
+    throw new Error(`platform secrets resolve failed (${response.status}): ${body}`)
+  }
+
+  const payload = (await response.json()) as { values?: Record<string, unknown> }
+  const values = payload?.values
+  if (!values || typeof values !== 'object') {
+    throw new Error('platform secrets resolve returned an invalid payload')
+  }
+
+  return Object.fromEntries(
+    Object.entries(values).map(([key, value]) => [key, value == null ? '' : String(value)]),
+  )
+}
+
+function buildResolvedCommandEnv(
+  resolvedSecrets: ResolvedShipSecrets | null,
+  extraEnv?: NodeJS.ProcessEnv,
+): NodeJS.ProcessEnv | undefined {
+  if (!resolvedSecrets && !extraEnv) return undefined
+
+  return {
+    ...process.env,
+    ...(resolvedSecrets ?? {}),
+    ...(extraEnv ?? {}),
+  }
+}
+
+function getShipSecret(
+  appDir: string,
+  resolvedSecrets: ResolvedShipSecrets | null,
+  key: string,
+): string {
+  const fromResolved = getTrimmedValue(resolvedSecrets?.[key])
+  if (fromResolved) return fromResolved
+
+  const fromProcess = getTrimmedValue(process.env[key])
+  if (fromProcess) return fromProcess
+
+  return getDopplerSecret(appDir, key)
 }
 
 function resolveProvisionDeployConfig(repoRoot: string): ProvisionDeployConfig {
@@ -450,7 +570,10 @@ function resolveKvNamespaceBaseName(appDir: string, wrangler: WranglerConfig): s
   return getRepoRoot(appDir).split('/').pop() || 'web'
 }
 
-async function ensureWranglerKvBinding(appDir: string): Promise<void> {
+async function ensureWranglerKvBinding(
+  appDir: string,
+  resolvedSecrets: ResolvedShipSecrets | null,
+): Promise<void> {
   const wranglerPath = getAppWranglerPath(appDir)
   if (!existsSync(wranglerPath)) return
 
@@ -476,12 +599,10 @@ async function ensureWranglerKvBinding(appDir: string): Promise<void> {
     )
   }
 
-  const accountId = getDopplerSecret(appDir, 'CLOUDFLARE_ACCOUNT_ID')
-  const apiToken = getDopplerSecret(appDir, 'CLOUDFLARE_API_TOKEN')
+  const accountId = getShipSecret(appDir, resolvedSecrets, 'CLOUDFLARE_ACCOUNT_ID')
+  const apiToken = getShipSecret(appDir, resolvedSecrets, 'CLOUDFLARE_API_TOKEN')
   if (!accountId || !apiToken) {
-    throw new Error(
-      `Missing CLOUDFLARE_ACCOUNT_ID or CLOUDFLARE_API_TOKEN in Doppler for ${repoRoot}.`,
-    )
+    throw new Error(`Missing CLOUDFLARE_ACCOUNT_ID or CLOUDFLARE_API_TOKEN for ${repoRoot}.`)
   }
 
   const namespaceBaseName = resolveKvNamespaceBaseName(appDir, wrangler)
@@ -516,17 +637,22 @@ function getUntrackedFiles(cwd: string): string[] {
     .filter(Boolean)
 }
 
-async function verifyRemoteD1Readiness(appDir: string): Promise<void> {
+async function verifyRemoteD1Readiness(
+  appDir: string,
+  resolvedSecrets: ResolvedShipSecrets | null,
+): Promise<void> {
   const wrangler = readJsonFile<WranglerConfig>(getAppWranglerPath(appDir))
   if (!wrangler) return
 
   const databaseName = getWranglerD1DatabaseName(wrangler)
   if (!databaseName) return
+  const commandEnv = buildResolvedCommandEnv(resolvedSecrets)
 
   const existingTables = queryRemoteD1Rows(
     appDir,
     databaseName,
     `SELECT name FROM sqlite_master WHERE type='table' AND name IN (${buildSqlStringList(REQUIRED_REMOTE_D1_TABLES)}) ORDER BY name;`,
+    commandEnv,
   )
     .map((row) => (typeof row.name === 'string' ? row.name : ''))
     .filter(Boolean)
@@ -535,6 +661,7 @@ async function verifyRemoteD1Readiness(appDir: string): Promise<void> {
     appDir,
     databaseName,
     'SELECT filename FROM _applied_migrations ORDER BY filename;',
+    commandEnv,
   )
     .map((row) => (typeof row.filename === 'string' ? row.filename : ''))
     .filter(Boolean)
@@ -612,28 +739,27 @@ function resolveCanonicalSiteUrl(appDir: string): string | null {
   return null
 }
 
-function getDopplerSiteUrl(appDir: string): string {
-  return getDopplerSecret(appDir, 'SITE_URL')
-}
-
-function resolveShipEnvironment(appDir: string): NodeJS.ProcessEnv | undefined {
+function resolveShipEnvironment(
+  appDir: string,
+  resolvedSecrets: ResolvedShipSecrets | null,
+): NodeJS.ProcessEnv | undefined {
   const canonicalSiteUrl = resolveCanonicalSiteUrl(appDir)
-  const dopplerSiteUrl = getDopplerSiteUrl(appDir)
+  const configuredSiteUrl = getShipSecret(appDir, resolvedSecrets, 'SITE_URL')
 
   if (!canonicalSiteUrl) {
-    if (isLocalhostUrl(dopplerSiteUrl)) {
+    if (isLocalhostUrl(configuredSiteUrl)) {
       console.warn(
-        `⚠️ Doppler SITE_URL is localhost for ${appDir}, but no canonical route was found in wrangler.json.`,
+        `⚠️ SITE_URL is localhost for ${appDir}, but no canonical route was found in wrangler.json.`,
       )
     }
     return undefined
   }
 
-  if (dopplerSiteUrl && !isLocalhostUrl(dopplerSiteUrl)) {
+  if (configuredSiteUrl && !isLocalhostUrl(configuredSiteUrl)) {
     return undefined
   }
 
-  const reason = dopplerSiteUrl ? `Doppler SITE_URL=${dopplerSiteUrl}` : 'Doppler SITE_URL is unset'
+  const reason = configuredSiteUrl ? `SITE_URL=${configuredSiteUrl}` : 'SITE_URL is unset'
   console.log(`Using canonical site URL ${canonicalSiteUrl} for build/deploy because ${reason}.`)
 
   return {
@@ -652,6 +778,8 @@ function runConfiguredMigrations(
   repoRoot: string,
   pkg: Record<string, any> | undefined,
   migrationMode: MigrationMode,
+  resolvedSecrets: ResolvedShipSecrets | null,
+  commandEnv: NodeJS.ProcessEnv | undefined,
 ) {
   if (migrationMode === 'none') {
     console.log(`\n⏭ Skipping remote migrations for ${appTarget} because migrationMode=none.`)
@@ -662,11 +790,15 @@ function runConfiguredMigrations(
     const customMigration = resolveCustomMigrationCommand(repoRoot, appDir)
     console.log(`\n🗄️ Running custom remote migrations for ${appTarget}...`)
     const migrateArgs = normalizeShipMigrateCommand(parseMigrateCommand(customMigration.command))
-    run(
-      'doppler',
-      ['run', '--config', SHIP_DOPPLER_CONFIG, '--', ...migrateArgs],
-      customMigration.cwd,
-    )
+    if (resolvedSecrets) {
+      run(migrateArgs[0], migrateArgs.slice(1), customMigration.cwd, commandEnv)
+    } else {
+      run(
+        'doppler',
+        ['run', '--config', SHIP_DOPPLER_CONFIG, '--', ...migrateArgs],
+        customMigration.cwd,
+      )
+    }
     return
   }
 
@@ -679,7 +811,11 @@ function runConfiguredMigrations(
   console.log(`\n🗄️ Running remote D1 migrations for ${appTarget}...`)
   const migrateCmd = rawCommand.replaceAll('--local', '--remote')
   const migrateArgs = normalizeShipMigrateCommand(parseMigrateCommand(migrateCmd))
-  run('doppler', ['run', '--config', SHIP_DOPPLER_CONFIG, '--', ...migrateArgs], appDir)
+  if (resolvedSecrets) {
+    run(migrateArgs[0], migrateArgs.slice(1), appDir, commandEnv)
+  } else {
+    run('doppler', ['run', '--config', SHIP_DOPPLER_CONFIG, '--', ...migrateArgs], appDir)
+  }
 }
 
 function runConfiguredDeployProfile(
@@ -687,9 +823,13 @@ function runConfiguredDeployProfile(
   appDir: string,
   repoRoot: string,
   deployProfile: DeployProfile,
+  resolvedSecrets: ResolvedShipSecrets | null,
   shipEnv: NodeJS.ProcessEnv | undefined,
 ) {
-  const deployEnv = { ...(shipEnv || process.env), NARDUK_SHIP_ACTIVE: '1' }
+  const deployEnv = {
+    ...(buildResolvedCommandEnv(resolvedSecrets, shipEnv) || process.env),
+    NARDUK_SHIP_ACTIVE: '1',
+  }
 
   if (deployProfile === 'cloudflare-web-plus-backend') {
     const backendScript = readPackageJson(repoRoot)?.scripts?.['deploy:backend']
@@ -700,21 +840,29 @@ function runConfiguredDeployProfile(
     }
 
     console.log(`\n🧩 Running backend deploy hook for ${appTarget}...`)
-    run(
-      'doppler',
-      ['run', '--config', SHIP_DOPPLER_CONFIG, '--', 'pnpm', 'run', 'deploy:backend'],
-      repoRoot,
-      deployEnv,
-    )
+    if (resolvedSecrets) {
+      run('pnpm', ['run', 'deploy:backend'], repoRoot, deployEnv)
+    } else {
+      run(
+        'doppler',
+        ['run', '--config', SHIP_DOPPLER_CONFIG, '--', 'pnpm', 'run', 'deploy:backend'],
+        repoRoot,
+        deployEnv,
+      )
+    }
   }
 
   console.log(`\n☁️ Deploying ${appTarget} to Edge...`)
-  run(
-    'doppler',
-    ['run', '--config', SHIP_DOPPLER_CONFIG, '--', 'pnpm', 'run', 'deploy'],
-    appDir,
-    deployEnv,
-  )
+  if (resolvedSecrets) {
+    run('pnpm', ['run', 'deploy'], appDir, deployEnv)
+  } else {
+    run(
+      'doppler',
+      ['run', '--config', SHIP_DOPPLER_CONFIG, '--', 'pnpm', 'run', 'deploy'],
+      appDir,
+      deployEnv,
+    )
+  }
 }
 
 async function shipApp(appTarget: string, options: { ci: boolean; repairOnly: boolean }) {
@@ -728,8 +876,9 @@ async function shipApp(appTarget: string, options: { ci: boolean; repairOnly: bo
     }
   }
 
-  await ensureWranglerKvBinding(appDir)
   const repoRoot = getRepoRoot(appDir)
+  const resolvedSecrets = await resolvePlatformShipSecrets(appDir)
+  await ensureWranglerKvBinding(appDir, resolvedSecrets)
 
   if (options.repairOnly) {
     console.log(
@@ -744,7 +893,8 @@ async function shipApp(appTarget: string, options: { ci: boolean; repairOnly: bo
     pkg = JSON.parse(readFileSync(pkgPath, 'utf8'))
   }
   const provisionDeployConfig = resolveProvisionDeployConfig(repoRoot)
-  const shipEnv = resolveShipEnvironment(appDir)
+  const shipEnv = resolveShipEnvironment(appDir, resolvedSecrets)
+  const commandEnv = buildResolvedCommandEnv(resolvedSecrets, shipEnv)
 
   console.log(
     `\n🧭 Using deployProfile=${provisionDeployConfig.deployProfile} migrationMode=${provisionDeployConfig.migrationMode} for ${appTarget}.`,
@@ -763,12 +913,16 @@ async function shipApp(appTarget: string, options: { ci: boolean; repairOnly: bo
   // 1. Build Verification
   console.log(`\n🏗️ Building ${appTarget}...`)
   try {
-    run(
-      'doppler',
-      ['run', '--config', SHIP_DOPPLER_CONFIG, '--', 'pnpm', 'run', 'build'],
-      appDir,
-      shipEnv,
-    )
+    if (resolvedSecrets) {
+      run('pnpm', ['run', 'build'], appDir, commandEnv)
+    } else {
+      run(
+        'doppler',
+        ['run', '--config', SHIP_DOPPLER_CONFIG, '--', 'pnpm', 'run', 'build'],
+        appDir,
+        shipEnv,
+      )
+    }
   } catch (error) {
     console.error(`\n❌ Build failed for ${appTarget}. Aborting ship to prevent broken commit.`)
     process.exit(1)
@@ -811,11 +965,19 @@ async function shipApp(appTarget: string, options: { ci: boolean; repairOnly: bo
   }
 
   // 3. Remote Migrations
-  runConfiguredMigrations(appTarget, appDir, repoRoot, pkg, provisionDeployConfig.migrationMode)
+  runConfiguredMigrations(
+    appTarget,
+    appDir,
+    repoRoot,
+    pkg,
+    provisionDeployConfig.migrationMode,
+    resolvedSecrets,
+    commandEnv,
+  )
 
   console.log(`\n🔍 Verifying remote D1 readiness for ${appTarget}...`)
   try {
-    await verifyRemoteD1Readiness(appDir)
+    await verifyRemoteD1Readiness(appDir, resolvedSecrets)
   } catch (error) {
     console.error(
       `\n❌ Remote D1 readiness check failed for ${appTarget}: ${error instanceof Error ? error.message : String(error)}`,
@@ -830,6 +992,7 @@ async function shipApp(appTarget: string, options: { ci: boolean; repairOnly: bo
       appDir,
       repoRoot,
       provisionDeployConfig.deployProfile,
+      resolvedSecrets,
       shipEnv,
     )
   } catch (error) {

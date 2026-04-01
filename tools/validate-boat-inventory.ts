@@ -171,10 +171,8 @@ type WranglerD1ApiErrorBody = {
 function formatRemoteD1AuthHint(apiDetail: string): string {
   return (
     'Remote D1 failed: wrangler needs a Cloudflare API token with D1 read on this account (e.g. API 7403).\n' +
-    'Run with Doppler `prd` so CLOUDFLARE_API_TOKEN is injected:\n' +
+    'Run with platform-managed `prd/build` secrets so CLOUDFLARE_API_TOKEN is injected:\n' +
     '  pnpm run boats:inventory:validate:production\n' +
-    'or:\n' +
-    '  doppler run --config prd -- pnpm exec tsx tools/validate-boat-inventory.ts --production\n' +
     (apiDetail ? `\nAPI detail: ${apiDetail}` : '')
   )
 }
@@ -233,7 +231,10 @@ function runD1Json(sql: string, isProduction: boolean): Record<string, unknown>[
           )
         }
       } catch (inner) {
-        if (inner instanceof Error && inner.message.includes('doppler run --config prd')) {
+        if (
+          inner instanceof Error &&
+          inner.message.includes('pnpm run boats:inventory:validate:production')
+        ) {
           throw inner
         }
       }
