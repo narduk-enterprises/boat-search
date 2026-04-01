@@ -6,7 +6,7 @@ import BoatInventoryFilters from '~~/app/components/boats/BoatInventoryFilters.v
 import BoatInventoryMapView from '~~/app/components/boats/BoatInventoryMapView.vue'
 import { BOAT_INVENTORY_RESULTS_HASH, BOAT_INVENTORY_RESULTS_ID } from '~~/app/utils/boatBrowse'
 
-definePageMeta({ layout: 'wide' })
+definePageMeta({ layout: 'wide', shellFooter: false })
 
 useSeo({
   title: 'Boats for Sale Map | Explore Inventory by Verified Boat Location',
@@ -137,12 +137,12 @@ watch(
 
 <template>
   <UPage>
-    <UPageSection :ui="{ container: 'py-0 sm:py-6' }">
+    <UPageSection :ui="{ container: 'py-0' }">
       <div
         :id="BOAT_INVENTORY_RESULTS_ID"
         ref="resultsSection"
-        class="mx-auto max-w-6xl"
-        style="scroll-margin-top: calc(var(--brand-header-height, 5.25rem) + 5rem)"
+        class="mx-auto w-full max-w-6xl min-w-0"
+        style="scroll-margin-top: calc(var(--brand-header-total-height, 5.5rem) + 4.5rem)"
       >
         <BoatInventoryActionHeader
           :results-label="mapResultsLabel"

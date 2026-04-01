@@ -43,16 +43,14 @@ const errorMsg = ref('')
 const canUseApple = computed(
   () => config.public.authBackend === 'supabase' && config.public.authProviders.includes('apple'),
 )
-const resolvedRedirectPath = computed(
-  () => {
-    const fallback =
-      props.redirectPath ||
-      (appConfig as { auth?: { redirectPath?: string } }).auth?.redirectPath ||
-      config.public.authRedirectPath
+const resolvedRedirectPath = computed(() => {
+  const fallback =
+    props.redirectPath ||
+    (appConfig as { auth?: { redirectPath?: string } }).auth?.redirectPath ||
+    config.public.authRedirectPath
 
-    return resolveSafeAuthRedirect(route.query.redirect, fallback)
-  },
-)
+  return resolveSafeAuthRedirect(route.query.redirect, fallback)
+})
 
 async function onSubmit() {
   const parsed = schema.safeParse(state)

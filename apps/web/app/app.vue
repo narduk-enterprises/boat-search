@@ -1,5 +1,17 @@
 <script setup lang="ts">
 import type { RouteLocationRaw } from 'vue-router'
+import {
+  BOAT_INVENTORY_MAP_PATH,
+  BOAT_INVENTORY_RESULTS_HASH,
+  BOAT_INVENTORY_SEARCH_PATH,
+  makeInventoryMapRoute,
+} from '~~/app/utils/boatBrowse'
+import {
+  buildBoatInventoryNavigationQuery,
+  normalizeBoatInventoryPage,
+  normalizeBoatInventorySort,
+  routeQueryToBoatInventoryFilters,
+} from '~~/app/utils/boatInventorySearch'
 
 interface NavLink {
   label: string
@@ -26,21 +38,50 @@ const routeMiddleware = computed(() => {
 })
 
 const isGuestOnlyRoute = computed(() => routeMiddleware.value.includes('guest'))
+const isInventoryWorkspaceRoute = computed(
+  () => route.path === BOAT_INVENTORY_SEARCH_PATH || route.path === BOAT_INVENTORY_MAP_PATH,
+)
+const isInventoryMapRoute = computed(() => route.path === BOAT_INVENTORY_MAP_PATH)
+const inventoryWorkspaceQuery = computed<Record<string, string>>(() => {
+  if (!isInventoryWorkspaceRoute.value) return {}
+
+  return buildBoatInventoryNavigationQuery({
+    filters: routeQueryToBoatInventoryFilters(route.query),
+    sort: normalizeBoatInventorySort(route.query.sort),
+    page: normalizeBoatInventoryPage(route.query.page),
+  })
+})
+const inventorySearchNavTo = computed<RouteLocationRaw>(() => {
+  if (!isInventoryWorkspaceRoute.value) return BOAT_INVENTORY_SEARCH_PATH
+
+  const hash =
+    route.path === BOAT_INVENTORY_MAP_PATH ? BOAT_INVENTORY_RESULTS_HASH : route.hash || ''
+
+  return {
+    path: BOAT_INVENTORY_SEARCH_PATH,
+    query: inventoryWorkspaceQuery.value,
+    ...(hash ? { hash } : {}),
+  }
+})
+const inventoryMapNavTo = computed<RouteLocationRaw>(() => {
+  if (!isInventoryWorkspaceRoute.value) return BOAT_INVENTORY_MAP_PATH
+  return makeInventoryMapRoute(inventoryWorkspaceQuery.value)
+})
 
 const navLinks = computed<NavLink[]>(() => {
   const base: NavLink[] = [
     {
       label: 'Live inventory',
-      to: '/boats-for-sale',
+      to: inventorySearchNavTo.value,
       icon: 'i-lucide-search',
-      matchPrefixes: ['/boats-for-sale', '/boats'],
-      excludePrefixes: ['/boats-for-sale/map'],
+      matchPrefixes: [BOAT_INVENTORY_SEARCH_PATH, '/boats'],
+      excludePrefixes: [BOAT_INVENTORY_MAP_PATH],
     },
     {
       label: 'Map',
-      to: '/boats-for-sale/map',
+      to: inventoryMapNavTo.value,
       icon: 'i-lucide-map',
-      matchPrefixes: ['/boats-for-sale/map'],
+      matchPrefixes: [BOAT_INVENTORY_MAP_PATH],
     },
     {
       label: aiEntryLabel.value,
@@ -76,19 +117,18 @@ const isFullBleedLayout = computed(() => {
   const m = route.meta.layout
   return m === 'landing' || m === 'wide'
 })
-
-const isInventoryWorkspaceRoute = computed(
-  () => route.path === '/boats-for-sale' || route.path === '/boats-for-sale/map',
-)
+const showShellFooter = computed(() => route.meta.shellFooter !== false)
 
 // App shell gutter below the sticky header — separate from Nuxt UI (UPage / UPageSection). Tight
 // vertical padding here; section spacing is tuned in app.config `ui.pageSection.slots.container`.
 const shellContentClass = computed(() =>
-  isFullBleedLayout.value
-    ? 'w-full min-w-0 px-4 pb-10 pt-4 sm:px-6 sm:pb-14 lg:px-8'
+  isInventoryMapRoute.value
+    ? 'mx-auto w-full min-w-0 max-w-[94rem] px-4 pb-0 pt-0 sm:px-6 lg:px-8'
     : isInventoryWorkspaceRoute.value
-      ? 'mx-auto w-full min-w-0 max-w-[94rem] px-4 pb-12 pt-0 sm:px-6 sm:pb-14 sm:pt-2 lg:px-8'
-      : 'mx-auto w-full min-w-0 max-w-[94rem] px-4 pb-12 pt-3 sm:px-6 sm:pt-4 lg:px-8',
+      ? 'mx-auto w-full min-w-0 max-w-[94rem] px-4 pb-10 pt-0 sm:px-6 sm:pb-12 sm:pt-1 lg:px-8'
+      : isFullBleedLayout.value
+        ? 'w-full min-w-0 px-4 pb-10 pt-4 sm:px-6 sm:pb-14 lg:px-8'
+        : 'mx-auto w-full min-w-0 max-w-[94rem] px-4 pb-12 pt-3 sm:px-6 sm:pt-4 lg:px-8',
 )
 const footerLinkClass = 'text-sm text-muted hover:text-default transition-fast'
 
@@ -127,7 +167,7 @@ function isActiveLink(link: NavLink) {
   <LayerAppShell>
     <template #header>
       <div class="brand-shell-header">
-        <div class="mx-auto w-full max-w-7xl px-4 py-2 sm:px-6 sm:py-3 lg:px-8">
+        <div class="mx-auto w-full max-w-7xl px-4 py-1.5 sm:px-6 sm:py-2 lg:px-8">
           <div class="brand-header-bar">
             <div class="brand-header-side brand-header-side-start">
               <NuxtLink to="/" class="flex min-w-0 shrink-0 items-center">
@@ -229,7 +269,7 @@ function isActiveLink(link: NavLink) {
       </NuxtLayout>
     </div>
 
-    <template #footer>
+    <template v-if="showShellFooter" #footer>
       <LayerAppFooter :app-name="appName" :show-copyright="false" class="brand-shell-footer">
         <div
           class="flex w-full max-w-7xl flex-col gap-8 py-3 lg:flex-row lg:items-end lg:justify-between"

@@ -132,12 +132,12 @@ watch(
 
 <template>
   <UPage>
-    <UPageSection :ui="{ container: 'py-0 sm:py-6' }">
+    <UPageSection :ui="{ container: 'py-0 sm:py-2' }">
       <div
         :id="BOAT_INVENTORY_RESULTS_ID"
         ref="resultsSection"
-        class="mx-auto max-w-6xl"
-        style="scroll-margin-top: calc(var(--brand-header-height, 5.25rem) + 5rem)"
+        class="mx-auto w-full max-w-6xl min-w-0"
+        style="scroll-margin-top: calc(var(--brand-header-total-height, 5.5rem) + 4.5rem)"
       >
         <BoatInventoryActionHeader
           :results-label="resultsLabel"

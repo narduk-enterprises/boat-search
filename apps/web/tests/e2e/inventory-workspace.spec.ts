@@ -16,6 +16,7 @@ test.describe('inventory workspace', () => {
     await page.setViewportSize({ width: 1440, height: 1100 })
     await page.goto('/boats-for-sale')
     await waitForHydration(page)
+    await page.waitForLoadState('networkidle')
 
     const header = page.getByTestId('boat-inventory-action-header')
     await expect(header).toBeVisible()
@@ -52,6 +53,7 @@ test.describe('inventory workspace', () => {
     await page.setViewportSize({ width: 1440, height: 1100 })
     await page.goto('/boats-for-sale/map')
     await waitForHydration(page)
+    await page.waitForLoadState('networkidle')
 
     const header = page.getByTestId('boat-inventory-action-header')
     await expect(header).toBeVisible()
@@ -60,12 +62,33 @@ test.describe('inventory workspace', () => {
     await expect(page.getByRole('heading', { name: /Boats for sale map/i })).toHaveCount(0)
   })
 
+  test('top navigation preserves inventory filters between list and map', async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 1100 })
+    await page.goto('/boats-for-sale?make=Sea%20Ray&maxPrice=50000')
+    await waitForHydration(page)
+    await page.waitForLoadState('networkidle')
+
+    const desktopNav = page.locator('.brand-header-center')
+
+    await desktopNav.getByRole('link', { name: 'Map', exact: true }).click()
+    await expect.poll(() => new URL(page.url()).pathname).toBe('/boats-for-sale/map')
+    await expect.poll(() => new URL(page.url()).searchParams.get('make')).toBe('Sea Ray')
+    await expect.poll(() => new URL(page.url()).searchParams.get('maxPrice')).toBe('50000')
+
+    await desktopNav.getByRole('link', { name: 'Live inventory', exact: true }).click()
+    await expect.poll(() => new URL(page.url()).pathname).toBe('/boats-for-sale')
+    await expect.poll(() => new URL(page.url()).searchParams.get('make')).toBe('Sea Ray')
+    await expect.poll(() => new URL(page.url()).searchParams.get('maxPrice')).toBe('50000')
+    await expect.poll(() => new URL(page.url()).hash).toBe('#inventory-results')
+  })
+
   test('mobile inventory uses the same top rail without duplicate bottom controls', async ({
     page,
   }) => {
     await page.setViewportSize({ width: 390, height: 844 })
     await page.goto('/boats-for-sale')
     await waitForHydration(page)
+    await page.waitForLoadState('networkidle')
     await page.evaluate(() => window.scrollTo({ top: 900 }))
 
     const header = page.getByTestId('boat-inventory-action-header')

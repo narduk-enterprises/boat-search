@@ -265,6 +265,7 @@ function matchesLengthPreset(minLength: string, maxLength: string) {
             enterkeyhint="search"
             placeholder="FL, Miami, Gulf Coast"
             @update:model-value="setTextFilter('location', $event)"
+            @keydown.enter="requestAutoApply('immediate')"
           />
         </UFormField>
       </div>

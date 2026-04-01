@@ -32,6 +32,7 @@
     "crawler:ui": "pnpm --filter boat-crawler run ui",
     "seed:boats": "pnpm exec tsx tools/seed-boats.ts",
     "seed:boats:production": "pnpm exec tsx tools/seed-boats.ts --production",
+    "seed:boats:refresh-sample": "pnpm exec tsx tools/refresh-representative-boat-seed.ts",
     "boats:geo:backfill": "pnpm exec tsx tools/backfill-boat-geo.ts",
     "boats:geo:backfill:production": "pnpm exec tsx tools/backfill-boat-geo.ts --production",
     "boats:dedupe:rebuild": "pnpm exec tsx tools/rebuild-boat-dedupe.ts",

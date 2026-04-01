@@ -28,7 +28,11 @@ Homepage → Login → AI Boat Profiles (library)
 ### Top Nav (all users)
 
 - **Live inventory** → `/boats-for-sale`
+  - When already inside the inventory workspace, preserves current query state
+    and returns to the results anchor when switching back from map view
 - **Map** → `/boats-for-sale/map`
+  - When already inside the inventory workspace, preserves the current query
+    state
 
 ### Top Nav (authenticated)
 
@@ -44,6 +48,37 @@ Homepage → Login → AI Boat Profiles (library)
 
 - **Explore:** Live inventory, Inventory map
 - **Buyer tools:** AI Boat Profiles, Shortlist history, Alerts
+
+## Feature: Inventory Workspace (`/boats-for-sale`, `/boats-for-sale/map`)
+
+The public inventory workspace is a shared search surface with two views over
+the same route-driven query state.
+
+- Shared filters: vessel mode, vessel subtype, keywords, make, location, min/max
+  price, min/max length
+- Filters open in a right-side slideover and auto-apply; there is no separate
+  "Apply filters" step in the current UI
+- Sticky action rail shows results context, reset, sort, filters, active filter
+  chips, and the alternate list/map view toggle
+- Switching between list and map from either the sticky action rail or the top
+  nav preserves the current inventory query state
+- List view returns 24 results per page across the full inventory feed
+- Map view returns 100 results per page and only includes boats with verified
+  coordinates (`geoMode=matched`)
+- Both views support shared sort state, pagination, removable filter chips, and
+  links to boat detail pages plus original source listings
+
+### Inventory Workspace Behaviors
+
+- **Auto-apply filters:** keyword and numeric inputs debounce; preset chips and
+  vessel-lane changes apply immediately
+- **List view:** stacked inventory cards with source badge, year, length, seller
+  type, description teaser, and CTAs for the Boat Search detail page and the
+  original listing
+- **Map view:** split layout with a selected-boat sidebar, click-to-select
+  result rows, and map pins for coordinate-ready boats
+- **Map → list return:** navigating back to `/boats-for-sale` from map view
+  lands on the results anchor (`#inventory-results`)
 
 ## Feature: AI Boat Profiles
 
@@ -110,8 +145,8 @@ Global view of all AI runs across all profiles. Each session shows:
 | Route                      | Access | Purpose                                  |
 | -------------------------- | ------ | ---------------------------------------- |
 | `/`                        | Public | Landing page with 3 entry points         |
-| `/boats-for-sale`          | Public | Live inventory search                    |
-| `/boats-for-sale/map`      | Public | Map view of inventory                    |
+| `/boats-for-sale`          | Public | Inventory workspace list view            |
+| `/boats-for-sale/map`      | Public | Inventory workspace map view             |
 | `/browse`                  | Public | Browse by budget, make, region, use case |
 | `/account/profile`         | Auth   | AI Boat Profiles library                 |
 | `/account/profile/[id]`    | Auth   | Profile editor + run history             |

@@ -17,7 +17,9 @@ useWebPageSchema({
 definePageMeta({ middleware: ['guest'] })
 
 const route = useRoute()
-const redirectPath = computed(() => resolveSafeAuthRedirect(route.query.redirect, '/account/profile'))
+const redirectPath = computed(() =>
+  resolveSafeAuthRedirect(route.query.redirect, '/account/profile'),
+)
 </script>
 
 <template>

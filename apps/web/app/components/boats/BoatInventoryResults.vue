@@ -1,7 +1,5 @@
 <script setup lang="ts">
-import type {
-  BoatInventoryBoat,
-} from '~~/app/types/boat-inventory'
+import type { BoatInventoryBoat } from '~~/app/types/boat-inventory'
 import BoatInventoryListItem from '~~/app/components/boats/BoatInventoryListItem.vue'
 
 const props = withDefaults(
@@ -39,7 +37,6 @@ const emptyMessage = computed(() =>
     ? 'Widen the budget or hull-size band, or clear one of the applied filters below.'
     : 'Inventory is still filling in. Check back after the next import run.',
 )
-
 </script>
 
 <template>
