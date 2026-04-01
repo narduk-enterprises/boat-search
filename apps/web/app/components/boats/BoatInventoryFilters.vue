@@ -37,11 +37,12 @@ const emit = defineEmits<{
 }>()
 
 const activeDraftCount = computed(
-  () => Object.values(filters.value).filter((value) => value.trim().length > 0).length,
+  () =>
+    Object.values(filters.value).filter((value) => String(value ?? '').trim().length > 0).length,
 )
 const normalizedSuggestedMakes = computed(() =>
   props.suggestedMakes
-    .map((make) => make.trim())
+    .map((make) => String(make ?? '').trim())
     .filter((make, index, makes) => make.length > 0 && makes.indexOf(make) === index),
 )
 const canClear = computed(() => props.hasActiveFilters || activeDraftCount.value > 0)

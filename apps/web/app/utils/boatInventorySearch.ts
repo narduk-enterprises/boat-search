@@ -3,17 +3,22 @@ import type { BoatInventoryFilters, BoatInventorySort } from '~~/app/types/boat-
 export const DEFAULT_BOAT_INVENTORY_SORT: BoatInventorySort = 'updated-desc'
 
 function normalizeQueryValue(value: unknown) {
-  return typeof value === 'string' ? value.trim() : ''
+  return value != null && value !== '' ? String(value).trim() : ''
 }
 
-function normalizeNumericFilter(value: string) {
-  if (!value.trim()) return ''
+function normalizeNumericFilter(value: unknown) {
+  if (value == null || value === '') return ''
+  const strVal = String(value).trim()
+  if (!strVal) return ''
 
-  const parsed = Number(value)
+  const parsed = Number(strVal)
   return Number.isFinite(parsed) && parsed >= 0 ? String(parsed) : ''
 }
 
 export function normalizeBoatInventoryPage(value: unknown) {
+  if (typeof value === 'number') {
+    return Number.isFinite(value) && value > 0 ? value : 1
+  }
   if (typeof value !== 'string') return 1
 
   const parsed = Number.parseInt(value, 10)
@@ -56,15 +61,23 @@ export function routeQueryToBoatInventoryFilters(
 export function boatInventoryFiltersToQuery(filters: BoatInventoryFilters) {
   const query: Record<string, string> = {}
 
-  if (filters.q.trim()) query.q = filters.q.trim()
-  if (filters.make.trim()) query.make = filters.make.trim()
-  if (filters.location.trim()) query.location = filters.location.trim()
-  if (filters.minPrice.trim()) query.minPrice = normalizeNumericFilter(filters.minPrice)
-  if (filters.maxPrice.trim()) query.maxPrice = normalizeNumericFilter(filters.maxPrice)
-  if (filters.minLength.trim()) query.minLength = normalizeNumericFilter(filters.minLength)
-  if (filters.maxLength.trim()) query.maxLength = normalizeNumericFilter(filters.maxLength)
+  const q = String(filters.q ?? '').trim()
+  const make = String(filters.make ?? '').trim()
+  const location = String(filters.location ?? '').trim()
+  const minPrice = normalizeNumericFilter(filters.minPrice)
+  const maxPrice = normalizeNumericFilter(filters.maxPrice)
+  const minLength = normalizeNumericFilter(filters.minLength)
+  const maxLength = normalizeNumericFilter(filters.maxLength)
 
-  return Object.fromEntries(Object.entries(query).filter(([, value]) => value))
+  if (q) query.q = q
+  if (make) query.make = make
+  if (location) query.location = location
+  if (minPrice) query.minPrice = minPrice
+  if (maxPrice) query.maxPrice = maxPrice
+  if (minLength) query.minLength = minLength
+  if (maxLength) query.maxLength = maxLength
+
+  return query
 }
 
 export function boatInventoryFilterQuerySignature(filters: BoatInventoryFilters) {
