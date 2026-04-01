@@ -5,11 +5,11 @@
   "description": "Narduk Nuxt 4 Layer — shared components, composables, server routes, and Drizzle schema for Cloudflare Workers apps",
   "repository": {
     "type": "git",
-    "url": "git@github.com:narduk-enterprises/boat-search.git",
+    "url": "https://code.platform.nard.uk/narduk-enterprises/boat-search.git",
     "directory": "layers/narduk-nuxt-layer"
   },
   "publishConfig": {
-    "registry": "https://code.platform.nard.uk/api/packages/narduk-enterprises/npm/",
+    "registry": "https://npm.pkg.github.com",
     "access": "restricted"
   },
   "scripts": {

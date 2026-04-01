@@ -81,15 +81,17 @@ async function generateAuthToken(
   privateKey: CryptoKey,
   teamId: string,
   keyId: string,
+  servicesId?: string,
 ): Promise<string> {
   const now = Math.floor(Date.now() / 1000)
 
   const header = { alg: 'ES256', kid: keyId, typ: 'JWT' }
-  const payload = {
+  const payload: Record<string, unknown> = {
     iss: teamId,
     iat: now,
     exp: now + 1800, // 30 minutes
   }
+  if (servicesId) payload.sub = servicesId
 
   const encodedHeader = base64url(JSON.stringify(header))
   const encodedPayload = base64url(JSON.stringify(payload))
@@ -122,16 +124,18 @@ export async function generateMapKitJsToken(
   keyId: string,
   origin: string,
   expiresInSeconds = 86400,
+  servicesId?: string,
 ): Promise<string> {
   const now = Math.floor(Date.now() / 1000)
 
   const header = { alg: 'ES256', kid: keyId, typ: 'JWT' }
-  const payload = {
+  const payload: Record<string, unknown> = {
     iss: teamId,
     iat: now,
     exp: now + expiresInSeconds,
     origin,
   }
+  if (servicesId) payload.sub = servicesId
 
   const encodedHeader = base64url(JSON.stringify(header))
   const encodedPayload = base64url(JSON.stringify(payload))
@@ -172,10 +176,11 @@ export async function getMapKitJsToken(event: H3Event, origin: string): Promise<
   const privateKeyPem = (config as Record<string, string>).appleSecretKey || ''
   const teamId = (config as Record<string, string>).appleTeamId || ''
   const keyId = (config as Record<string, string>).appleKeyId || ''
+  const servicesId = (config as Record<string, string>).appleMapServicesId || ''
 
   if (privateKeyPem && teamId && keyId) {
     const privateKey = await importPrivateKey(privateKeyPem)
-    return generateMapKitJsToken(privateKey, teamId, keyId, origin)
+    return generateMapKitJsToken(privateKey, teamId, keyId, origin, 86400, servicesId || undefined)
   }
 
   const publicToken = String(
@@ -279,6 +284,7 @@ export async function getAppleMapsAccessToken(event?: H3Event): Promise<string> 
   const privateKeyPem = (config as Record<string, string>).appleSecretKey || ''
   const teamId = (config as Record<string, string>).appleTeamId || ''
   const keyId = (config as Record<string, string>).appleKeyId || ''
+  const servicesId = (config as Record<string, string>).appleMapServicesId || ''
 
   if (!privateKeyPem || !teamId || !keyId) {
     throw new Error(
@@ -288,7 +294,7 @@ export async function getAppleMapsAccessToken(event?: H3Event): Promise<string> 
   }
 
   const privateKey = await importPrivateKey(privateKeyPem)
-  const authToken = await generateAuthToken(privateKey, teamId, keyId)
+  const authToken = await generateAuthToken(privateKey, teamId, keyId, servicesId || undefined)
   cachedToken = await exchangeForAccessToken(authToken)
 
   return cachedToken.accessToken
