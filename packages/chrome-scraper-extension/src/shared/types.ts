@@ -33,12 +33,8 @@ export type PickerKind = 'itemSelector' | 'nextPageSelector' | 'field'
 export type SitePresetId = 'boats-com-search' | 'yachtworld-search'
 export type SitePresetPageContext = 'search' | 'detail'
 export type SitePresetApplicationMode = 'auto' | 'manual'
-export type FixtureCaptureTemplate =
-  | 'search-ok'
-  | 'search-no-results'
-  | 'detail-ok'
-  | 'detail-gallery-noise'
-  | 'custom'
+export type ExtensionTabTargetMode = 'follow-active' | 'locked'
+export type FixtureCaptureTemplate = 'detail-ok' | 'detail-gallery-noise'
 export type SessionValueSource = 'manual' | 'local-default' | null
 
 export interface ScraperFieldRule {
@@ -307,48 +303,15 @@ export interface FixtureCaptureResponse {
   }
 }
 
-export interface FixtureCaptureMetadata {
+export type BrowserDetailArtifactRole = 'detail' | 'detail-follow'
+
+export interface BrowserDetailArtifactPage extends FixtureCaptureResponse {
+  role: BrowserDetailArtifactRole
+}
+
+export interface BrowserDetailArtifact {
   capturedAt: string
-  host: string
-  fixtureLabel: string
-  currentUrl: string
-  title: string
-  pageType: PageType
-  pageState: AnalysisPageState
-  analysisWarnings: string[]
-  stats: AutoDetectedAnalysis['stats']
-  matchedPresetId: SitePresetId | null
-  matchedPresetLabel: string | null
-  appliedPresetId: SitePresetId | null
-  appliedPresetLabel: string | null
-  viewport: FixtureCaptureViewport
-}
-
-export interface FixtureCaptureRecord {
-  template: FixtureCaptureTemplate
-  fileStem: string | null
-  files: string[]
-  currentUrl: string | null
-  pageType: PageType | null
-  pageState: AnalysisPageState | null
-  capturedAt: string | null
-}
-
-export interface FixtureCaptureSummary {
-  template: FixtureCaptureTemplate
-  fileStem: string
-  files: string[]
-  currentUrl: string
-  pageType: PageType
-  pageState: AnalysisPageState
-  capturedAt: string
-}
-
-export interface FixtureCaptureSessionState {
-  selectedTemplate: FixtureCaptureTemplate
-  customLabel: string
-  captured: Record<FixtureCaptureTemplate, FixtureCaptureRecord>
-  lastCapture: FixtureCaptureSummary | null
+  pages: BrowserDetailArtifactPage[]
 }
 
 export interface ExtensionDebugEvent {
@@ -362,15 +325,16 @@ export interface ExtensionDebugSnapshot {
   statusMessage: string
   errorMessage: string
   currentTabUrl: string | null
+  tabTarget: ExtensionTabTarget
   analysis: AutoDetectedAnalysis | null
   preset: ExtensionPresetState
-  fixtureCapture: FixtureCaptureSessionState
   connection: {
     apiKeySource: SessionValueSource
     appBaseUrlSource: SessionValueSource
     verifiedEmail: string | null
     imageUploadEnabled: boolean
   }
+  browserSettings: ExtensionBrowserSettings
   sampleDetailRun: SampleDetailRunState | null
   browserRunProgress: BrowserScrapeProgress | null
   remoteRun: {
@@ -394,6 +358,10 @@ export interface ExtensionConnection {
   imageUploadEnabled: boolean
 }
 
+export interface ExtensionBrowserSettings {
+  detailTabConcurrency: number
+}
+
 export interface ExtensionPresetState {
   matchedPresetId: SitePresetId | null
   matchedPresetLabel: string | null
@@ -404,6 +372,14 @@ export interface ExtensionPresetState {
   applicationMode: SitePresetApplicationMode | null
   appliedDraftFingerprint: string | null
   isDraftDirty: boolean
+}
+
+export interface ExtensionTabTarget {
+  mode: ExtensionTabTargetMode
+  tabId: number | null
+  windowId: number | null
+  url: string | null
+  title: string | null
 }
 
 export interface ExtensionAuthStatusResponse {
@@ -487,12 +463,13 @@ export interface ExtensionSession {
   appBaseUrl: string
   appBaseUrlSource: SessionValueSource
   connection: ExtensionConnection
+  browserSettings: ExtensionBrowserSettings
+  tabTarget: ExtensionTabTarget
   currentTabUrl: string | null
   stage: 'search' | 'detail'
   sampleDetailUrl: string | null
   lastAnalysis: AutoDetectedAnalysis | null
   preset: ExtensionPresetState
-  fixtureCapture: FixtureCaptureSessionState
   draft: ScraperPipelineDraft
 }
 

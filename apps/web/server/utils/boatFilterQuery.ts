@@ -11,12 +11,22 @@ import {
   isNull,
   like,
   lte,
+  not,
   or,
   sql,
   type SQL,
 } from 'drizzle-orm'
 import type { DrizzleD1Database } from 'drizzle-orm/d1'
-import type { BoatInventorySort } from '~~/app/types/boat-inventory'
+import type {
+  BoatInventorySort,
+  BoatInventoryVesselMode,
+  BoatInventoryVesselSubtype,
+} from '~~/app/types/boat-inventory'
+import {
+  BOAT_INVENTORY_VESSEL_MODE_VALUES,
+  BOAT_INVENTORY_VESSEL_SUBTYPE_TO_MODE,
+  BOAT_INVENTORY_VESSEL_SUBTYPE_VALUES,
+} from '~~/app/types/boat-inventory'
 import type * as schema from '~~/server/database/schema'
 import { INVENTORY_BOAT_SELECT } from '#server/utils/boatInventory'
 
@@ -36,12 +46,22 @@ export const boatSearchFilterSchema = z.object({
   minPrice: z.coerce.number().optional(),
   maxPrice: z.coerce.number().optional(),
   q: z.preprocess(preprocessOptionalTrimmedString, z.string().max(200).optional()),
+  vesselMode: z.enum(BOAT_INVENTORY_VESSEL_MODE_VALUES).optional(),
+  vesselSubtype: z.enum(BOAT_INVENTORY_VESSEL_SUBTYPE_VALUES).optional(),
 })
 
 export type BoatSearchFilter = z.infer<typeof boatSearchFilterSchema>
 
 const priceAsInteger = sql<number>`CAST(NULLIF(${boats.price}, '') AS INTEGER)`
 const lengthAsReal = sql<number>`CAST(NULLIF(${boats.length}, '') AS REAL)`
+const searchTypeText = sql<string>`coalesce(${boats.searchType}, '')`
+const listingTypeText = sql<string>`coalesce(${boats.listingType}, '')`
+const descriptionText = sql<string>`coalesce(${boats.description}, '')`
+const fullText = sql<string>`coalesce(${boats.fullText}, '')`
+const propulsionText = sql<string>`coalesce(${boats.propulsion}, '')`
+const hullShapeText = sql<string>`coalesce(${boats.hullShape}, '')`
+const keelTypeText = sql<string>`coalesce(${boats.keelType}, '')`
+const modelText = sql<string>`coalesce(${boats.model}, '')`
 
 function inventorySearchTokens(raw: string): string[] {
   return raw
@@ -56,8 +76,95 @@ function sanitizeLikePattern(value: string) {
   return value.replaceAll(/[%_\\]/g, '')
 }
 
+function matchAnyInventoryText(fields: readonly SQL<string>[], terms: readonly string[]) {
+  const conditions: SQL[] = []
+
+  for (const rawTerm of terms) {
+    const term = sanitizeLikePattern(rawTerm)
+    if (!term) continue
+
+    for (const field of fields) {
+      conditions.push(like(field, `%${term}%`))
+    }
+  }
+
+  return conditions.length ? or(...conditions)! : undefined
+}
+
+function combineOr(...clauses: Array<SQL | undefined>) {
+  const filteredClauses = clauses.filter((clause): clause is SQL => Boolean(clause))
+  return filteredClauses.length ? or(...filteredClauses)! : undefined
+}
+
+function sailModeCondition() {
+  return combineOr(
+    matchAnyInventoryText([searchTypeText, listingTypeText], ['sail']),
+    matchAnyInventoryText(
+      [descriptionText, fullText, propulsionText],
+      [' sailboat', ' sailing', 'sloop', 'ketch', 'cutter', 'yawl', 'schooner', 'bluewater sail'],
+    ),
+    matchAnyInventoryText([keelTypeText], ['keel']),
+  )!
+}
+
+function subtypeCondition(subtype: BoatInventoryVesselSubtype) {
+  switch (subtype) {
+    case 'power-center-console':
+      return matchAnyInventoryText(
+        [listingTypeText, modelText, descriptionText, fullText],
+        ['center console', 'open fisherman', 'bay boat', 'dual console', 'fisharound'],
+      )
+    case 'power-sportfish':
+      return matchAnyInventoryText(
+        [searchTypeText, listingTypeText, modelText, descriptionText, fullText],
+        [
+          'sportfish',
+          'sport fishing',
+          'convertible',
+          'express fisherman',
+          'super sport',
+          'tournament',
+        ],
+      )
+    case 'power-catamaran':
+      return matchAnyInventoryText(
+        [listingTypeText, modelText, descriptionText, fullText, hullShapeText],
+        ['catamaran', 'world cat', 'tomcat', 'twin vee'],
+      )
+    case 'power-cruiser':
+      return matchAnyInventoryText(
+        [listingTypeText, modelText, descriptionText, fullText],
+        ['cruiser', 'trawler', 'motor yacht', 'flybridge', 'pilothouse', 'downeast'],
+      )
+    case 'sail-sloop':
+      return matchAnyInventoryText(
+        [listingTypeText, descriptionText, fullText, propulsionText],
+        ['sloop', 'cutter', 'ketch', 'yawl', 'schooner'],
+      )
+    case 'sail-catamaran':
+      return matchAnyInventoryText(
+        [listingTypeText, descriptionText, fullText, hullShapeText],
+        ['catamaran'],
+      )
+    case 'sail-cruiser':
+      return matchAnyInventoryText(
+        [listingTypeText, descriptionText, fullText, propulsionText],
+        ['cruising sailboat', 'sailing yacht', 'bluewater sail', 'passagemaker sail'],
+      )
+  }
+}
+
 export function boatFilterConditions(filter: BoatSearchFilter): SQL[] {
   const conditions: SQL[] = []
+  const effectiveVesselMode: BoatInventoryVesselMode | undefined =
+    filter.vesselMode ||
+    (filter.vesselSubtype ? BOAT_INVENTORY_VESSEL_SUBTYPE_TO_MODE[filter.vesselSubtype] : undefined)
+  const effectiveVesselSubtype =
+    filter.vesselSubtype &&
+    BOAT_INVENTORY_VESSEL_SUBTYPE_TO_MODE[filter.vesselSubtype] === effectiveVesselMode
+      ? filter.vesselSubtype
+      : undefined
+
   if (filter.make) {
     conditions.push(like(boats.make, `%${sanitizeLikePattern(filter.make)}%`))
   }
@@ -102,6 +209,16 @@ export function boatFilterConditions(filter: BoatSearchFilter): SQL[] {
           like(sql<string>`CAST(${boats.year} AS TEXT)`, needle),
         )!,
       )
+    }
+  }
+  if (effectiveVesselMode) {
+    const sailCondition = sailModeCondition()
+    conditions.push(effectiveVesselMode === 'sail' ? sailCondition : not(sailCondition))
+  }
+  if (effectiveVesselSubtype) {
+    const matchCondition = subtypeCondition(effectiveVesselSubtype)
+    if (matchCondition) {
+      conditions.push(matchCondition)
     }
   }
   return conditions

@@ -13,6 +13,7 @@ const route = useRoute()
 const config = useRuntimeConfig()
 const appName = config.public.appName || 'Boat Search'
 const { loggedIn } = useUserSession()
+const { label: aiEntryLabel, to: aiEntryTo } = useAiBoatFinderEntry()
 const mobileMenuOpen = shallowRef(false)
 const routeMiddleware = computed(() => {
   const middleware = route.meta.middleware
@@ -41,16 +42,13 @@ const navLinks = computed<NavLink[]>(() => {
       icon: 'i-lucide-map',
       matchPrefixes: ['/boats-for-sale/map'],
     },
-  ]
-
-  if (loggedIn.value) {
-    base.push({
-      label: 'AI Boat Profiles',
-      to: '/account/profile',
+    {
+      label: aiEntryLabel.value,
+      to: aiEntryTo.value,
       icon: 'i-lucide-sparkles',
       matchPrefixes: ['/account/profile', '/ai-boat-finder'],
-    })
-  }
+    },
+  ]
 
   return base
 })
@@ -79,12 +77,18 @@ const isFullBleedLayout = computed(() => {
   return m === 'landing' || m === 'wide'
 })
 
+const isInventoryWorkspaceRoute = computed(
+  () => route.path === '/boats-for-sale' || route.path === '/boats-for-sale/map',
+)
+
 // App shell gutter below the sticky header — separate from Nuxt UI (UPage / UPageSection). Tight
 // vertical padding here; section spacing is tuned in app.config `ui.pageSection.slots.container`.
 const shellContentClass = computed(() =>
   isFullBleedLayout.value
     ? 'w-full min-w-0 px-4 pb-10 pt-4 sm:px-6 sm:pb-14 lg:px-8'
-    : 'mx-auto w-full min-w-0 max-w-[94rem] px-4 pb-12 pt-3 sm:px-6 sm:pt-4 lg:px-8',
+    : isInventoryWorkspaceRoute.value
+      ? 'mx-auto w-full min-w-0 max-w-[94rem] px-4 pb-12 pt-0 sm:px-6 sm:pb-14 sm:pt-2 lg:px-8'
+      : 'mx-auto w-full min-w-0 max-w-[94rem] px-4 pb-12 pt-3 sm:px-6 sm:pt-4 lg:px-8',
 )
 const footerLinkClass = 'text-sm text-muted hover:text-default transition-fast'
 
@@ -96,7 +100,14 @@ watch(
 )
 
 function isActiveLink(link: NavLink) {
-  if (typeof link.to !== 'string') return false
+  const targetPath =
+    typeof link.to === 'string'
+      ? link.to
+      : typeof link.to === 'object' && 'path' in link.to && typeof link.to.path === 'string'
+        ? link.to.path
+        : null
+
+  if (!targetPath) return false
 
   if (
     link.excludePrefixes?.some(
@@ -116,11 +127,11 @@ function isActiveLink(link: NavLink) {
   <LayerAppShell>
     <template #header>
       <div class="brand-shell-header">
-        <div class="mx-auto w-full max-w-7xl px-4 py-3 sm:px-6 lg:px-8">
+        <div class="mx-auto w-full max-w-7xl px-4 py-2 sm:px-6 sm:py-3 lg:px-8">
           <div class="brand-header-bar">
             <div class="brand-header-side brand-header-side-start">
               <NuxtLink to="/" class="flex min-w-0 shrink-0 items-center">
-                <AppBrandMark subtitle="Marine market intelligence" />
+                <AppBrandMark size="sm" subtitle="Marine market intelligence" />
               </NuxtLink>
             </div>
 
@@ -130,7 +141,7 @@ function isActiveLink(link: NavLink) {
               >
                 <NuxtLink
                   v-for="link in navLinks"
-                  :key="String(link.to)"
+                  :key="link.label"
                   :to="link.to"
                   :data-active="isActiveLink(link)"
                   class="brand-nav-link"
@@ -185,7 +196,7 @@ function isActiveLink(link: NavLink) {
               <div class="brand-surface space-y-1 p-3">
                 <NuxtLink
                   v-for="link in navLinks"
-                  :key="`mobile-${String(link.to)}`"
+                  :key="`mobile-${link.label}`"
                   :to="link.to"
                   :data-active="isActiveLink(link)"
                   class="brand-mobile-link"
@@ -249,9 +260,14 @@ function isActiveLink(link: NavLink) {
                 Buyer tools
               </p>
               <div class="flex flex-col gap-2">
-                <NuxtLink :class="footerLinkClass" to="/account/profile">AI Boat Profiles</NuxtLink>
-                <NuxtLink :class="footerLinkClass" to="/search">Shortlist history</NuxtLink>
-                <NuxtLink :class="footerLinkClass" to="/account/alerts">Alerts</NuxtLink>
+                <NuxtLink :class="footerLinkClass" :to="aiEntryTo">{{ aiEntryLabel }}</NuxtLink>
+                <NuxtLink v-if="loggedIn" :class="footerLinkClass" to="/search">
+                  Shortlist history
+                </NuxtLink>
+                <NuxtLink v-if="loggedIn" :class="footerLinkClass" to="/account/alerts">
+                  Alerts
+                </NuxtLink>
+                <NuxtLink v-else :class="footerLinkClass" to="/login">Sign in</NuxtLink>
               </div>
             </div>
             <div class="space-y-2">

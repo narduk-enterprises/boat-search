@@ -2,17 +2,11 @@ import { computed, onScopeDispose, ref, shallowRef, watch } from 'vue'
 import {
   createDefaultSession,
   createFieldRule,
+  DEFAULT_BROWSER_DETAIL_TAB_CONCURRENCY,
   MAX_BROWSER_SCRAPE_MAX_ITEMS_PER_RUN,
+  MAX_BROWSER_DETAIL_TAB_CONCURRENCY,
   MAX_BROWSER_SCRAPE_MAX_PAGES,
 } from '@/shared/defaults'
-import {
-  buildFixtureCaptureFileNames,
-  buildFixtureCaptureFileStem,
-  buildFixtureCaptureMetadata,
-  evaluateFixtureCaptureTemplate,
-  normalizeFixtureCaptureSessionState,
-  resolveFixtureLabel,
-} from '@/shared/fixtureCapture'
 import {
   buildPresetDraft,
   buildPresetDraftFingerprint,
@@ -51,7 +45,10 @@ import type {
   AutoDetectedAnalysis,
   ExtensionDebugEvent,
   ExtensionDebugSnapshot,
+  ExtensionBrowserSettings,
   BackgroundMessage,
+  BrowserDetailArtifact,
+  BrowserDetailArtifactPage,
   BrowserScrapeProgress,
   BrowserScrapeRecord,
   BrowserScrapeSummary,
@@ -59,7 +56,6 @@ import type {
   ExtensionDetailStatus,
   ExtensionAuthStatusResponse,
   FixtureCaptureResponse,
-  FixtureCaptureSummary,
   FixtureCaptureTemplate,
   ExtensionRunCompleteResponse,
   ExtensionRunListingAudit,
@@ -68,6 +64,7 @@ import type {
   ExtensionRunRecordResponse,
   ExtensionRunStartResponse,
   ExtensionRunStopResponse,
+  ExtensionTabTarget,
   FieldPreviewResult,
   SearchPageExtractResponse,
   PickerProgress,
@@ -132,6 +129,12 @@ type ActiveBrowserRunController = {
   stopRequested: boolean
 }
 
+type ResolveTrackedTabOptions = {
+  fallbackToActive?: boolean
+  requireWebPage?: boolean
+  activate?: boolean
+}
+
 const BROWSER_RUN_STOP_MESSAGE = 'Browser scrape stopped by user.'
 
 class BrowserRunStoppedError extends Error {
@@ -150,10 +153,6 @@ function isBrowserRunStoppedError(error: unknown): error is BrowserRunStoppedErr
 
 type BrowserRunProgressState = BrowserScrapeProgress | null
 type SampleDetailRunRefState = SampleDetailRunState | null
-type FixtureCaptureOverrideState = {
-  template: FixtureCaptureTemplate
-  message: string
-} | null
 
 const MAX_DEBUG_EVENTS = 120
 
@@ -493,6 +492,50 @@ function normalizePresetState(
   }
 }
 
+function normalizeNullableInteger(value: unknown) {
+  const parsed = typeof value === 'number' ? value : Number(value)
+  return Number.isInteger(parsed) ? parsed : null
+}
+
+function normalizeTabTarget(value: unknown, fallback: ExtensionTabTarget): ExtensionTabTarget {
+  if (!value || typeof value !== 'object') {
+    return structuredClone(fallback)
+  }
+
+  const raw = value as Partial<ExtensionTabTarget>
+
+  return {
+    ...fallback,
+    ...raw,
+    mode: raw.mode === 'locked' ? 'locked' : 'follow-active',
+    tabId: normalizeNullableInteger(raw.tabId),
+    windowId: normalizeNullableInteger(raw.windowId),
+    url: typeof raw.url === 'string' ? raw.url : null,
+    title: typeof raw.title === 'string' ? raw.title : null,
+  }
+}
+
+function normalizeBrowserSettings(
+  value: unknown,
+  fallback: ExtensionBrowserSettings,
+): ExtensionBrowserSettings {
+  if (!value || typeof value !== 'object') {
+    return structuredClone(fallback)
+  }
+
+  const raw = value as Partial<ExtensionBrowserSettings>
+
+  return {
+    ...fallback,
+    detailTabConcurrency: toBoundedInteger(
+      raw.detailTabConcurrency,
+      fallback.detailTabConcurrency,
+      1,
+      MAX_BROWSER_DETAIL_TAB_CONCURRENCY,
+    ),
+  }
+}
+
 function normalizeSession(value: unknown, fallback: ExtensionSession): ExtensionSession {
   if (!value || typeof value !== 'object') {
     return structuredClone(fallback)
@@ -532,14 +575,12 @@ function normalizeSession(value: unknown, fallback: ExtensionSession): Extension
                 : fallback.connection.imageUploadEnabled,
           }
         : structuredClone(fallback.connection),
+    browserSettings: normalizeBrowserSettings(raw.browserSettings, fallback.browserSettings),
+    tabTarget: normalizeTabTarget(raw.tabTarget, fallback.tabTarget),
     currentTabUrl: typeof raw.currentTabUrl === 'string' ? raw.currentTabUrl : null,
     stage: raw.stage === 'detail' ? 'detail' : 'search',
     sampleDetailUrl: typeof raw.sampleDetailUrl === 'string' ? raw.sampleDetailUrl : null,
     preset: normalizePresetState(raw.preset, fallback.preset),
-    fixtureCapture: normalizeFixtureCaptureSessionState(
-      raw.fixtureCapture,
-      fallback.fixtureCapture,
-    ),
     draft: normalizeDraft(raw.draft, fallback.draft),
     lastAnalysis:
       raw.lastAnalysis && typeof raw.lastAnalysis === 'object'
@@ -631,8 +672,6 @@ export function useExtensionSession() {
   const activeRemoteRunMeta = shallowRef<ActiveRemoteRunMeta>(null)
   const browserRunProgress = shallowRef<BrowserRunProgressState>(null)
   const sampleDetailRun = shallowRef<SampleDetailRunRefState>(null)
-  const fixtureCapturePendingOverride = shallowRef<FixtureCaptureOverrideState>(null)
-  const capturingFixture = shallowRef(false)
   const startingRemoteRun = shallowRef(false)
   const stoppingRemoteRun = shallowRef(false)
   const verifyingConnection = shallowRef(false)
@@ -655,17 +694,18 @@ export function useExtensionSession() {
       statusMessage: statusMessage.value,
       errorMessage: errorMessage.value,
       currentTabUrl: session.value.currentTabUrl,
+      tabTarget: cloneSerializableValue(session.value.tabTarget),
       analysis: session.value.lastAnalysis
         ? cloneSerializableValue(session.value.lastAnalysis)
         : null,
       preset: cloneSerializableValue(session.value.preset),
-      fixtureCapture: cloneSerializableValue(session.value.fixtureCapture),
       connection: {
         apiKeySource: session.value.connection.apiKeySource,
         appBaseUrlSource: session.value.appBaseUrlSource,
         verifiedEmail: session.value.connection.verifiedEmail,
         imageUploadEnabled: session.value.connection.imageUploadEnabled,
       },
+      browserSettings: cloneSerializableValue(session.value.browserSettings),
       sampleDetailRun: sampleDetailRun.value ? cloneSerializableValue(sampleDetailRun.value) : null,
       browserRunProgress: browserRunProgress.value
         ? cloneSerializableValue(browserRunProgress.value)
@@ -756,12 +796,105 @@ export function useExtensionSession() {
     return match
   }
 
-  async function refreshActiveTab() {
-    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true })
-    activeTab.value = tab ?? null
+  function syncTrackedTabState(tab: chrome.tabs.Tab | null) {
+    activeTab.value = tab
     session.value.currentTabUrl = tab?.url || null
+    session.value.tabTarget.tabId = typeof tab?.id === 'number' ? tab.id : null
+    session.value.tabTarget.windowId = typeof tab?.windowId === 'number' ? tab.windowId : null
+    session.value.tabTarget.url = tab?.url || null
+    session.value.tabTarget.title = typeof tab?.title === 'string' ? tab.title : null
     updateMatchedPreset(tab?.url || null)
+    return tab
+  }
+
+  async function queryCurrentWindowActiveTab(): Promise<chrome.tabs.Tab | null> {
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true })
     return tab ?? null
+  }
+
+  async function activateTrackedTab(tab: chrome.tabs.Tab): Promise<chrome.tabs.Tab> {
+    if (!tab.id) {
+      throw new Error('Open a normal web page before using the helper.')
+    }
+
+    if (tab.active) {
+      return syncTrackedTabState(tab) as chrome.tabs.Tab
+    }
+
+    const activatedTab = await chrome.tabs.update(tab.id, { active: true })
+    if (!activatedTab) {
+      throw new Error('Could not activate the tracked tab.')
+    }
+
+    return syncTrackedTabState(activatedTab) as chrome.tabs.Tab
+  }
+
+  async function resolveTrackedTab(
+    options: ResolveTrackedTabOptions = {},
+  ): Promise<chrome.tabs.Tab> {
+    const { fallbackToActive = true, requireWebPage = false, activate = false } = options
+
+    let tab: chrome.tabs.Tab | null = null
+
+    if (
+      session.value.tabTarget.mode === 'locked' &&
+      typeof session.value.tabTarget.tabId === 'number'
+    ) {
+      try {
+        tab = await chrome.tabs.get(session.value.tabTarget.tabId)
+      } catch {
+        throw new Error(
+          'The locked tab is no longer available. Click Follow active tab or Lock current tab again.',
+        )
+      }
+    }
+
+    if (!tab && fallbackToActive) {
+      tab = await queryCurrentWindowActiveTab()
+    }
+
+    if (!tab) {
+      throw new Error('Open a normal web page before using the helper.')
+    }
+
+    if (activate) {
+      tab = await activateTrackedTab(tab)
+    } else {
+      syncTrackedTabState(tab)
+    }
+
+    if (requireWebPage && !isWebPageUrl(tab.url)) {
+      throw new Error('Open an http or https page in the tracked tab before using the helper.')
+    }
+
+    return tab
+  }
+
+  async function refreshActiveTab(): Promise<chrome.tabs.Tab> {
+    return await resolveTrackedTab()
+  }
+
+  async function followActiveTab() {
+    session.value.tabTarget.mode = 'follow-active'
+    const tab = await queryCurrentWindowActiveTab()
+    syncTrackedTabState(tab)
+    errorMessage.value = ''
+    statusMessage.value = tab?.url
+      ? 'The extension now follows the active tab.'
+      : 'The extension will follow the active tab when you open a web page.'
+  }
+
+  async function lockCurrentTab() {
+    const tab = await queryCurrentWindowActiveTab()
+    if (!tab?.id) {
+      throw new Error('Open the tab you want to track before locking it.')
+    }
+
+    session.value.tabTarget.mode = 'locked'
+    syncTrackedTabState(tab)
+    errorMessage.value = ''
+    statusMessage.value =
+      'The extension is locked to the current tab. You can switch tabs without rebinding the workflow.'
   }
 
   async function ensureContentScript(tab: chrome.tabs.Tab) {
@@ -790,7 +923,7 @@ export function useExtensionSession() {
       if (!hasMissingReceiverError(error)) {
         recordDebugEvent(
           'tab-message-failed',
-          error instanceof Error ? error.message : 'Could not send a message to the active tab.',
+          error instanceof Error ? error.message : 'Could not send a message to the tracked tab.',
           {
             tabId: tab.id,
           },
@@ -800,7 +933,7 @@ export function useExtensionSession() {
 
       recordDebugEvent(
         'tab-message-retry',
-        'The content script was missing on the active tab, so the helper is retrying after reinjection.',
+        'The content script was missing on the tracked tab, so the helper is retrying after reinjection.',
         {
           tabId: tab.id,
         },
@@ -813,7 +946,7 @@ export function useExtensionSession() {
           'tab-message-failed',
           retryError instanceof Error
             ? retryError.message
-            : 'The helper could not talk to the active tab after reinjecting the content script.',
+            : 'The helper could not talk to the tracked tab after reinjecting the content script.',
           {
             tabId: tab.id,
           },
@@ -979,7 +1112,7 @@ export function useExtensionSession() {
         'auto-analyze-failed',
         error instanceof Error
           ? error.message
-          : 'Could not analyze the active tab while loading a preset.',
+          : 'Could not analyze the tracked tab while loading a preset.',
       )
       return null
     }
@@ -1095,7 +1228,7 @@ export function useExtensionSession() {
         return
       }
 
-      recordDebugEvent('preset-matched', `Matched ${match.label} on the active tab.`, {
+      recordDebugEvent('preset-matched', `Matched ${match.label} on the tracked tab.`, {
         presetId: match.id,
         context: match.context,
         pageUrl: tab.url,
@@ -1116,15 +1249,22 @@ export function useExtensionSession() {
       const message =
         error instanceof Error
           ? error.message
-          : 'The extension could not initialize the current tab.'
+          : 'The extension could not initialize the tracked tab.'
       errorMessage.value = message
       statusMessage.value = 'Initialization failed'
       recordDebugEvent('preset-initialize-failed', message)
     }
   }
 
-  async function sendToActiveTab<T>(message: object) {
-    const tab = await refreshActiveTab()
+  async function sendToTrackedTab<T>(
+    message: object,
+    options: ResolveTrackedTabOptions = {},
+  ) {
+    const tab = await resolveTrackedTab({
+      fallbackToActive: true,
+      requireWebPage: true,
+      ...options,
+    })
     if (!tab?.id) {
       throw new Error('Open a normal web page before using the helper.')
     }
@@ -1132,8 +1272,11 @@ export function useExtensionSession() {
     return sendToTab<T>(tab, message)
   }
 
-  async function getVisibleCrawlTab(startUrl: string) {
-    const tab = await refreshActiveTab()
+  async function getCrawlTab(startUrl: string): Promise<chrome.tabs.Tab> {
+    const tab = await resolveTrackedTab({
+      fallbackToActive: true,
+    }).catch(() => null)
+
     if (tab?.id && isWebPageUrl(tab.url)) {
       return tab
     }
@@ -1143,7 +1286,7 @@ export function useExtensionSession() {
       throw new Error('Could not open a scraper tab in this browser window.')
     }
 
-    return nextTab
+    return syncTrackedTabState(nextTab) as chrome.tabs.Tab
   }
 
   async function analyzeCurrentPage() {
@@ -1153,7 +1296,7 @@ export function useExtensionSession() {
     statusMessage.value = 'Analyzing current page...'
 
     try {
-      const analysis = await sendToActiveTab<AutoDetectedAnalysis>({
+      const analysis = await sendToTrackedTab<AutoDetectedAnalysis>({
         type: 'EXTENSION_ANALYZE_PAGE',
       })
       const match = updateMatchedPreset(analysis.pageUrl)
@@ -1171,163 +1314,6 @@ export function useExtensionSession() {
       errorMessage.value = message
       statusMessage.value = 'Analysis failed'
       recordDebugEvent('analysis-failed', message)
-    }
-  }
-
-  function setSelectedFixtureTemplate(template: FixtureCaptureTemplate) {
-    session.value.fixtureCapture.selectedTemplate = template
-    if (fixtureCapturePendingOverride.value?.template !== template) {
-      fixtureCapturePendingOverride.value = null
-    }
-  }
-
-  function updateFixtureCustomLabel(value: string) {
-    session.value.fixtureCapture.customLabel = value
-  }
-
-  async function captureVisibleTabPng(activeTabValue: chrome.tabs.Tab) {
-    if (typeof activeTabValue.windowId !== 'number') {
-      throw new Error('Could not identify the current browser window for screenshot capture.')
-    }
-
-    return await chrome.tabs.captureVisibleTab(activeTabValue.windowId, {
-      format: 'png',
-    })
-  }
-
-  async function captureFixture(
-    template: FixtureCaptureTemplate,
-    options: { allowMismatch?: boolean } = {},
-  ) {
-    setSelectedFixtureTemplate(template)
-    errorMessage.value = ''
-    capturingFixture.value = true
-    statusMessage.value = 'Analyzing the current page for fixture capture...'
-
-    try {
-      const tab = await refreshActiveTab()
-      if (!tab?.id || !isWebPageUrl(tab.url)) {
-        throw new Error('Open the page you want to capture in the active tab first.')
-      }
-
-      const analysis = await sendToTab<AutoDetectedAnalysis>(tab, {
-        type: 'EXTENSION_ANALYZE_PAGE',
-      })
-      syncAnalysisSnapshot(analysis, { mutateDraft: false })
-
-      const validation = evaluateFixtureCaptureTemplate(
-        template,
-        analysis,
-        session.value.currentTabUrl,
-      )
-      if (template !== 'custom' && validation.status === 'mismatch' && !options.allowMismatch) {
-        fixtureCapturePendingOverride.value = {
-          template,
-          message: validation.note,
-        }
-        statusMessage.value = validation.note
-        recordDebugEvent('fixture-capture-validation-blocked', validation.note, {
-          template,
-          pageType: analysis.pageType,
-          pageState: analysis.pageState,
-          pageUrl: analysis.pageUrl,
-        })
-        return
-      }
-
-      fixtureCapturePendingOverride.value = null
-      statusMessage.value = 'Capturing the current page and preparing fixture downloads...'
-
-      const [captureResponse, screenshotDataUrl] = await Promise.all([
-        sendToTab<FixtureCaptureResponse>(tab, {
-          type: 'EXTENSION_CAPTURE_PAGE',
-          request: { template },
-        }),
-        captureVisibleTabPng(tab),
-      ])
-
-      syncAnalysisSnapshot(captureResponse.analysis, { mutateDraft: false })
-
-      const fixtureLabel = resolveFixtureLabel(template, session.value.fixtureCapture.customLabel)
-      const host = (() => {
-        try {
-          return new URL(captureResponse.page.url).hostname
-        } catch {
-          return 'unknown'
-        }
-      })()
-      const fileStem = buildFixtureCaptureFileStem(host, fixtureLabel)
-      const files = buildFixtureCaptureFileNames(fileStem)
-      const capturedAt = new Date().toISOString()
-      const metadata = buildFixtureCaptureMetadata({
-        capturedAt,
-        host,
-        fixtureLabel,
-        currentUrl: captureResponse.page.url,
-        title: captureResponse.page.title,
-        analysis: captureResponse.analysis,
-        matchedPresetId: session.value.preset.matchedPresetId,
-        matchedPresetLabel: session.value.preset.matchedPresetLabel,
-        appliedPresetId: session.value.preset.appliedPresetId,
-        appliedPresetLabel: session.value.preset.appliedPresetLabel,
-        viewport: captureResponse.page.viewport,
-      })
-
-      const [htmlFileName, pngFileName, metaFileName] = files
-      await Promise.all([
-        downloadBlobFile(
-          htmlFileName,
-          new Blob([captureResponse.html], {
-            type: 'text/html;charset=utf-8',
-          }),
-        ),
-        dataUrlToBlob(screenshotDataUrl).then((blob) => downloadBlobFile(pngFileName, blob)),
-        downloadBlobFile(
-          metaFileName,
-          new Blob([`${JSON.stringify(metadata, null, 2)}\n`], {
-            type: 'application/json;charset=utf-8',
-          }),
-        ),
-      ])
-
-      const summary: FixtureCaptureSummary = {
-        template,
-        fileStem,
-        files,
-        currentUrl: captureResponse.page.url,
-        pageType: captureResponse.analysis.pageType,
-        pageState: captureResponse.analysis.pageState,
-        capturedAt,
-      }
-      session.value.fixtureCapture.captured[template] = {
-        template,
-        fileStem,
-        files,
-        currentUrl: captureResponse.page.url,
-        pageType: captureResponse.analysis.pageType,
-        pageState: captureResponse.analysis.pageState,
-        capturedAt,
-      }
-      session.value.fixtureCapture.lastCapture = summary
-
-      statusMessage.value = `Downloaded ${htmlFileName}, ${pngFileName}, and ${metaFileName}.`
-      recordDebugEvent('fixture-capture-complete', `Downloaded fixture files for ${template}.`, {
-        template,
-        fileStem,
-        pageUrl: captureResponse.page.url,
-        pageType: captureResponse.analysis.pageType,
-        pageState: captureResponse.analysis.pageState,
-      })
-    } catch (error: unknown) {
-      const message =
-        error instanceof Error ? error.message : 'Could not capture the current fixture page.'
-      errorMessage.value = message
-      statusMessage.value = 'Fixture capture failed'
-      recordDebugEvent('fixture-capture-failed', message, {
-        template,
-      })
-    } finally {
-      capturingFixture.value = false
     }
   }
 
@@ -1351,13 +1337,18 @@ export function useExtensionSession() {
         : 'Click an element on the page to capture a selector.'
 
     try {
-      await sendToActiveTab({
-        type: 'EXTENSION_START_PICKER',
-        picker: {
-          ...request,
-          itemSelector: request.scope === 'item' ? session.value.draft.config.itemSelector : '',
+      await sendToTrackedTab(
+        {
+          type: 'EXTENSION_START_PICKER',
+          picker: {
+            ...request,
+            itemSelector: request.scope === 'item' ? session.value.draft.config.itemSelector : '',
+          },
         },
-      })
+        {
+          activate: true,
+        },
+      )
     } catch (error: unknown) {
       pendingPicker.value = null
       const message = error instanceof Error ? error.message : 'Could not start the element picker.'
@@ -1428,7 +1419,9 @@ export function useExtensionSession() {
 
   const activatedListener = () => {
     clearFieldPreviewState()
-    void refreshActiveTab()
+    if (session.value.tabTarget.mode === 'follow-active') {
+      void refreshActiveTab().catch(() => {})
+    }
   }
 
   const updatedListener = (
@@ -1436,14 +1429,17 @@ export function useExtensionSession() {
     changeInfo: chrome.tabs.OnUpdatedInfo,
     tab: chrome.tabs.Tab,
   ) => {
-    if (!activeTab.value?.id || activeTab.value.id !== tabId) {
+    const trackedTabId =
+      session.value.tabTarget.mode === 'locked'
+        ? session.value.tabTarget.tabId
+        : activeTab.value?.id ?? null
+
+    if (trackedTabId == null || trackedTabId !== tabId) {
       return
     }
 
-    if (changeInfo.url || changeInfo.status === 'complete') {
-      activeTab.value = tab
-      session.value.currentTabUrl = tab.url || null
-      updateMatchedPreset(tab.url || null)
+    if (changeInfo.url || changeInfo.status === 'complete' || typeof changeInfo.title === 'string') {
+      syncTrackedTabState(tab)
       clearFieldPreviewState()
     }
   }
@@ -1492,7 +1488,7 @@ export function useExtensionSession() {
     })
     const tab = await chrome.tabs.create({ url: targetUrl, active: true })
     session.value.stage = 'detail'
-    session.value.currentTabUrl = targetUrl
+    syncTrackedTabState(tab)
 
     if (!tab.id) {
       statusMessage.value = 'Sample detail page opened.'
@@ -1664,13 +1660,18 @@ export function useExtensionSession() {
     }
 
     try {
-      const preview = await sendToActiveTab<FieldPreviewResult>({
-        type: 'EXTENSION_PREVIEW_FIELD',
-        preview: {
-          field,
-          itemSelector: field.scope === 'item' ? session.value.draft.config.itemSelector : '',
+      const preview = await sendToTrackedTab<FieldPreviewResult>(
+        {
+          type: 'EXTENSION_PREVIEW_FIELD',
+          preview: {
+            field,
+            itemSelector: field.scope === 'item' ? session.value.draft.config.itemSelector : '',
+          },
         },
-      })
+        {
+          activate: true,
+        },
+      )
 
       if (currentSequence !== previewSequence) {
         return
@@ -1710,7 +1711,7 @@ export function useExtensionSession() {
     itemSelectorPreview.value = null
 
     try {
-      await sendToActiveTab({ type: 'EXTENSION_CLEAR_PREVIEW' })
+      await sendToTrackedTab({ type: 'EXTENSION_CLEAR_PREVIEW' })
     } catch {
       // Ignore preview cleanup failures; this should never block the workflow.
     }
@@ -2087,11 +2088,6 @@ export function useExtensionSession() {
     }
   }
 
-  async function dataUrlToBlob(dataUrl: string) {
-    const response = await fetch(dataUrl)
-    return await response.blob()
-  }
-
   async function downloadBrowserRunCsv(
     draft: ScraperPipelineDraft,
     records: BrowserScrapeRecord[],
@@ -2276,6 +2272,7 @@ export function useExtensionSession() {
     draft: ScraperPipelineDraft,
     listing: ExtensionRunListingAudit,
     record: BrowserScrapeRecord,
+    detailArtifact?: BrowserDetailArtifact | null,
   ) {
     return await fetchBoatSearchJson<ExtensionRunRecordResponse>(
       '/api/admin/scraper-extension/run/record',
@@ -2287,6 +2284,7 @@ export function useExtensionSession() {
           draft,
           listing,
           record,
+          detailArtifact,
         }),
       },
     )
@@ -2390,7 +2388,11 @@ export function useExtensionSession() {
     runState: { recordsPersisted: number; imagesUploaded: number; skippedExisting: number },
     existingIdentityState: ReturnType<typeof createBrowserRunIdentityState>,
     controller: ActiveBrowserRunController,
-    onRecord: (record: BrowserScrapeRecord, listing: ExtensionRunListingAudit) => Promise<void>,
+    onRecord: (
+      record: BrowserScrapeRecord,
+      listing: ExtensionRunListingAudit,
+      detailArtifact?: BrowserDetailArtifact | null,
+    ) => Promise<void>,
     onListingAudit: (listing: ExtensionRunListingAudit) => Promise<void>,
     onProgress: (
       summary: BrowserScrapeSummary,
@@ -2468,31 +2470,151 @@ export function useExtensionSession() {
     async function persistBrowserRunRecord(
       record: BrowserScrapeRecord,
       listingAudit: ExtensionRunListingAudit,
+      detailArtifact?: BrowserDetailArtifact | null,
     ) {
       throwIfBrowserRunStopped(controller)
       await onListingAudit(listingAudit)
       throwIfBrowserRunStopped(controller)
-      await onRecord(record, listingAudit)
+      await onRecord(record, listingAudit, detailArtifact)
       throwIfBrowserRunStopped(controller)
       await emitBrowserRunProgress()
     }
 
+    type DetailWorkerState = {
+      index: number
+      tab: chrome.tabs.Tab | null
+    }
+
+    type DetailWorkItem = {
+      sequence: number
+      recordIndex: number
+      record: BrowserScrapeRecord
+      pageNumber: number | null
+      duplicateDecision: ExtensionRunListingAudit['duplicateDecision']
+      pageUrl: string | null
+    }
+
+    function assignDetailBrowserRunProgress(
+      stage: BrowserScrapeProgress['stage'],
+      currentUrl: string | null,
+    ) {
+      browserRunProgress.value = {
+        stage,
+        currentUrl,
+        pagesVisited,
+        itemsSeen,
+        itemsExtracted: searchRecords.length,
+        skippedExisting: runState.skippedExisting,
+        detailPagesCompleted,
+        detailPagesTotal,
+        recordsPersisted: runState.recordsPersisted,
+        imagesUploaded: runState.imagesUploaded,
+      }
+    }
+
+    async function openDetailWorkerTab(
+      worker: DetailWorkerState,
+      url: string,
+    ): Promise<chrome.tabs.Tab> {
+      const nextTab = await chrome.tabs.create({
+        url,
+        active: false,
+      })
+
+      if (!nextTab.id) {
+        throw new Error('Could not open a background detail tab for the browser scrape.')
+      }
+
+      const readyTab = await waitForTabComplete(nextTab.id, {
+        timeoutMs: DETAIL_PAGE_NAV_TIMEOUT_MS,
+        allowPartialLoad: true,
+      })
+      worker.tab = readyTab
+      recordDebugEvent(
+        'browser-scrape-detail-worker-opened',
+        'Opened a background detail worker tab.',
+        {
+          workerIndex: worker.index,
+          tabId: readyTab.id,
+        },
+      )
+      return readyTab
+    }
+
+    async function ensureDetailWorkerTab(
+      worker: DetailWorkerState,
+      url: string,
+    ): Promise<chrome.tabs.Tab> {
+      if (!worker.tab?.id) {
+        return await openDetailWorkerTab(worker, url)
+      }
+
+      const readyTab = await navigateTab(worker.tab.id, url, {
+        timeoutMs: DETAIL_PAGE_NAV_TIMEOUT_MS,
+        allowPartialLoad: true,
+      })
+      worker.tab = readyTab
+      return readyTab
+    }
+
+    async function closeDetailWorkerTabs(workers: DetailWorkerState[]) {
+      await Promise.all(
+        workers.map(async (worker) => {
+          if (!worker.tab?.id) {
+            return
+          }
+
+          try {
+            await chrome.tabs.remove(worker.tab.id)
+          } catch {
+            // Ignore close failures if the user already closed the background tab.
+          }
+
+          worker.tab = null
+        }),
+      )
+    }
+
+    async function captureDetailArtifactPage(
+      tab: chrome.tabs.Tab,
+      role: BrowserDetailArtifactPage['role'],
+    ): Promise<BrowserDetailArtifactPage | null> {
+      try {
+        const template: FixtureCaptureTemplate =
+          role === 'detail-follow' ? 'detail-gallery-noise' : 'detail-ok'
+        const capture = await sendToTab<FixtureCaptureResponse>(tab, {
+          type: 'EXTENSION_CAPTURE_PAGE',
+          request: { template },
+        })
+
+        return {
+          role,
+          ...capture,
+        }
+      } catch (error: unknown) {
+        const message =
+          error instanceof Error ? error.message : `Could not capture the ${role} page artifact.`
+        recordDebugEvent(
+          role === 'detail-follow'
+            ? 'browser-scrape-detail-follow-artifact-capture-failed'
+            : 'browser-scrape-detail-artifact-capture-failed',
+          message,
+        )
+        return null
+      }
+    }
+
     async function scrapeDetailPage(
-      crawlTabId: number,
+      worker: DetailWorkerState,
       record: BrowserScrapeRecord,
       options: { pass: 'initial' | 'retry' },
     ) {
       throwIfBrowserRunStopped(controller)
       let recordToPersist = record
-      const hasDetailFollowFields = draft.config.fields.some(
-        (field) => field.scope === 'detail-follow',
-      )
+      const artifactPages: BrowserDetailArtifactPage[] = []
 
       try {
-        const readyTab = await navigateTab(crawlTabId, record.url!, {
-          timeoutMs: DETAIL_PAGE_NAV_TIMEOUT_MS,
-          allowPartialLoad: true,
-        })
+        const readyTab = await ensureDetailWorkerTab(worker, record.url!)
         const detailResult = await sendToTab<DetailPageExtractResponse>(readyTab, {
           type: 'EXTENSION_EXTRACT_DETAIL_PAGE',
           request: { draft, presetId },
@@ -2522,16 +2644,21 @@ export function useExtensionSession() {
 
         recordToPersist = mergeBrowserRecord(record, detailResult.record)
         searchWarnings.push(...detailResult.warnings)
+        const detailCapture = await captureDetailArtifactPage(readyTab, 'detail')
+        if (detailCapture) {
+          artifactPages.push(detailCapture)
+        }
 
         if (
           hasDetailFollowFields &&
           detailResult.followPageUrl &&
           isAllowedDomainUrl(detailResult.followPageUrl, allowedDomains)
         ) {
-          const followTab = await navigateTab(crawlTabId, detailResult.followPageUrl, {
+          const followTab = await navigateTab(worker.tab?.id ?? readyTab.id!, detailResult.followPageUrl, {
             timeoutMs: DETAIL_PAGE_NAV_TIMEOUT_MS,
             allowPartialLoad: true,
           })
+          worker.tab = followTab
           const followResult = await sendToTab<DetailPageExtractResponse>(followTab, {
             type: 'EXTENSION_EXTRACT_DETAIL_PAGE',
             request: { draft, presetId, scope: 'detail-follow' },
@@ -2561,6 +2688,10 @@ export function useExtensionSession() {
 
           recordToPersist = mergeBrowserRecord(recordToPersist, followResult.record)
           searchWarnings.push(...followResult.warnings)
+          const followCapture = await captureDetailArtifactPage(followTab, 'detail-follow')
+          if (followCapture) {
+            artifactPages.push(followCapture)
+          }
         } else if (
           hasDetailFollowFields &&
           detailResult.followPageUrl &&
@@ -2587,7 +2718,18 @@ export function useExtensionSession() {
         queueDetailRetry(recordToPersist)
       }
 
-      return recordToPersist
+      const detailArtifact =
+        artifactPages.length > 0
+          ? ({
+              capturedAt: new Date().toISOString(),
+              pages: artifactPages,
+            } satisfies BrowserDetailArtifact)
+          : null
+
+      return {
+        detailArtifact,
+        recordToPersist,
+      }
     }
     if (!draft.config.startUrls.length) {
       throw new Error('Add at least one start URL before starting a browser scrape.')
@@ -2607,11 +2749,99 @@ export function useExtensionSession() {
     const searchWarnings: string[] = []
     const visitedUrls: string[] = []
     const seenSearchUrls = new Set<string>()
+    const hasDetailFollowFields = draft.config.fields.some((field) => field.scope === 'detail-follow')
     let pagesVisited = 0
     let itemsSeen = 0
-    const crawlTab = await getVisibleCrawlTab(draft.config.startUrls[0]!)
-    if (!crawlTab.id) {
+    const crawlTab = draft.config.detailBackfillMode ? null : await getCrawlTab(draft.config.startUrls[0]!)
+    const crawlTabId = crawlTab?.id ?? null
+    if (!draft.config.detailBackfillMode && crawlTabId == null) {
       throw new Error('Could not open the active scraper tab.')
+    }
+
+    async function processDetailWorkItems(
+      workItems: DetailWorkItem[],
+      options: {
+        pass: 'initial' | 'retry'
+        progressStage: 'detail' | 'detail_backfill'
+        statusLabel: (task: DetailWorkItem, activeWorkerCount: number) => string
+        buildListingAudit: (
+          record: BrowserScrapeRecord,
+          task: DetailWorkItem,
+          retryQueued: boolean,
+        ) => ExtensionRunListingAudit
+        onTaskStarted?: (task: DetailWorkItem) => Promise<void>
+        onTaskFinished?: (task: DetailWorkItem, record: BrowserScrapeRecord) => Promise<void>
+      },
+    ) {
+      if (!workItems.length) {
+        return
+      }
+
+      const activeWorkerCount = Math.min(
+        session.value.browserSettings.detailTabConcurrency,
+        workItems.length,
+      )
+      const workers = Array.from({ length: activeWorkerCount }, (_, index) => ({
+        index: index + 1,
+        tab: null,
+      })) satisfies DetailWorkerState[]
+      let nextWorkItemIndex = 0
+
+      try {
+        await Promise.all(
+          workers.map(async (worker) => {
+            while (true) {
+              const task = workItems[nextWorkItemIndex]
+              nextWorkItemIndex += 1
+
+              if (!task) {
+                return
+              }
+
+              throwIfBrowserRunStopped(controller)
+              assignDetailBrowserRunProgress(options.progressStage, task.record.url)
+              statusMessage.value = options.statusLabel(task, activeWorkerCount)
+
+              if (options.onTaskStarted) {
+                await options.onTaskStarted(task)
+              }
+
+              const { recordToPersist, detailArtifact } = await scrapeDetailPage(
+                worker,
+                task.record,
+                {
+                  pass: options.pass,
+                },
+              )
+              searchRecords.splice(task.recordIndex, 1, recordToPersist)
+
+              if (options.pass === 'retry' && shouldRetryWeakDetailRecord(recordToPersist)) {
+                searchWarnings.push(
+                  `Detail retry still produced a weak record for ${task.record.url}.`,
+                )
+              }
+
+              const retryQueued =
+                options.pass === 'initial' &&
+                detailRetryQueue.includes(buildBrowserRecordIdentity(recordToPersist))
+
+              detailPagesCompleted += 1
+              assignDetailBrowserRunProgress(options.progressStage, task.record.url)
+              await persistBrowserRunRecord(
+                recordToPersist,
+                options.buildListingAudit(recordToPersist, task, retryQueued),
+                detailArtifact,
+              )
+
+              if (options.onTaskFinished) {
+                await options.onTaskFinished(task, recordToPersist)
+              }
+            }
+          }),
+        )
+      } finally {
+        await closeDetailWorkerTabs(workers)
+      }
     }
 
     if (draft.config.detailBackfillMode) {
@@ -2634,6 +2864,7 @@ export function useExtensionSession() {
       itemsSeen = validDetailUrls.length
       detailPagesTotal = validDetailUrls.length
       visitedUrls.push(...validDetailUrls)
+      const initialBackfillWorkItems: DetailWorkItem[] = []
 
       for (let idx = 0; idx < validDetailUrls.length; idx++) {
         throwIfBrowserRunStopped(controller)
@@ -2659,64 +2890,42 @@ export function useExtensionSession() {
           }),
         )
 
-        browserRunProgress.value = {
-          stage: 'detail_backfill',
-          currentUrl: detailUrl,
-          pagesVisited,
-          itemsSeen,
-          itemsExtracted: searchRecords.length,
-          skippedExisting: runState.skippedExisting,
-          detailPagesCompleted,
-          detailPagesTotal,
-          recordsPersisted: runState.recordsPersisted,
-          imagesUploaded: runState.imagesUploaded,
-        }
-        statusMessage.value = `Detail backfill ${detailPagesCompleted + 1} of ${detailPagesTotal}: ${detailUrl}`
-        await emitBrowserRunProgress()
-
-        const recordToPersist = await scrapeDetailPage(crawlTab.id, seedRecord, {
-          pass: 'initial',
+        initialBackfillWorkItems.push({
+          sequence: idx + 1,
+          recordIndex,
+          record: seedRecord,
+          pageNumber: idx + 1,
+          duplicateDecision: 'new',
+          pageUrl: detailUrl,
         })
-        searchRecords.splice(recordIndex, 1, recordToPersist)
+      }
 
-        const retryQueued = detailRetryQueue.includes(buildBrowserRecordIdentity(recordToPersist))
-
-        detailPagesCompleted += 1
-        browserRunProgress.value = {
-          stage: 'detail_backfill',
-          currentUrl: detailUrl,
-          pagesVisited,
-          itemsSeen,
-          itemsExtracted: searchRecords.length,
-          skippedExisting: runState.skippedExisting,
-          detailPagesCompleted,
-          detailPagesTotal,
-          recordsPersisted: runState.recordsPersisted,
-          imagesUploaded: runState.imagesUploaded,
-        }
-
-        await persistBrowserRunRecord(
-          recordToPersist,
-          buildListingAuditFromRecord(runId, recordToPersist, {
-            pageNumber: idx + 1,
-            duplicateDecision: 'new',
+      assignDetailBrowserRunProgress('detail_backfill', validDetailUrls[0] ?? null)
+      await emitBrowserRunProgress()
+      await processDetailWorkItems(initialBackfillWorkItems, {
+        pass: 'initial',
+        progressStage: 'detail_backfill',
+        statusLabel: (task, activeWorkerCount) =>
+          `Detail backfill ${task.sequence} of ${detailPagesTotal} using ${activeWorkerCount} detail tab${activeWorkerCount === 1 ? '' : 's'}: ${task.record.url}`,
+        buildListingAudit: (record, task, retryQueued) =>
+          buildListingAuditFromRecord(runId, record, {
+            pageNumber: task.pageNumber,
+            duplicateDecision: task.duplicateDecision,
             detailStatus: retryQueued ? 'retry_queued' : 'scraped',
             detailAttempts: 1,
             retryQueued,
             auditJson: {
               stage: 'detail_backfill',
-              followPageAttempted: draft.config.fields.some(
-                (field) => field.scope === 'detail-follow',
-              ),
+              followPageAttempted: hasDetailFollowFields,
             },
           }),
-        )
-      }
+      })
 
       if (detailRetryQueue.length) {
         detailPagesTotal += detailRetryQueue.length
+        const retryWorkItems: DetailWorkItem[] = []
 
-        for (const identity of detailRetryQueue) {
+        for (const [retryIndex, identity] of detailRetryQueue.entries()) {
           throwIfBrowserRunStopped(controller)
           const recordIndex = searchRecords.findIndex(
             (record) => buildBrowserRecordIdentity(record) === identity,
@@ -2729,69 +2938,50 @@ export function useExtensionSession() {
           const duplicateDecision = listingDuplicateDecisions.get(identity) || 'new'
           const discoveredOnPage = listingPageNumbers.get(identity) ?? null
 
-          browserRunProgress.value = {
-            stage: 'detail_backfill',
-            currentUrl: record.url,
-            pagesVisited,
-            itemsSeen,
-            itemsExtracted: searchRecords.length,
-            skippedExisting: runState.skippedExisting,
-            detailPagesCompleted,
-            detailPagesTotal,
-            recordsPersisted: runState.recordsPersisted,
-            imagesUploaded: runState.imagesUploaded,
-          }
-          statusMessage.value = `Retrying weak detail backfill ${detailPagesCompleted + 1} of ${detailPagesTotal}: ${record.url}`
-          await emitBrowserRunProgress({
-            eventType: 'detail_retry_started',
-            message: `Retrying weak detail page for ${record.url}`,
+          retryWorkItems.push({
+            sequence: detailPagesCompleted + retryIndex + 1,
+            recordIndex,
+            record,
             pageNumber: discoveredOnPage,
-            searchUrl: record.url,
+            duplicateDecision,
+            pageUrl: record.url,
           })
+        }
 
-          const refreshedRecord = await scrapeDetailPage(crawlTab.id, record, {
-            pass: 'retry',
-          })
-          searchRecords.splice(recordIndex, 1, refreshedRecord)
-
-          if (shouldRetryWeakDetailRecord(refreshedRecord)) {
-            searchWarnings.push(`Detail retry still produced a weak record for ${record.url}.`)
-          }
-
-          detailPagesCompleted += 1
-          browserRunProgress.value = {
-            stage: 'detail_backfill',
-            currentUrl: record.url,
-            pagesVisited,
-            itemsSeen,
-            itemsExtracted: searchRecords.length,
-            skippedExisting: runState.skippedExisting,
-            detailPagesCompleted,
-            detailPagesTotal,
-            recordsPersisted: runState.recordsPersisted,
-            imagesUploaded: runState.imagesUploaded,
-          }
-          await persistBrowserRunRecord(
-            refreshedRecord,
-            buildListingAuditFromRecord(runId, refreshedRecord, {
-              pageNumber: discoveredOnPage,
-              duplicateDecision,
+        await processDetailWorkItems(retryWorkItems, {
+          pass: 'retry',
+          progressStage: 'detail_backfill',
+          statusLabel: (task, activeWorkerCount) =>
+            `Retrying weak detail backfill ${task.sequence} of ${detailPagesTotal} using ${activeWorkerCount} detail tab${activeWorkerCount === 1 ? '' : 's'}: ${task.record.url}`,
+          buildListingAudit: (record, task) =>
+            buildListingAuditFromRecord(runId, record, {
+              pageNumber: task.pageNumber,
+              duplicateDecision: task.duplicateDecision,
               detailStatus: 'retry_scraped',
               detailAttempts: 2,
               retryQueued: false,
               auditJson: {
                 stage: 'detail_backfill-retry',
-                pageUrl: record.url,
+                pageUrl: task.record.url,
               },
             }),
-          )
-          await emitBrowserRunProgress({
-            eventType: 'detail_retry_finished',
-            message: `Finished retrying detail page for ${record.url}`,
-            pageNumber: discoveredOnPage,
-            searchUrl: record.url,
-          })
-        }
+          onTaskStarted: async (task) => {
+            await emitBrowserRunProgress({
+              eventType: 'detail_retry_started',
+              message: `Retrying weak detail page for ${task.record.url}`,
+              pageNumber: task.pageNumber,
+              searchUrl: task.record.url,
+            })
+          },
+          onTaskFinished: async (task) => {
+            await emitBrowserRunProgress({
+              eventType: 'detail_retry_finished',
+              message: `Finished retrying detail page for ${task.record.url}`,
+              pageNumber: task.pageNumber,
+              searchUrl: task.record.url,
+            })
+          },
+        })
       }
 
       return {
@@ -2831,9 +3021,9 @@ export function useExtensionSession() {
         }
 
         assignSearchBrowserRunProgress(currentUrl)
-        statusMessage.value = `Scraping search results in the active browser tab: ${currentUrl}`
+        statusMessage.value = `Scraping search results in the tracked tab: ${currentUrl}`
 
-        const readyTab = await navigateTab(crawlTab.id, currentUrl, {
+        const readyTab = await navigateTab(crawlTabId as number, currentUrl, {
           timeoutMs: SEARCH_PAGE_NAV_TIMEOUT_MS,
           allowPartialLoad: true,
         })
@@ -2985,6 +3175,7 @@ export function useExtensionSession() {
           const pageDetailIndexSet = new Set(
             pageRecordIndexes.filter((index) => Boolean(searchRecords[index]?.url)),
           )
+          const pageDetailWorkItems: DetailWorkItem[] = []
 
           detailPagesTotal += pageDetailIndexSet.size
           assignSearchBrowserRunProgress(pageResult.pageUrl)
@@ -3060,58 +3251,35 @@ export function useExtensionSession() {
               continue
             }
 
-            browserRunProgress.value = {
-              stage: 'detail',
-              currentUrl: record.url,
-              pagesVisited,
-              itemsSeen,
-              itemsExtracted: searchRecords.length,
-              skippedExisting: runState.skippedExisting,
-              detailPagesCompleted,
-              detailPagesTotal,
-              recordsPersisted: runState.recordsPersisted,
-              imagesUploaded: runState.imagesUploaded,
-            }
-            statusMessage.value = `Scraping detail page ${detailPagesCompleted + 1} of ${detailPagesTotal} in the active tab: ${record.url}`
-            const recordToPersist = await scrapeDetailPage(crawlTab.id, record, {
-              pass: 'initial',
+            pageDetailWorkItems.push({
+              sequence: detailPagesCompleted + pageDetailWorkItems.length + 1,
+              recordIndex,
+              record,
+              pageNumber: discoveredOnPage,
+              duplicateDecision,
+              pageUrl: pageResult.pageUrl,
             })
-            searchRecords.splice(recordIndex, 1, recordToPersist)
-            const retryQueued = detailRetryQueue.includes(
-              buildBrowserRecordIdentity(recordToPersist),
-            )
+          }
 
-            detailPagesCompleted += 1
-            browserRunProgress.value = {
-              stage: 'detail',
-              currentUrl: record.url,
-              pagesVisited,
-              itemsSeen,
-              itemsExtracted: searchRecords.length,
-              skippedExisting: runState.skippedExisting,
-              detailPagesCompleted,
-              detailPagesTotal,
-              recordsPersisted: runState.recordsPersisted,
-              imagesUploaded: runState.imagesUploaded,
-            }
-            await persistBrowserRunRecord(
-              recordToPersist,
-              buildListingAuditFromRecord(runId, recordToPersist, {
-                pageNumber: discoveredOnPage,
-                duplicateDecision,
+          await processDetailWorkItems(pageDetailWorkItems, {
+            pass: 'initial',
+            progressStage: 'detail',
+            statusLabel: (task, activeWorkerCount) =>
+              `Scraping detail page ${task.sequence} of ${detailPagesTotal} using ${activeWorkerCount} detail tab${activeWorkerCount === 1 ? '' : 's'}: ${task.record.url}`,
+            buildListingAudit: (record, task, retryQueued) =>
+              buildListingAuditFromRecord(runId, record, {
+                pageNumber: task.pageNumber,
+                duplicateDecision: task.duplicateDecision,
                 detailStatus: retryQueued ? 'retry_queued' : 'scraped',
                 detailAttempts: 1,
                 retryQueued,
                 auditJson: {
-                  pageUrl: pageResult.pageUrl,
+                  pageUrl: task.pageUrl,
                   stage: 'detail',
-                  followPageAttempted: draft.config.fields.some(
-                    (field) => field.scope === 'detail-follow',
-                  ),
+                  followPageAttempted: hasDetailFollowFields,
                 },
               }),
-            )
-          }
+          })
         } else {
           await emitBrowserRunProgress()
         }
@@ -3122,8 +3290,9 @@ export function useExtensionSession() {
 
     if (detailRetryQueue.length) {
       detailPagesTotal += detailRetryQueue.length
+      const retryWorkItems: DetailWorkItem[] = []
 
-      for (const identity of detailRetryQueue) {
+      for (const [retryIndex, identity] of detailRetryQueue.entries()) {
         throwIfBrowserRunStopped(controller)
         const recordIndex = searchRecords.findIndex(
           (record) => buildBrowserRecordIdentity(record) === identity,
@@ -3136,69 +3305,50 @@ export function useExtensionSession() {
         const duplicateDecision = listingDuplicateDecisions.get(identity) || 'new'
         const discoveredOnPage = listingPageNumbers.get(identity) ?? null
 
-        browserRunProgress.value = {
-          stage: 'detail',
-          currentUrl: record.url,
-          pagesVisited,
-          itemsSeen,
-          itemsExtracted: searchRecords.length,
-          skippedExisting: runState.skippedExisting,
-          detailPagesCompleted,
-          detailPagesTotal,
-          recordsPersisted: runState.recordsPersisted,
-          imagesUploaded: runState.imagesUploaded,
-        }
-        statusMessage.value = `Retrying weak detail page ${detailPagesCompleted + 1} of ${detailPagesTotal} in the active tab: ${record.url}`
-        await emitBrowserRunProgress({
-          eventType: 'detail_retry_started',
-          message: `Retrying weak detail page for ${record.url}`,
+        retryWorkItems.push({
+          sequence: detailPagesCompleted + retryIndex + 1,
+          recordIndex,
+          record,
           pageNumber: discoveredOnPage,
-          searchUrl: record.url,
+          duplicateDecision,
+          pageUrl: record.url,
         })
+      }
 
-        const refreshedRecord = await scrapeDetailPage(crawlTab.id, record, {
-          pass: 'retry',
-        })
-        searchRecords.splice(recordIndex, 1, refreshedRecord)
-
-        if (shouldRetryWeakDetailRecord(refreshedRecord)) {
-          searchWarnings.push(`Detail retry still produced a weak record for ${record.url}.`)
-        }
-
-        detailPagesCompleted += 1
-        browserRunProgress.value = {
-          stage: 'detail',
-          currentUrl: record.url,
-          pagesVisited,
-          itemsSeen,
-          itemsExtracted: searchRecords.length,
-          skippedExisting: runState.skippedExisting,
-          detailPagesCompleted,
-          detailPagesTotal,
-          recordsPersisted: runState.recordsPersisted,
-          imagesUploaded: runState.imagesUploaded,
-        }
-        await persistBrowserRunRecord(
-          refreshedRecord,
-          buildListingAuditFromRecord(runId, refreshedRecord, {
-            pageNumber: discoveredOnPage,
-            duplicateDecision,
+      await processDetailWorkItems(retryWorkItems, {
+        pass: 'retry',
+        progressStage: 'detail',
+        statusLabel: (task, activeWorkerCount) =>
+          `Retrying weak detail page ${task.sequence} of ${detailPagesTotal} using ${activeWorkerCount} detail tab${activeWorkerCount === 1 ? '' : 's'}: ${task.record.url}`,
+        buildListingAudit: (record, task) =>
+          buildListingAuditFromRecord(runId, record, {
+            pageNumber: task.pageNumber,
+            duplicateDecision: task.duplicateDecision,
             detailStatus: 'retry_scraped',
             detailAttempts: 2,
             retryQueued: false,
             auditJson: {
               stage: 'detail-retry',
-              pageUrl: record.url,
+              pageUrl: task.record.url,
             },
           }),
-        )
-        await emitBrowserRunProgress({
-          eventType: 'detail_retry_finished',
-          message: `Finished retrying detail page for ${record.url}`,
-          pageNumber: discoveredOnPage,
-          searchUrl: record.url,
-        })
-      }
+        onTaskStarted: async (task) => {
+          await emitBrowserRunProgress({
+            eventType: 'detail_retry_started',
+            message: `Retrying weak detail page for ${task.record.url}`,
+            pageNumber: task.pageNumber,
+            searchUrl: task.record.url,
+          })
+        },
+        onTaskFinished: async (task) => {
+          await emitBrowserRunProgress({
+            eventType: 'detail_retry_finished',
+            message: `Finished retrying detail page for ${task.record.url}`,
+            pageNumber: task.pageNumber,
+            searchUrl: task.record.url,
+          })
+        },
+      })
     }
 
     if (itemsSeen === 0) {
@@ -3380,7 +3530,7 @@ export function useExtensionSession() {
           'Boat Search image mirroring is unavailable here, so the scrape will keep source image URLs.',
         )
       }
-      statusMessage.value = 'Scraping the site in the active browser tab...'
+      statusMessage.value = 'Scraping the site in the tracked tab...'
       const browserRun = await crawlDraftInBrowser(
         run.jobId,
         draft,
@@ -3388,10 +3538,16 @@ export function useExtensionSession() {
         runState,
         existingIdentityState,
         runController,
-        async (record, listing) => {
+        async (record, listing, detailArtifact) => {
           throwIfBrowserRunStopped(runController)
           upsertBrowserRunRecord(scrapedRecords, cloneSerializableValue(record))
-          const persisted = await persistBrowserRecordToBoatSearch(run, draft, listing, record)
+          const persisted = await persistBrowserRecordToBoatSearch(
+            run,
+            draft,
+            listing,
+            record,
+            detailArtifact,
+          )
           throwIfBrowserRunStopped(runController)
           runState.imagesUploaded += persisted.imagesUploaded
           runState.inserted += persisted.inserted
@@ -3629,6 +3785,15 @@ export function useExtensionSession() {
     session.value.appBaseUrlSource = 'manual'
   }
 
+  function updateDetailTabConcurrency(value: unknown) {
+    session.value.browserSettings.detailTabConcurrency = toBoundedInteger(
+      value,
+      DEFAULT_BROWSER_DETAIL_TAB_CONCURRENCY,
+      1,
+      MAX_BROWSER_DETAIL_TAB_CONCURRENCY,
+    )
+  }
+
   function clearTransientState() {
     errorMessage.value = ''
     pendingPicker.value = null
@@ -3638,8 +3803,6 @@ export function useExtensionSession() {
     activeRemoteRunMeta.value = null
     browserRunProgress.value = null
     sampleDetailRun.value = null
-    fixtureCapturePendingOverride.value = null
-    capturingFixture.value = false
     stoppingRemoteRun.value = false
     activeBrowserRunController.value = null
     void clearFieldPreview()
@@ -3648,7 +3811,7 @@ export function useExtensionSession() {
   function clearScrapeState() {
     session.value = buildClearedScrapeSession(session.value, createConfiguredDefaultSession())
     statusMessage.value =
-      'Scrape state cleared. Use Scan current page to analyze the active tab again.'
+      'Scrape state cleared. Use Scan current page to analyze the tracked tab again.'
     clearTransientState()
   }
 
@@ -3657,6 +3820,30 @@ export function useExtensionSession() {
     statusMessage.value =
       'Boat Search connection forgotten. Add the app URL and API key again to reconnect.'
     clearTransientState()
+  }
+
+  async function clearSettings() {
+    const fallbackSession = createConfiguredDefaultSession()
+    const nextSession = cloneSerializableValue(session.value)
+
+    nextSession.appBaseUrl = fallbackSession.appBaseUrl
+    nextSession.appBaseUrlSource = fallbackSession.appBaseUrlSource
+    nextSession.connection = cloneSerializableValue(fallbackSession.connection)
+    nextSession.browserSettings = cloneSerializableValue(fallbackSession.browserSettings)
+    nextSession.tabTarget = cloneSerializableValue(fallbackSession.tabTarget)
+
+    session.value = nextSession
+    clearTransientState()
+
+    try {
+      await refreshActiveTab()
+    } catch {
+      session.value.currentTabUrl = null
+    }
+
+    errorMessage.value = ''
+    statusMessage.value =
+      'Settings cleared. Saved connection values, detail-tab concurrency, and tab tracking were reset.'
   }
 
   function resetSession() {
@@ -3679,16 +3866,21 @@ export function useExtensionSession() {
     }
 
     try {
-      const preview = await sendToActiveTab<FieldPreviewResult>({
-        type: 'EXTENSION_PREVIEW_FIELD',
-        preview: {
-          field: createFieldRule('title', 'item', ':root', {
-            required: false,
-          }),
-          itemSelector,
-          mode: 'itemSelector',
+      const preview = await sendToTrackedTab<FieldPreviewResult>(
+        {
+          type: 'EXTENSION_PREVIEW_FIELD',
+          preview: {
+            field: createFieldRule('title', 'item', ':root', {
+              required: false,
+            }),
+            itemSelector,
+            mode: 'itemSelector',
+          },
         },
-      })
+        {
+          activate: true,
+        },
+      )
       itemSelectorPreview.value = {
         ...preview,
         active: true,
@@ -3722,7 +3914,7 @@ export function useExtensionSession() {
     statusMessage.value = 'Detecting listing cards on the current page...'
 
     try {
-      const analysis = await sendToActiveTab<AutoDetectedAnalysis>({
+      const analysis = await sendToTrackedTab<AutoDetectedAnalysis>({
         type: 'EXTENSION_ANALYZE_PAGE',
       })
 
@@ -3769,8 +3961,6 @@ export function useExtensionSession() {
     browserRunProgress,
     debugEvents,
     sampleDetailRun,
-    fixtureCapturePendingOverride,
-    capturingFixture,
     startingRemoteRun,
     stoppingRemoteRun,
     verifyingConnection,
@@ -3783,10 +3973,9 @@ export function useExtensionSession() {
     loadSession,
     initializeForCurrentTab,
     refreshActiveTab,
+    followActiveTab,
+    lockCurrentTab,
     analyzeCurrentPage,
-    setSelectedFixtureTemplate,
-    updateFixtureCustomLabel,
-    captureFixture,
     startPicker,
     previewField,
     clearFieldPreview,
@@ -3801,6 +3990,8 @@ export function useExtensionSession() {
     applyMatchedPreset,
     updateConnectionApiKey,
     updateAppBaseUrl,
+    updateDetailTabConcurrency,
+    clearSettings,
     clearScrapeState,
     forgetBoatSearchConnection,
     startScrapeInBoatSearch,

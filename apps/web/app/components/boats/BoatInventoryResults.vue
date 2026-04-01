@@ -1,12 +1,8 @@
 <script setup lang="ts">
 import type {
-  BoatInventoryActiveFilterChip,
   BoatInventoryBoat,
-  BoatInventoryFilterKey,
-  BoatInventorySort,
 } from '~~/app/types/boat-inventory'
 import BoatInventoryListItem from '~~/app/components/boats/BoatInventoryListItem.vue'
-import { BOAT_INVENTORY_SORT_OPTIONS } from '~~/app/types/boat-inventory'
 
 const props = withDefaults(
   defineProps<{
@@ -14,36 +10,22 @@ const props = withDefaults(
     status: 'idle' | 'pending' | 'success' | 'error'
     errorMessage?: string | null
     hasActiveFilters: boolean
-    hasUnsavedChanges?: boolean
-    activeFilterChips: BoatInventoryActiveFilterChip[]
-    resultsLabel: string
-    resultsContext: string
     total: number
     currentPage: number
     pageCount: number
-    currentSort: BoatInventorySort
     hasNextPage: boolean
     hasPreviousPage: boolean
   }>(),
   {
-    hasUnsavedChanges: false,
     errorMessage: null,
   },
 )
 
-const searchQuery = defineModel<string>('searchQuery', { default: '' })
-
 const emit = defineEmits<{
   clearFilters: []
-  removeFilter: [key: BoatInventoryFilterKey]
   changePage: [page: number]
   retry: []
-  submitSearch: []
 }>()
-
-function submitSearchFromField() {
-  emit('submitSearch')
-}
 
 const visiblePages = computed(() => {
   const start = Math.max(1, props.currentPage - 2)
@@ -51,127 +33,17 @@ const visiblePages = computed(() => {
 
   return Array.from({ length: end - start + 1 }, (_, index) => start + index)
 })
-const currentSortLabel = computed(
-  () =>
-    BOAT_INVENTORY_SORT_OPTIONS.find((option) => option.value === props.currentSort)?.label ||
-    'Newest listings',
-)
 
 const emptyMessage = computed(() =>
   props.hasActiveFilters
     ? 'Widen the budget or hull-size band, or clear one of the applied filters below.'
     : 'Inventory is still filling in. Check back after the next import run.',
 )
+
 </script>
 
 <template>
-  <div class="space-y-5">
-    <div class="space-y-4">
-      <div class="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-        <div class="space-y-3">
-          <UBadge label="Live inventory" color="primary" variant="subtle" icon="i-lucide-waves" />
-          <div class="space-y-2">
-            <h1 class="text-3xl font-bold text-default sm:text-4xl">Boats for sale</h1>
-            <p class="max-w-3xl text-sm text-muted sm:text-base">
-              {{ resultsContext }}
-            </p>
-          </div>
-        </div>
-
-        <div class="flex flex-wrap items-center gap-2">
-          <UBadge
-            :label="resultsLabel"
-            :color="boats.length ? 'primary' : 'neutral'"
-            variant="soft"
-          />
-          <UBadge :label="currentSortLabel" color="neutral" variant="soft" />
-          <UBadge v-if="status === 'pending'" label="Refreshing" color="warning" variant="soft" />
-          <UBadge
-            v-if="hasUnsavedChanges"
-            label="Draft filters ready"
-            color="warning"
-            variant="soft"
-          />
-        </div>
-      </div>
-
-      <div class="flex w-full max-w-2xl flex-col gap-2 sm:flex-row sm:items-stretch">
-        <UInput
-          v-model="searchQuery"
-          class="w-full min-w-0 sm:flex-1"
-          placeholder="Search make, model, or keywords…"
-          icon="i-lucide-search"
-          aria-label="Search listings"
-          @keydown.enter.prevent="submitSearchFromField"
-        />
-        <UButton
-          label="Search"
-          icon="i-lucide-search"
-          class="shrink-0 sm:min-w-28"
-          @click="submitSearchFromField"
-        />
-      </div>
-      <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-        <p class="text-xs text-dimmed">
-          Press Enter or Search to apply, together with any filters you set in the bar.
-        </p>
-        <UButton
-          v-if="hasUnsavedChanges"
-          label="Apply draft changes"
-          icon="i-lucide-check"
-          color="primary"
-          variant="soft"
-          size="xs"
-          class="w-full justify-center sm:w-auto"
-          @click="submitSearchFromField"
-        />
-      </div>
-
-      <div
-        v-if="activeFilterChips.length || hasActiveFilters"
-        class="brand-surface-soft rounded-[1.4rem] p-4"
-      >
-        <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-          <div class="space-y-3">
-            <div class="flex flex-wrap items-center gap-2">
-              <UBadge
-                :label="`${total.toLocaleString()} total match${total === 1 ? '' : 'es'}`"
-                color="neutral"
-                variant="soft"
-              />
-            </div>
-
-            <div
-              v-if="activeFilterChips.length"
-              class="flex items-center gap-2 overflow-x-auto pb-1 sm:flex-wrap sm:overflow-visible"
-            >
-              <UButton
-                v-for="chip in activeFilterChips"
-                :key="chip.key"
-                :label="`${chip.label}: ${chip.value}`"
-                color="neutral"
-                variant="soft"
-                size="sm"
-                class="shrink-0"
-                trailing-icon="i-lucide-x"
-                @click="emit('removeFilter', chip.key)"
-              />
-            </div>
-          </div>
-
-          <UButton
-            v-if="hasActiveFilters"
-            color="neutral"
-            variant="ghost"
-            icon="i-lucide-rotate-ccw"
-            label="Clear all"
-            class="w-full justify-center sm:w-auto"
-            @click="emit('clearFilters')"
-          />
-        </div>
-      </div>
-    </div>
-
+  <div class="space-y-3 sm:space-y-5">
     <div v-if="status === 'pending' && !boats.length" class="space-y-4">
       <UCard
         v-for="index in 5"
@@ -229,70 +101,60 @@ const emptyMessage = computed(() =>
       </div>
     </UCard>
 
-    <UCard v-else-if="!boats.length" class="brand-surface" :ui="{ body: 'p-8' }">
-      <div class="space-y-4 text-center">
-        <UIcon name="i-lucide-ship" class="mx-auto text-4xl text-dimmed" />
-        <div class="space-y-2">
-          <h3 class="text-lg font-semibold text-default">No listings in this view</h3>
-          <p class="mx-auto max-w-2xl text-sm text-muted">{{ emptyMessage }}</p>
-        </div>
-        <div class="flex flex-wrap justify-center gap-2">
-          <UButton
-            v-if="hasActiveFilters"
-            label="Clear all filters"
-            icon="i-lucide-rotate-ccw"
-            class="w-full justify-center sm:w-auto"
-            @click="emit('clearFilters')"
-          />
-          <UButton
-            to="/browse"
-            label="Open browse"
-            icon="i-lucide-compass"
-            color="neutral"
-            variant="soft"
-            class="w-full justify-center sm:w-auto"
-          />
-        </div>
-      </div>
-    </UCard>
+    <div v-else-if="!boats.length" class="brand-surface rounded-[1.6rem] px-6 py-12 text-center">
+      <UIcon name="i-lucide-search-x" class="mx-auto text-4xl text-dimmed" />
+      <h2 class="mt-4 text-xl font-semibold text-default">No boats match right now</h2>
+      <p class="mx-auto mt-2 max-w-2xl text-sm text-muted">{{ emptyMessage }}</p>
+      <UButton
+        v-if="hasActiveFilters"
+        label="Clear filters"
+        icon="i-lucide-rotate-ccw"
+        color="neutral"
+        variant="soft"
+        class="mt-6"
+        @click="emit('clearFilters')"
+      />
+    </div>
 
-    <template v-else>
-      <div class="space-y-4">
-        <BoatInventoryListItem v-for="boat in boats" :key="boat.id" :boat="boat" />
-      </div>
+    <div v-else class="space-y-4">
+      <BoatInventoryListItem v-for="boat in boats" :key="boat.id" :boat="boat" />
+    </div>
 
-      <div
-        v-if="pageCount > 1"
-        class="brand-surface-soft flex flex-col gap-3 rounded-[1.5rem] p-4 sm:flex-row sm:items-center sm:justify-between"
-      >
-        <p class="text-sm text-muted">Page {{ currentPage }} of {{ pageCount }}</p>
-        <div class="flex flex-wrap items-center gap-2">
-          <UButton
-            label="Previous"
-            icon="i-lucide-arrow-left"
-            color="neutral"
-            variant="soft"
-            :disabled="!hasPreviousPage"
-            @click="emit('changePage', currentPage - 1)"
-          />
-          <UButton
-            v-for="page in visiblePages"
-            :key="page"
-            :label="String(page)"
-            :color="page === currentPage ? 'primary' : 'neutral'"
-            :variant="page === currentPage ? 'soft' : 'ghost'"
-            @click="emit('changePage', page)"
-          />
-          <UButton
-            label="Next"
-            trailing-icon="i-lucide-arrow-right"
-            color="neutral"
-            variant="soft"
-            :disabled="!hasNextPage"
-            @click="emit('changePage', currentPage + 1)"
-          />
-        </div>
+    <div
+      v-if="boats.length && pageCount > 1"
+      class="brand-surface flex flex-col gap-3 rounded-[1.6rem] px-5 py-4 sm:flex-row sm:items-center sm:justify-between"
+    >
+      <p class="text-sm text-muted">Page {{ currentPage }} of {{ pageCount }}</p>
+
+      <div class="flex flex-wrap items-center gap-2">
+        <UButton
+          label="Previous"
+          icon="i-lucide-arrow-left"
+          color="neutral"
+          variant="soft"
+          :disabled="!hasPreviousPage"
+          class="w-full justify-center sm:w-auto"
+          @click="emit('changePage', currentPage - 1)"
+        />
+        <UButton
+          v-for="page in visiblePages"
+          :key="page"
+          :label="String(page)"
+          :color="page === currentPage ? 'primary' : 'neutral'"
+          :variant="page === currentPage ? 'soft' : 'ghost'"
+          class="min-w-11 justify-center"
+          @click="emit('changePage', page)"
+        />
+        <UButton
+          label="Next"
+          trailing-icon="i-lucide-arrow-right"
+          color="neutral"
+          variant="soft"
+          :disabled="!hasNextPage"
+          class="w-full justify-center sm:w-auto"
+          @click="emit('changePage', currentPage + 1)"
+        />
       </div>
-    </template>
+    </div>
   </div>
 </template>

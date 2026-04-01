@@ -51,17 +51,55 @@ export function readLargestSrcsetUrl(value: string | null): string {
   return bestUrl
 }
 
+function isLikelyDirectImageUrl(value: string | null): value is string {
+  if (!value?.trim()) return false
+
+  try {
+    const url = new URL(value, 'https://boat-search.local')
+    if (!/^https?:$/i.test(url.protocol)) {
+      return false
+    }
+
+    if (
+      /\.(?:avif|bmp|gif|heic|heif|jpeg|jpg|png|tiff|webp)(?:$|[?#])/i.test(url.pathname) ||
+      /(images?\.|cdn\.|img\.|media\.)/i.test(url.hostname)
+    ) {
+      return true
+    }
+  } catch {
+    return false
+  }
+
+  return false
+}
+
 /** Prefer lazy-loaded / full URLs over the browser-selected `currentSrc` (often a thumbnail). */
 export function readImageSource(target: HTMLImageElement): string {
+  const linkedImageHref = (() => {
+    const anchor = target.closest('a[href]')
+    const href = anchor?.getAttribute('href') || ''
+    return isLikelyDirectImageUrl(href) ? href : ''
+  })()
+
   return (
+    target.getAttribute('data-full') ||
+    target.getAttribute('data-full-image') ||
+    target.getAttribute('data-fullsrc') ||
+    target.getAttribute('data-image-full') ||
+    target.getAttribute('data-large') ||
+    target.getAttribute('data-large-image') ||
+    target.getAttribute('data-large-src') ||
+    target.getAttribute('data-zoom-src') ||
+    target.getAttribute('data-original-src') ||
     target.getAttribute('data-src') ||
     target.getAttribute('data-lazy-src') ||
     target.getAttribute('data-original') ||
     target.getAttribute('data-zoom-image') ||
+    linkedImageHref ||
     readLargestSrcsetUrl(target.getAttribute('data-srcset')) ||
     readLargestSrcsetUrl(target.getAttribute('srcset')) ||
-    target.src ||
     target.currentSrc ||
+    target.src ||
     ''
   )
 }

@@ -18,6 +18,7 @@ export default defineAdminMutation(
     const result = await persistScraperBrowserRecord(event, {
       draft: body.draft,
       record: body.record,
+      detailArtifact: body.detailArtifact,
     })
     await storeCrawlJobListingAudit(event, {
       jobId: body.jobId,
@@ -37,6 +38,12 @@ export default defineAdminMutation(
           ...(body.listing.auditJson || {}),
           lastPersistedAt: new Date().toISOString(),
           rawFieldCount: Object.keys(body.record.rawFields || {}).length,
+          detailArtifactLatestKey: result.detailArtifact?.latestKey ?? null,
+          detailArtifactVersionKey: result.detailArtifact?.versionKey ?? null,
+          detailArtifactPageCount: result.detailArtifact?.pageCount ?? 0,
+          detailArtifactPageUrls: result.detailArtifact?.pageUrls ?? [],
+          detailArtifactCapturedAt: result.detailArtifact?.capturedAt ?? null,
+          detailArtifactStoredAt: result.detailArtifact?.storedAt ?? null,
         },
       },
       persistenceStatus: result.persistenceStatus,
@@ -50,6 +57,7 @@ export default defineAdminMutation(
       updated: result.updated,
       imagesUploaded: result.imagesUploaded,
       warnings: result.candidate.warnings,
+      detailArtifactKey: result.detailArtifact?.latestKey ?? null,
     }
   },
 )

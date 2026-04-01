@@ -1,6 +1,33 @@
-import type { BoatInventoryFilters, BoatInventorySort } from '~~/app/types/boat-inventory'
+import type {
+  BoatInventoryFilterKey,
+  BoatInventoryFilters,
+  BoatInventorySort,
+  BoatInventoryVesselMode,
+  BoatInventoryVesselSubtype,
+} from '~~/app/types/boat-inventory'
+import {
+  BOAT_INVENTORY_VESSEL_MODE_VALUES,
+  BOAT_INVENTORY_VESSEL_SUBTYPE_TO_MODE,
+  BOAT_INVENTORY_VESSEL_SUBTYPE_VALUES,
+} from '~~/app/types/boat-inventory'
 
 export const DEFAULT_BOAT_INVENTORY_SORT: BoatInventorySort = 'updated-desc'
+
+function normalizeVesselMode(value: unknown): '' | BoatInventoryVesselMode {
+  if (typeof value !== 'string') return ''
+
+  return BOAT_INVENTORY_VESSEL_MODE_VALUES.includes(value as BoatInventoryVesselMode)
+    ? (value as BoatInventoryVesselMode)
+    : ''
+}
+
+function normalizeVesselSubtype(value: unknown): '' | BoatInventoryVesselSubtype {
+  if (typeof value !== 'string') return ''
+
+  return BOAT_INVENTORY_VESSEL_SUBTYPE_VALUES.includes(value as BoatInventoryVesselSubtype)
+    ? (value as BoatInventoryVesselSubtype)
+    : ''
+}
 
 function normalizeQueryValue(value: unknown) {
   return value != null && value !== '' ? String(value).trim() : ''
@@ -41,12 +68,18 @@ export function createEmptyBoatInventoryFilters(): BoatInventoryFilters {
     maxPrice: '',
     minLength: '',
     maxLength: '',
+    vesselMode: '',
+    vesselSubtype: '',
   }
 }
 
 export function routeQueryToBoatInventoryFilters(
   query: Record<string, unknown>,
 ): BoatInventoryFilters {
+  const vesselSubtype = normalizeVesselSubtype(normalizeQueryValue(query.vesselSubtype))
+  const inferredMode = vesselSubtype ? BOAT_INVENTORY_VESSEL_SUBTYPE_TO_MODE[vesselSubtype] : ''
+  const vesselMode = normalizeVesselMode(normalizeQueryValue(query.vesselMode)) || inferredMode
+
   return {
     q: normalizeQueryValue(query.q),
     make: normalizeQueryValue(query.make),
@@ -55,6 +88,11 @@ export function routeQueryToBoatInventoryFilters(
     maxPrice: normalizeNumericFilter(normalizeQueryValue(query.maxPrice)),
     minLength: normalizeNumericFilter(normalizeQueryValue(query.minLength)),
     maxLength: normalizeNumericFilter(normalizeQueryValue(query.maxLength)),
+    vesselMode,
+    vesselSubtype:
+      vesselSubtype && BOAT_INVENTORY_VESSEL_SUBTYPE_TO_MODE[vesselSubtype] === vesselMode
+        ? vesselSubtype
+        : '',
   }
 }
 
@@ -68,6 +106,10 @@ export function boatInventoryFiltersToQuery(filters: BoatInventoryFilters) {
   const maxPrice = normalizeNumericFilter(filters.maxPrice)
   const minLength = normalizeNumericFilter(filters.minLength)
   const maxLength = normalizeNumericFilter(filters.maxLength)
+  const vesselSubtype = normalizeVesselSubtype(filters.vesselSubtype)
+  const vesselMode =
+    normalizeVesselMode(filters.vesselMode) ||
+    (vesselSubtype ? BOAT_INVENTORY_VESSEL_SUBTYPE_TO_MODE[vesselSubtype] : '')
 
   if (q) query.q = q
   if (make) query.make = make
@@ -76,12 +118,32 @@ export function boatInventoryFiltersToQuery(filters: BoatInventoryFilters) {
   if (maxPrice) query.maxPrice = maxPrice
   if (minLength) query.minLength = minLength
   if (maxLength) query.maxLength = maxLength
+  if (vesselMode) query.vesselMode = vesselMode
+  if (vesselSubtype && BOAT_INVENTORY_VESSEL_SUBTYPE_TO_MODE[vesselSubtype] === vesselMode) {
+    query.vesselSubtype = vesselSubtype
+  }
 
   return query
 }
 
 export function boatInventoryFilterQuerySignature(filters: BoatInventoryFilters) {
   return JSON.stringify(boatInventoryFiltersToQuery(filters))
+}
+
+export function clearBoatInventoryFilter(
+  filters: BoatInventoryFilters,
+  key: BoatInventoryFilterKey,
+): BoatInventoryFilters {
+  const nextFilters = {
+    ...filters,
+    [key]: '',
+  }
+
+  if (key === 'vesselMode') {
+    nextFilters.vesselSubtype = ''
+  }
+
+  return nextFilters
 }
 
 export function buildBoatInventoryNavigationQuery(options: {

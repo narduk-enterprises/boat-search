@@ -121,6 +121,13 @@ describe('sidepanel session state helpers', () => {
     session.connection.verifiedEmail = 'captain@example.com'
     session.connection.verifiedName = 'Captain'
     session.connection.imageUploadEnabled = true
+    session.browserSettings.detailTabConcurrency = 3
+    session.tabTarget.mode = 'locked'
+    session.tabTarget.tabId = 17
+    session.tabTarget.windowId = 3
+    session.tabTarget.url =
+      'https://www.yachtworld.com/boats-for-sale/type-power/class-power-saltwater-fishing/'
+    session.tabTarget.title = 'Locked YachtWorld results'
     session.currentTabUrl =
       'https://www.yachtworld.com/boats-for-sale/type-power/class-power-saltwater-fishing/'
     session.sampleDetailUrl = 'https://www.yachtworld.com/yacht/test-1234567/'
@@ -144,15 +151,6 @@ describe('sidepanel session state helpers', () => {
         distinctImageCount: 9,
       },
     }
-    session.fixtureCapture.lastCapture = {
-      template: 'search-ok',
-      fileStem: 'fixture-file',
-      files: ['fixture-file.html'],
-      currentUrl: session.currentTabUrl,
-      pageType: 'search',
-      pageState: 'ok',
-      capturedAt: '2026-03-29T10:05:00.000Z',
-    }
     session.draft.config.startUrls = [session.currentTabUrl]
 
     const cleared = buildClearedScrapeSession(session, createDefaultSession())
@@ -160,12 +158,13 @@ describe('sidepanel session state helpers', () => {
     expect(cleared.appBaseUrl).toBe('https://boat-search.nard.uk')
     expect(cleared.appBaseUrlSource).toBe('manual')
     expect(cleared.connection).toEqual(session.connection)
+    expect(cleared.browserSettings).toEqual(session.browserSettings)
+    expect(cleared.tabTarget).toEqual(session.tabTarget)
     expect(cleared.currentTabUrl).toBe(session.currentTabUrl)
     expect(cleared.lastAnalysis).toBeNull()
     expect(cleared.sampleDetailUrl).toBeNull()
     expect(cleared.preset.appliedPresetId).toBeNull()
     expect(cleared.preset.isDraftDirty).toBe(false)
-    expect(cleared.fixtureCapture.lastCapture).toBeNull()
     expect(cleared.draft.config.startUrls).toEqual([])
   })
 

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { z } from 'zod'
+import { resolveSafeAuthRedirect } from '~~/app/utils/authRedirect'
 
 const props = withDefaults(
   defineProps<{
@@ -20,6 +21,7 @@ const emit = defineEmits<{
 
 const appConfig = useAppConfig()
 const config = useRuntimeConfig()
+const route = useRoute()
 const { register, startOAuth } = useAuth()
 
 const schema = z.object({
@@ -42,10 +44,14 @@ const canUseApple = computed(
   () => config.public.authBackend === 'supabase' && config.public.authProviders.includes('apple'),
 )
 const resolvedRedirectPath = computed(
-  () =>
-    props.redirectPath ||
-    (appConfig as { auth?: { redirectPath?: string } }).auth?.redirectPath ||
-    config.public.authRedirectPath,
+  () => {
+    const fallback =
+      props.redirectPath ||
+      (appConfig as { auth?: { redirectPath?: string } }).auth?.redirectPath ||
+      config.public.authRedirectPath
+
+    return resolveSafeAuthRedirect(route.query.redirect, fallback)
+  },
 )
 
 async function onSubmit() {

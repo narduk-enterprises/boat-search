@@ -1,9 +1,12 @@
 <script setup lang="ts">
 import { computed, onMounted, shallowRef } from 'vue'
-import FixtureCapturePanel from './components/FixtureCapturePanel.vue'
 import WorkflowStepCard from './components/WorkflowStepCard.vue'
 import { useExtensionSession } from './composables/useExtensionSession'
-import type { ExtensionDebugEvent, FixtureCaptureTemplate } from '@/shared/types'
+import {
+  DEFAULT_BROWSER_DETAIL_TAB_CONCURRENCY,
+  MAX_BROWSER_DETAIL_TAB_CONCURRENCY,
+} from '@/shared/defaults'
+import type { ExtensionDebugEvent } from '@/shared/types'
 
 type WorkflowStatus = 'active' | 'complete' | 'upcoming' | 'ready'
 
@@ -19,32 +22,58 @@ const sampleDetailRun = computed(() => extension.sampleDetailRun.value)
 const browserRunProgress = computed(() => extension.browserRunProgress.value)
 const remoteRun = computed(() => extension.remoteRun.value)
 const debugEvents = computed(() => extension.debugEvents.value)
-const capturingFixture = computed(() => extension.capturingFixture.value)
-const fixtureCapturePendingOverride = computed(() => extension.fixtureCapturePendingOverride.value)
-const fixtureCaptureState = computed(() => session.value.fixtureCapture)
+const tabTarget = computed(() => session.value.tabTarget)
 const startingRemoteRun = computed(() => extension.startingRemoteRun.value)
 const stoppingRemoteRun = computed(() => extension.stoppingRemoteRun.value)
 const verifyingConnection = computed(() => extension.verifyingConnection.value)
 const debugCopyLabel = shallowRef('Copy debug snapshot')
 const expandedCompleteStepId = shallowRef<string | null>(null)
+const detailTabConcurrencyOptions = Array.from(
+  { length: MAX_BROWSER_DETAIL_TAB_CONCURRENCY },
+  (_, index) => index + 1,
+)
 
 const hasApiKey = computed(() => Boolean(connection.value.apiKey.trim()))
-const hasSavedConnection = computed(() =>
-  Boolean(connection.value.apiKey.trim() || session.value.appBaseUrl.trim()),
-)
 const connectionVerified = computed(() => Boolean(connection.value.verifiedAt))
 const usingDefaultApiKey = computed(() => connection.value.apiKeySource === 'local-default')
 const usingDefaultAppBaseUrl = computed(() => session.value.appBaseUrlSource === 'local-default')
+const trackingLockedTab = computed(() => tabTarget.value.mode === 'locked')
+const detailTabConcurrency = computed(() => session.value.browserSettings.detailTabConcurrency)
+const runSettingsLocked = computed(
+  () => Boolean(startingRemoteRun.value || browserRunProgress.value),
+)
+const hasResettableSettings = computed(() => {
+  return (
+    trackingLockedTab.value ||
+    detailTabConcurrency.value !== DEFAULT_BROWSER_DETAIL_TAB_CONCURRENCY ||
+    session.value.appBaseUrlSource === 'manual' ||
+    Boolean(
+      connection.value.apiKey.trim() ||
+        connection.value.verifiedAt ||
+        connection.value.verifiedEmail ||
+        connection.value.verifiedName,
+    )
+  )
+})
+const trackedTabLabel = computed(() => (trackingLockedTab.value ? 'Locked tab' : 'Tracked tab'))
+const tabTrackingStatusLabel = computed(() =>
+  trackingLockedTab.value ? 'Locked' : 'Following active',
+)
+const trackedTabSummary = computed(
+  () => tabTarget.value.title || session.value.currentTabUrl || 'No tracked tab yet',
+)
+const tabTrackingNote = computed(() => {
+  if (trackingLockedTab.value) {
+    return 'The workflow stays on the selected tab until you lock a different tab or return to follow-active mode.'
+  }
+
+  return 'The workflow follows whichever browser tab is active in this window.'
+})
 const hasSampleDetail = computed(() =>
   Boolean(session.value.sampleDetailUrl || analysis.value?.sampleDetailUrl),
 )
 const appliedPresetLabel = computed(
   () => session.value.preset.appliedPresetLabel || matchedPreset.value?.label || 'Trusted preset',
-)
-const fixtureCaptureCount = computed(
-  () =>
-    Object.values(fixtureCaptureState.value.captured).filter((record) => Boolean(record.capturedAt))
-      .length,
 )
 const analysisWarnings = computed(() =>
   [analysis.value?.stateMessage, ...(analysis.value?.warnings ?? [])].filter(
@@ -79,11 +108,11 @@ const connectionStatus = computed<WorkflowStatus>(() => {
 })
 const connectionNote = computed(() => {
   if (connectionVerified.value) {
-    return `Connected as ${connection.value.verifiedEmail || 'an authenticated user'}. This connection is saved locally, so only forget it when rotating keys or switching accounts.`
+    return `Connected as ${connection.value.verifiedEmail || 'an authenticated user'}. This connection is saved locally, so only clear settings when rotating keys or switching accounts.`
   }
 
   if (hasApiKey.value) {
-    return 'The API key is already saved locally. For normal rescans, use Scan current page. Only forget the connection when rotating keys or switching accounts.'
+    return 'The API key is already saved locally. For normal rescans, use Scan current page. Only clear settings when rotating keys or switching accounts.'
   }
 
   return 'Paste a Boat Search API key so the extension can write boats and images directly without relying on the website session.'
@@ -113,7 +142,7 @@ const presetNote = computed(() => {
   }
 
   if (analysis.value) {
-    return 'The current page was scanned, but no trusted preset matches it yet. Fixture capture still works on this tab.'
+    return 'The current page was scanned, but no trusted preset matches it yet.'
   }
 
   return 'Open a supported search results page, then scan it to load a trusted preset.'
@@ -166,28 +195,10 @@ const runNote = computed(() => {
   }
 
   if (stoppingRemoteRun.value) {
-    return 'Stop requested. Waiting for the active browser step to finish cleanly.'
+    return 'Stop requested. Waiting for the current browser step to finish cleanly.'
   }
 
-  return 'The preset draft is ready. Start the active-tab scrape, or open the same draft in Boat Search for a closer look.'
-})
-const captureStatus = computed<WorkflowStatus>(() => {
-  if (fixtureCaptureCount.value > 0) {
-    return 'complete'
-  }
-
-  if (analysis.value) {
-    return 'ready'
-  }
-
-  return 'upcoming'
-})
-const captureNote = computed(() => {
-  if (fixtureCaptureState.value.lastCapture) {
-    return `Last capture: ${fixtureCaptureState.value.lastCapture.fileStem}.`
-  }
-
-  return 'Solve the challenge, dismiss banners, scroll the tab into the exact state you want, then capture the page.'
+  return 'The preset draft is ready. Start the tracked-tab scrape, or open the same draft in Boat Search for a closer look.'
 })
 
 function formatRunOutcome(summary: { inserted: number; updated: number; skippedExisting: number }) {
@@ -298,19 +309,8 @@ function onApiKeyInput(event: Event) {
   extension.updateConnectionApiKey(target.value)
 }
 
-function selectFixtureTemplate(template: FixtureCaptureTemplate) {
-  extension.setSelectedFixtureTemplate(template)
-}
-
-function updateFixtureCustomLabel(value: string) {
-  extension.updateFixtureCustomLabel(value)
-}
-
-async function captureFixtureTemplate(
-  template: FixtureCaptureTemplate,
-  options?: { allowMismatch?: boolean },
-) {
-  await extension.captureFixture(template, options)
+function setDetailTabConcurrency(count: number) {
+  extension.updateDetailTabConcurrency(count)
 }
 
 function isStepOpen(stepId: string, status: WorkflowStatus) {
@@ -340,21 +340,32 @@ onMounted(async () => {
       <div class="toolbar__top">
         <div class="toolbar__identity">
           <div class="toolbar__meta">
-            <p class="eyebrow">Preset scrape helper</p>
+            <p class="eyebrow">
+              Preset scrape helper
+            </p>
             <span class="context-pill">{{ activePresetLabel }}</span>
-            <span class="context-pill context-pill--muted" data-testid="analysis-state-pill">
+            <span
+              class="context-pill context-pill--muted"
+              data-testid="analysis-state-pill"
+            >
               {{ analysisStateLabel }}
             </span>
           </div>
 
           <h1>Trusted preset workflow</h1>
 
-          <p class="toolbar__summary" data-testid="toolbar-status">
+          <p
+            class="toolbar__summary"
+            data-testid="toolbar-status"
+          >
             <strong>{{ extension.statusMessage.value || 'Ready' }}</strong>
             <span>{{ presetNote }}</span>
           </p>
 
-          <p v-if="extension.errorMessage.value" class="toolbar__error">
+          <p
+            v-if="extension.errorMessage.value"
+            class="toolbar__error"
+          >
             {{ extension.errorMessage.value }}
           </p>
         </div>
@@ -367,16 +378,60 @@ onMounted(async () => {
           >
             Scan current page
           </button>
-          <button type="button" class="secondary" @click="extension.clearScrapeState">
+          <button
+            type="button"
+            class="secondary"
+            @click="extension.clearScrapeState"
+          >
             Clear scrape state
+          </button>
+          <button
+            type="button"
+            class="ghost"
+            data-testid="clear-settings-button"
+            :disabled="!hasResettableSettings"
+            @click="extension.clearSettings"
+          >
+            Clear settings
+          </button>
+        </div>
+      </div>
+
+      <div class="tab-target-card">
+        <div class="tab-target-card__copy">
+          <p class="eyebrow">
+            Tab targeting
+          </p>
+          <strong>{{ trackingLockedTab ? 'Locked to one tab' : 'Following the active tab' }}</strong>
+          <p>{{ tabTrackingNote }}</p>
+        </div>
+
+        <div class="tab-target-card__actions">
+          <button
+            type="button"
+            class="secondary"
+            :disabled="!trackingLockedTab"
+            @click="extension.followActiveTab"
+          >
+            Follow active tab
+          </button>
+          <button
+            type="button"
+            @click="extension.lockCurrentTab"
+          >
+            {{ trackingLockedTab ? 'Use current tab instead' : 'Lock current tab' }}
           </button>
         </div>
       </div>
 
       <div class="status-strip">
-        <article class="status-pill status-pill--wide">
-          <span>Active tab</span>
-          <strong>{{ session.currentTabUrl || 'No active tab yet' }}</strong>
+        <article class="status-pill">
+          <span>{{ trackedTabLabel }}</span>
+          <strong>{{ trackedTabSummary }}</strong>
+        </article>
+        <article class="status-pill">
+          <span>Mode</span>
+          <strong>{{ tabTrackingStatusLabel }}</strong>
         </article>
         <article class="status-pill">
           <span>Preset</span>
@@ -386,15 +441,12 @@ onMounted(async () => {
           <span>Connection</span>
           <strong>{{ connectionVerified ? 'Verified' : hasApiKey ? 'Saved' : 'Missing' }}</strong>
         </article>
-        <article class="status-pill">
-          <span>Fixtures</span>
-          <strong>{{ fixtureCaptureCount }} saved</strong>
-        </article>
       </div>
 
       <p class="toolbar__hint">
-        Use Scan current page for normal rescans. Clear scrape state only when you want a fresh
-        preset draft.
+        Use Scan current page for normal rescans. Lock the current tab if you want to keep the
+        workflow stable while opening or switching to other tabs. Clear settings resets the saved
+        Boat Search connection, detail-tab concurrency, and tab targeting mode.
       </p>
     </header>
 
@@ -409,7 +461,11 @@ onMounted(async () => {
       @toggle="toggleStep('connection', connectionStatus)"
     >
       <template #actions>
-        <button type="button" class="ghost" @click="extension.openBoatSearchAccountSettings">
+        <button
+          type="button"
+          class="ghost"
+          @click="extension.openBoatSearchAccountSettings"
+        >
           Open account settings
         </button>
         <button
@@ -420,14 +476,6 @@ onMounted(async () => {
           @click="extension.verifyBoatSearchConnection(true)"
         >
           {{ verifyingConnection ? 'Testing…' : 'Test connection' }}
-        </button>
-        <button
-          type="button"
-          class="ghost"
-          :disabled="!hasSavedConnection"
-          @click="extension.forgetBoatSearchConnection"
-        >
-          Forget connection
         </button>
       </template>
 
@@ -440,7 +488,7 @@ onMounted(async () => {
             type="url"
             placeholder="https://boat-search.nard.uk"
             @input="onAppBaseUrlInput"
-          />
+          >
         </label>
 
         <label class="stack">
@@ -451,7 +499,7 @@ onMounted(async () => {
             type="password"
             placeholder="nk_..."
             @input="onApiKeyInput"
-          />
+          >
         </label>
       </div>
 
@@ -469,7 +517,10 @@ onMounted(async () => {
         }}
       </p>
 
-      <p v-if="connection.verifiedAt" class="context-note">
+      <p
+        v-if="connection.verifiedAt"
+        class="context-note"
+      >
         Last verified {{ connection.verifiedAt }}.
       </p>
     </WorkflowStepCard>
@@ -477,7 +528,7 @@ onMounted(async () => {
     <WorkflowStepCard
       :step="2"
       title="Load a trusted preset"
-      subtitle="For normal rescans, scan the active tab, let the extension match the site preset, and optionally open one sample detail page for validation."
+      subtitle="For normal rescans, scan the tracked tab, let the extension match the site preset, and optionally open one sample detail page for validation."
       :status="presetStatus"
       :note="presetNote"
       :open="isStepOpen('preset', presetStatus)"
@@ -485,13 +536,17 @@ onMounted(async () => {
       @toggle="toggleStep('preset', presetStatus)"
     >
       <template #actions>
-        <button type="button" class="secondary" @click="extension.analyzeCurrentPage">
+        <button
+          type="button"
+          class="secondary"
+          @click="extension.analyzeCurrentPage"
+        >
           Scan current page
         </button>
         <button
           v-if="
             matchedPreset?.context === 'search' &&
-            (!trustedPresetActive || shouldOfferMatchedPresetLoad)
+              (!trustedPresetActive || shouldOfferMatchedPresetLoad)
           "
           type="button"
           data-testid="load-matched-preset-button"
@@ -533,8 +588,15 @@ onMounted(async () => {
         {{ presetNote }}
       </p>
 
-      <div v-if="analysisWarnings.length" class="warning-strip">
-        <span v-for="warning in analysisWarnings" :key="warning" class="warning-pill">
+      <div
+        v-if="analysisWarnings.length"
+        class="warning-strip"
+      >
+        <span
+          v-for="warning in analysisWarnings"
+          :key="warning"
+          class="warning-pill"
+        >
           {{ warning }}
         </span>
       </div>
@@ -573,7 +635,7 @@ onMounted(async () => {
     <WorkflowStepCard
       :step="3"
       title="Run the preset scrape"
-      subtitle="Start the active-tab browser scrape, or open the same preset draft in Boat Search."
+      subtitle="Search pages stay in the tracked tab while detail pages can fan out across background tabs."
       :status="runStatus"
       :note="runNote"
       :open="isStepOpen('run', runStatus)"
@@ -615,6 +677,32 @@ onMounted(async () => {
         {{ runNote }}
       </p>
 
+      <div class="run-settings-card">
+        <div class="run-settings-card__copy">
+          <span>Detail tab concurrency</span>
+          <strong>
+            {{ detailTabConcurrency }} detail tab{{ detailTabConcurrency === 1 ? '' : 's' }}
+          </strong>
+          <p>
+            Search pagination stays on the tracked tab. Detail pages run in these background tabs.
+          </p>
+        </div>
+
+        <div class="run-settings-card__actions">
+          <button
+            v-for="count in detailTabConcurrencyOptions"
+            :key="count"
+            type="button"
+            class="secondary run-settings-card__option"
+            :class="{ 'run-settings-card__option--active': detailTabConcurrency === count }"
+            :disabled="runSettingsLocked"
+            @click="setDetailTabConcurrency(count)"
+          >
+            {{ count }}
+          </button>
+        </div>
+      </div>
+
       <div
         v-if="yachtWorldPresetReady"
         class="detail-backfill-panel"
@@ -625,7 +713,7 @@ onMounted(async () => {
             type="checkbox"
             :checked="session.draft.config.detailBackfillMode"
             @change="onDetailBackfillToggle(($event.target as HTMLInputElement).checked)"
-          />
+          >
           <span>YachtWorld detail URL backfill</span>
         </label>
         <p class="context-note">
@@ -643,7 +731,11 @@ onMounted(async () => {
         />
       </div>
 
-      <div v-if="browserRunProgress" class="remote-run-card" data-testid="browser-scrape-progress">
+      <div
+        v-if="browserRunProgress"
+        class="remote-run-card"
+        data-testid="browser-scrape-progress"
+      >
         <div class="remote-run-card__grid">
           <div>
             <span>Stage</span>
@@ -691,7 +783,11 @@ onMounted(async () => {
         </div>
       </div>
 
-      <div v-if="remoteRun" class="remote-run-card" data-testid="browser-scrape-result">
+      <div
+        v-if="remoteRun"
+        class="remote-run-card"
+        data-testid="browser-scrape-result"
+      >
         <div class="remote-run-card__grid">
           <div>
             <span>Pipeline ID</span>
@@ -723,7 +819,10 @@ onMounted(async () => {
           </div>
         </div>
 
-        <p v-if="remoteRun.summary.warnings.length" class="remote-run-card__warnings">
+        <p
+          v-if="remoteRun.summary.warnings.length"
+          class="remote-run-card__warnings"
+        >
           {{ remoteRun.summary.warnings.join(' · ') }}
         </p>
       </div>
@@ -741,12 +840,19 @@ onMounted(async () => {
             <p>Keep this block when a run fails so you can see the last extension and API steps.</p>
           </div>
 
-          <button type="button" class="secondary" @click="copyDebugSnapshot">
+          <button
+            type="button"
+            class="secondary"
+            @click="copyDebugSnapshot"
+          >
             {{ debugCopyLabel }}
           </button>
         </div>
 
-        <p v-if="extension.errorMessage.value" class="scrape-debug-card__error">
+        <p
+          v-if="extension.errorMessage.value"
+          class="scrape-debug-card__error"
+        >
           {{ extension.errorMessage.value }}
         </p>
 
@@ -768,40 +874,6 @@ onMounted(async () => {
         </div>
       </div>
     </WorkflowStepCard>
-
-    <WorkflowStepCard
-      :step="4"
-      title="Capture fixtures"
-      subtitle="Save trusted-page HTML, PNG, and metadata after you solve challenges and position the current tab."
-      :status="captureStatus"
-      :note="captureNote"
-      :open="isStepOpen('capture', captureStatus)"
-      :toggleable="isStepToggleable(captureStatus)"
-      @toggle="toggleStep('capture', captureStatus)"
-    >
-      <template #actions>
-        <button
-          type="button"
-          class="secondary"
-          :disabled="capturingFixture"
-          @click="extension.analyzeCurrentPage"
-        >
-          Re-scan current page
-        </button>
-      </template>
-
-      <FixtureCapturePanel
-        :fixture-capture="fixtureCaptureState"
-        :current-tab-url="session.currentTabUrl"
-        :analysis="analysis"
-        :capturing="capturingFixture"
-        :pending-override-template="fixtureCapturePendingOverride?.template ?? null"
-        @select-template="selectFixtureTemplate"
-        @update-custom-label="updateFixtureCustomLabel"
-        @capture-template="captureFixtureTemplate"
-        @capture-anyway="(template) => captureFixtureTemplate(template, { allowMismatch: true })"
-      />
-    </WorkflowStepCard>
   </main>
 </template>
 
@@ -812,9 +884,9 @@ onMounted(async () => {
   --panel-muted: #475569;
   --panel-soft: #64748b;
   min-height: 100vh;
-  padding: 0.85rem;
+  padding: 0.75rem;
   display: grid;
-  gap: 0.85rem;
+  gap: 0.75rem;
   color: var(--panel-text);
   background:
     radial-gradient(circle at top right, rgba(14, 165, 233, 0.16), transparent 22rem),
@@ -828,14 +900,14 @@ onMounted(async () => {
   background: rgba(255, 255, 255, 0.94);
   box-shadow: 0 18px 42px rgba(15, 23, 42, 0.07);
   display: grid;
-  gap: 0.8rem;
-  padding: 0.95rem;
+  gap: 0.7rem;
+  padding: 0.85rem;
 }
 
 .toolbar__top {
   display: flex;
   justify-content: space-between;
-  gap: 0.85rem;
+  gap: 0.75rem;
   align-items: flex-start;
 }
 
@@ -908,7 +980,11 @@ onMounted(async () => {
   display: flex;
   flex-wrap: wrap;
   justify-content: flex-end;
-  gap: 0.55rem;
+  gap: 0.45rem;
+}
+
+.toolbar__actions button {
+  white-space: nowrap;
 }
 
 .toolbar__hint {
@@ -916,6 +992,95 @@ onMounted(async () => {
   font-size: 0.78rem;
   line-height: 1.45;
   color: var(--panel-muted);
+}
+
+.tab-target-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.75rem;
+  align-items: flex-start;
+  border-radius: 1rem;
+  border: 1px solid rgba(125, 211, 252, 0.48);
+  background: linear-gradient(180deg, rgba(239, 246, 255, 0.96), rgba(255, 255, 255, 0.94));
+  padding: 0.8rem 0.85rem;
+}
+
+.tab-target-card__copy {
+  min-width: 0;
+  display: grid;
+  gap: 0.25rem;
+}
+
+.tab-target-card__copy strong {
+  color: var(--panel-text);
+  font-size: 0.95rem;
+}
+
+.tab-target-card__copy p {
+  margin: 0;
+  color: var(--panel-muted);
+  font-size: 0.8rem;
+  line-height: 1.45;
+}
+
+.tab-target-card__actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.4rem;
+}
+
+.run-settings-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.75rem;
+  align-items: center;
+  border-radius: 0.95rem;
+  border: 1px solid rgba(191, 219, 254, 0.88);
+  background: linear-gradient(180deg, rgba(239, 246, 255, 0.72), rgba(255, 255, 255, 0.94));
+  padding: 0.8rem 0.9rem;
+}
+
+.run-settings-card__copy {
+  display: grid;
+  gap: 0.18rem;
+  min-width: 0;
+}
+
+.run-settings-card__copy span {
+  font-size: 0.72rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #0369a1;
+}
+
+.run-settings-card__copy strong {
+  font-size: 0.92rem;
+  color: var(--panel-text);
+}
+
+.run-settings-card__copy p {
+  margin: 0;
+  font-size: 0.79rem;
+  line-height: 1.45;
+  color: var(--panel-muted);
+}
+
+.run-settings-card__actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.35rem;
+}
+
+.run-settings-card__option {
+  min-width: 2.4rem;
+  padding-inline: 0.78rem;
+}
+
+.run-settings-card__option--active {
+  background: #0f172a;
+  color: white;
 }
 
 .status-strip,
@@ -943,9 +1108,9 @@ onMounted(async () => {
   border-radius: 0.95rem;
   border: 1px solid rgba(191, 219, 254, 0.88);
   background: linear-gradient(180deg, rgba(239, 246, 255, 0.96), rgba(255, 255, 255, 0.92));
-  padding: 0.75rem 0.85rem;
+  padding: 0.65rem 0.75rem;
   display: grid;
-  gap: 0.25rem;
+  gap: 0.2rem;
 }
 
 .status-pill span,
@@ -988,18 +1153,19 @@ select {
   border-radius: 0.85rem;
   border: 1px solid #cbd5e1;
   background: white;
-  padding: 0.68rem 0.8rem;
+  padding: 0.62rem 0.75rem;
   color: var(--panel-text);
 }
 
 button {
   border: none;
   border-radius: 999px;
-  padding: 0.68rem 0.95rem;
+  padding: 0.62rem 0.9rem;
   cursor: pointer;
   background: #0284c7;
   color: white;
   font-weight: 700;
+  line-height: 1.2;
 }
 
 button.secondary {
@@ -1186,8 +1352,8 @@ button:disabled {
 .detail-backfill-panel {
   display: grid;
   gap: 0.5rem;
-  margin-top: 0.75rem;
-  padding: 0.75rem 1rem;
+  margin-top: 0.6rem;
+  padding: 0.7rem 0.9rem;
   border-radius: 0.85rem;
   border: 1px solid rgba(59, 130, 246, 0.25);
   background: rgba(239, 246, 255, 0.6);
@@ -1226,11 +1392,20 @@ code {
 
 @media (max-width: 720px) {
   .toolbar__top,
+  .tab-target-card__actions,
+  .run-settings-card__actions,
   .toolbar__actions,
   .scrape-debug-card__header {
     flex-direction: column;
   }
 
+  .tab-target-card,
+  .run-settings-card {
+    grid-template-columns: 1fr;
+  }
+
+  .run-settings-card__actions,
+  .tab-target-card__actions,
   .toolbar__actions {
     align-items: stretch;
   }

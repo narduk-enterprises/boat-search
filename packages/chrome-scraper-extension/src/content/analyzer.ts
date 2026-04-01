@@ -275,12 +275,13 @@ function readAttributeValue(target: Element, attribute: string) {
     return ''
   }
 
-  if (attribute === 'href' && target instanceof HTMLAnchorElement) {
-    return target.href
+  if (attribute === 'href' && target.tagName.toLowerCase() === 'a') {
+    const rawHref = target.getAttribute('href') || ''
+    return toAbsoluteUrl(rawHref, target.ownerDocument.baseURI) || rawHref
   }
 
-  if (attribute === 'src' && target instanceof HTMLImageElement) {
-    return readImageSource(target)
+  if (attribute === 'src' && target.tagName.toLowerCase() === 'img') {
+    return readImageSource(target as HTMLImageElement)
   }
 
   return target.getAttribute(attribute) || ''

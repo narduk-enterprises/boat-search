@@ -1,17 +1,20 @@
 import type {
+  ExtensionBrowserSettings,
   ExtensionConnection,
   ExtensionPresetState,
   ExtensionSession,
+  ExtensionTabTarget,
   ScraperFieldRule,
   ScraperFieldScope,
   ScraperPipelineDraft,
 } from './types'
-import { createDefaultFixtureCaptureSessionState } from './fixtureCapture'
 
 export const DEFAULT_BROWSER_SCRAPE_MAX_PAGES = 500
 export const MAX_BROWSER_SCRAPE_MAX_PAGES = 500
 export const DEFAULT_BROWSER_SCRAPE_MAX_ITEMS_PER_RUN = 1000
 export const MAX_BROWSER_SCRAPE_MAX_ITEMS_PER_RUN = 2000
+export const DEFAULT_BROWSER_DETAIL_TAB_CONCURRENCY = 1
+export const MAX_BROWSER_DETAIL_TAB_CONCURRENCY = 4
 
 export type SessionDefaults = Partial<Omit<ExtensionSession, 'connection' | 'preset' | 'draft'>> & {
   connection?: Partial<ExtensionConnection>
@@ -99,6 +102,12 @@ export function createDefaultConnection(): ExtensionConnection {
   }
 }
 
+export function createDefaultBrowserSettings(): ExtensionBrowserSettings {
+  return {
+    detailTabConcurrency: DEFAULT_BROWSER_DETAIL_TAB_CONCURRENCY,
+  }
+}
+
 export function createDefaultPresetState(): ExtensionPresetState {
   return {
     matchedPresetId: null,
@@ -113,25 +122,44 @@ export function createDefaultPresetState(): ExtensionPresetState {
   }
 }
 
+export function createDefaultTabTarget(): ExtensionTabTarget {
+  return {
+    mode: 'follow-active',
+    tabId: null,
+    windowId: null,
+    url: null,
+    title: null,
+  }
+}
+
 export function createDefaultSession(overrides: SessionDefaults = {}): ExtensionSession {
   const connection = {
     ...createDefaultConnection(),
     ...(overrides.connection ?? {}),
   }
+  const browserSettings = {
+    ...createDefaultBrowserSettings(),
+    ...(overrides.browserSettings ?? {}),
+  }
   const preset = {
     ...createDefaultPresetState(),
     ...(overrides.preset ?? {}),
+  }
+  const tabTarget = {
+    ...createDefaultTabTarget(),
+    ...(overrides.tabTarget ?? {}),
   }
   const baseSession: ExtensionSession = {
     appBaseUrl: 'https://boat-search.nard.uk',
     appBaseUrlSource: null,
     connection,
+    browserSettings,
+    tabTarget,
     currentTabUrl: null,
     stage: 'search',
     sampleDetailUrl: null,
     lastAnalysis: null,
     preset,
-    fixtureCapture: createDefaultFixtureCaptureSessionState(),
     draft: overrides.draft ? structuredClone(overrides.draft) : createEmptyDraft(),
   }
 
@@ -139,6 +167,8 @@ export function createDefaultSession(overrides: SessionDefaults = {}): Extension
     ...baseSession,
     ...overrides,
     connection,
+    browserSettings,
+    tabTarget,
     preset,
     draft: baseSession.draft,
   }

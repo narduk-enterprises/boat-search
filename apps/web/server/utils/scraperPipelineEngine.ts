@@ -8,6 +8,7 @@ import {
   SCRAPER_PERSISTENCE_STATUSES,
   scraperPipelineDraftSchema,
   type JsonValue,
+  type ScraperBrowserRunDetailArtifact,
   type ScraperExtraRecordTextKey,
   type ScraperBrowserRunListingAudit,
   type ScraperBrowserRunProgress,
@@ -28,11 +29,13 @@ import {
   type ScraperRunSummary,
 } from '~~/lib/scraperPipeline'
 import { isAppHostedBoatImageUrl } from '~~/lib/boatImageRefs'
+import { buildBoatDetailArtifactKeys } from '~~/lib/scraperArtifacts'
 import { cleanBoatDescription } from '#server/utils/boatInventory'
 import { rebuildBoatDedupeState, upsertBoatSourceListing } from '#server/utils/boatDedupe'
 import { useAppDatabase } from '#server/utils/database'
 import { crawlJobEvents, crawlJobListings, crawlJobs } from '#server/database/schema'
 import { markScraperPipelineRun } from '#server/utils/scraperPipelineStore'
+import { uploadToR2 } from '#layer/server/utils/r2'
 
 type SelectorContext = ReturnType<CheerioAPI>
 
@@ -511,6 +514,47 @@ async function fetchHtml(url: string, allowedDomains: Set<string>) {
   return {
     url: response.url,
     html: await response.text(),
+  }
+}
+
+async function persistBrowserDetailArtifact(
+  event: H3Event,
+  record: ScraperBrowserRunRecord,
+  detailArtifact: ScraperBrowserRunDetailArtifact | undefined,
+) {
+  if (!detailArtifact?.pages.length) {
+    return null
+  }
+
+  const keys = await buildBoatDetailArtifactKeys({
+    source: record.source,
+    listingId: record.listingId,
+    url: record.url,
+    capturedAt: detailArtifact.capturedAt,
+  })
+  const storedAt = new Date().toISOString()
+  const payload = JSON.stringify({
+    version: 1,
+    storedAt,
+    capturedAt: detailArtifact.capturedAt,
+    source: record.source,
+    listingId: record.listingId,
+    listingUrl: record.url,
+    pages: detailArtifact.pages,
+  })
+
+  await Promise.all([
+    uploadToR2(event, keys.versionKey, payload, 'application/json;charset=utf-8'),
+    uploadToR2(event, keys.latestKey, payload, 'application/json;charset=utf-8'),
+  ])
+
+  return {
+    capturedAt: detailArtifact.capturedAt,
+    storedAt,
+    latestKey: keys.latestKey,
+    versionKey: keys.versionKey,
+    pageCount: detailArtifact.pages.length,
+    pageUrls: detailArtifact.pages.map((page) => page.page.url),
   }
 }
 
@@ -1128,9 +1172,26 @@ export async function persistScraperBrowserRecord(
   params: {
     draft: ScraperPipelineDraft
     record: ScraperBrowserRunRecord
+    detailArtifact?: ScraperBrowserRunDetailArtifact
   },
 ) {
   const candidate = fromBrowserRunRecord(params.record, params.draft.boatSource)
+  let persistedDetailArtifact: Awaited<ReturnType<typeof persistBrowserDetailArtifact>> = null
+
+  try {
+    persistedDetailArtifact = await persistBrowserDetailArtifact(
+      event,
+      params.record,
+      params.detailArtifact,
+    )
+  } catch (error: unknown) {
+    candidate.warnings.push(
+      error instanceof Error
+        ? `Could not store the detail artifact in R2: ${error.message}`
+        : 'Could not store the detail artifact in R2.',
+    )
+  }
+
   const persisted = await upsertBoatSourceListing(
     event,
     toBoatInsertValues(candidate, new Date().toISOString()),
@@ -1143,6 +1204,7 @@ export async function persistScraperBrowserRecord(
     imagesUploaded: 0,
     inserted: persisted.inserted,
     updated: persisted.updated,
+    detailArtifact: persistedDetailArtifact,
   }
 }
 

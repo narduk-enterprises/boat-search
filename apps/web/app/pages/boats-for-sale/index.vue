@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import type { BoatInventoryFilterKey, BoatInventorySort } from '~~/app/types/boat-inventory'
 import { BOAT_INVENTORY_SORT_OPTIONS } from '~~/app/types/boat-inventory'
-import BoatInventoryBottomBar from '~~/app/components/boats/BoatInventoryBottomBar.vue'
+import BoatInventoryActionHeader from '~~/app/components/boats/BoatInventoryActionHeader.vue'
 import BoatInventoryFilters from '~~/app/components/boats/BoatInventoryFilters.vue'
 import BoatInventoryResults from '~~/app/components/boats/BoatInventoryResults.vue'
 import { BOAT_INVENTORY_RESULTS_HASH, BOAT_INVENTORY_RESULTS_ID } from '~~/app/utils/boatBrowse'
@@ -38,22 +38,29 @@ const {
   hasNextPage,
   hasPreviousPage,
   hasActiveFilters,
-  hasUnsavedChanges,
   activeFilterChips,
   resultsLabel,
-  resultsContext,
-  applyFilters,
+  applyDraftFilters,
+  queueDraftApply,
   clearFilters,
   removeFilter,
   setSort,
   goToPage,
   retry,
 } = useBoatInventorySearch({ limit: 24 })
+const { fetchBoatStats } = useBoats()
+const { data: stats } = fetchBoatStats()
 
 const mapViewTo = computed(() => ({
   path: '/boats-for-sale/map',
   query: navigationQuery.value,
 }))
+const suggestedMakes = computed(() =>
+  (stats.value?.topMakes ?? [])
+    .map((entry) => entry.make?.trim() || '')
+    .filter(Boolean)
+    .slice(0, 8),
+)
 
 const filtersOpen = shallowRef(false)
 const sortOpen = shallowRef(false)
@@ -71,18 +78,17 @@ function scrollResultsIntoView() {
   resultsSection.value?.scrollIntoView({ behavior, block: 'start' })
 }
 
-async function handleApplyFilters() {
-  await applyFilters()
-  filtersOpen.value = false
-  await nextTick()
-  scrollResultsIntoView()
+async function handleFilterAutoApply(mode: 'immediate' | 'debounced') {
+  if (mode === 'immediate') {
+    await applyDraftFilters()
+    return
+  }
+
+  queueDraftApply()
 }
 
 async function handleClearFilters() {
   await clearFilters()
-  filtersOpen.value = false
-  await nextTick()
-  scrollResultsIntoView()
 }
 
 async function handleRemoveFilter(key: BoatInventoryFilterKey) {
@@ -126,84 +132,51 @@ watch(
 
 <template>
   <UPage>
-    <UPageSection :ui="{ container: 'py-6 pb-28 sm:py-8 sm:pb-32' }">
-      <div class="mx-auto flex max-w-6xl items-center justify-center pb-4">
-        <div
-          class="inline-flex rounded-full border border-default bg-default/80 p-1 shadow-card backdrop-blur-sm"
-        >
-          <UButton
-            color="primary"
-            variant="solid"
-            icon="i-lucide-list"
-            label="List"
-            class="rounded-full"
-          />
-          <UButton
-            :to="mapViewTo"
-            color="neutral"
-            variant="ghost"
-            icon="i-lucide-map"
-            label="Map"
-            class="rounded-full"
-          />
-        </div>
-      </div>
-
+    <UPageSection :ui="{ container: 'py-0 sm:py-6' }">
       <div
         :id="BOAT_INVENTORY_RESULTS_ID"
         ref="resultsSection"
-        class="mx-auto max-w-6xl scroll-mt-24"
+        class="mx-auto max-w-6xl"
+        style="scroll-margin-top: calc(var(--brand-header-height, 5.25rem) + 5rem)"
       >
+        <BoatInventoryActionHeader
+          :results-label="resultsLabel"
+          :active-filter-count="activeFilterChips.length"
+          :active-filter-chips="activeFilterChips"
+          :has-active-filters="hasActiveFilters"
+          alternate-view-label="Map"
+          :alternate-view-to="mapViewTo"
+          alternate-view-icon="i-lucide-map"
+          @open-sort="sortOpen = true"
+          @open-filters="filtersOpen = true"
+          @clear-filters="handleClearFilters"
+          @remove-filter="handleRemoveFilter"
+        />
+
         <BoatInventoryResults
-          v-model:search-query="draftFilters.q"
           :boats="boats"
           :status="status"
           :error-message="errorMessage"
           :has-active-filters="hasActiveFilters"
-          :has-unsaved-changes="hasUnsavedChanges"
-          :active-filter-chips="activeFilterChips"
-          :results-label="resultsLabel"
-          :results-context="resultsContext"
           :total="total"
           :current-page="currentPage"
           :page-count="pageCount"
-          :current-sort="currentSort"
           :has-next-page="hasNextPage"
           :has-previous-page="hasPreviousPage"
           @clear-filters="handleClearFilters"
-          @remove-filter="handleRemoveFilter"
           @change-page="handlePageChange"
           @retry="handleRetry"
-          @submit-search="handleApplyFilters"
         />
       </div>
     </UPageSection>
 
-    <BoatInventoryBottomBar
-      :current-sort="currentSort"
-      :active-filter-count="activeFilterChips.length"
-      :has-unsaved-changes="hasUnsavedChanges"
-      :results-label="resultsLabel"
-      alternate-view-label="Map"
-      :alternate-view-to="mapViewTo"
-      alternate-view-icon="i-lucide-map"
-      @open-sort="sortOpen = true"
-      @open-filters="filtersOpen = true"
-    />
-
-    <USlideover
-      v-model:open="filtersOpen"
-      title="Filter boats"
-      description="Adjust the draft filters, then apply them when the list looks right."
-      side="right"
-    >
+    <USlideover v-model:open="filtersOpen" side="right" class="sm:max-w-2xl">
       <template #body>
         <BoatInventoryFilters
           v-model="draftFilters"
-          :loading="status === 'pending'"
           :has-active-filters="hasActiveFilters"
-          :has-unsaved-changes="hasUnsavedChanges"
-          @submit="handleApplyFilters"
+          :suggested-makes="suggestedMakes"
+          @request-auto-apply="handleFilterAutoApply"
           @clear="handleClearFilters"
         />
       </template>

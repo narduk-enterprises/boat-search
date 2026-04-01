@@ -27,6 +27,7 @@ useWebPageSchema({
 
 const { fetchBoatStats } = useBoats()
 const { data: stats } = fetchBoatStats()
+const { label: aiEntryLabel, to: aiEntryTo } = useAiBoatFinderEntry()
 
 const popularMakes = computed(() =>
   (stats.value?.topMakes ?? [])
@@ -113,8 +114,8 @@ const discoverySteps = [
               icon="i-lucide-map"
             />
             <UButton
-              to="/account/profile"
-              label="AI Boat Profiles"
+              :to="aiEntryTo"
+              :label="aiEntryLabel"
               color="neutral"
               variant="ghost"
               icon="i-lucide-sparkles"

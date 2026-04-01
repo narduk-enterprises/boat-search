@@ -127,6 +127,8 @@ export function buildClearedScrapeSession(
   nextSession.appBaseUrl = currentSession.appBaseUrl
   nextSession.appBaseUrlSource = currentSession.appBaseUrlSource
   nextSession.connection = cloneSerializableValue(currentSession.connection)
+  nextSession.browserSettings = cloneSerializableValue(currentSession.browserSettings)
+  nextSession.tabTarget = cloneSerializableValue(currentSession.tabTarget)
   nextSession.currentTabUrl = currentSession.currentTabUrl
 
   return nextSession

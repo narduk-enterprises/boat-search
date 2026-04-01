@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { BoatInventoryActiveFilterChip, BoatInventoryBoat } from '~~/app/types/boat-inventory'
+import type { BoatInventoryBoat } from '~~/app/types/boat-inventory'
 
 type MapBoat = {
   id: string
@@ -14,10 +14,6 @@ const props = withDefaults(
     boats: BoatInventoryBoat[]
     status: 'idle' | 'pending' | 'success' | 'error'
     errorMessage?: string | null
-    hasActiveFilters: boolean
-    activeFilterChips: BoatInventoryActiveFilterChip[]
-    resultsLabel: string
-    resultsContext: string
     total: number
     currentPage: number
     pageCount: number
@@ -31,7 +27,6 @@ const props = withDefaults(
 
 const emit = defineEmits<{
   clearFilters: []
-  removeFilter: [key: BoatInventoryActiveFilterChip['key']]
   changePage: [page: number]
 }>()
 
@@ -64,8 +59,6 @@ const mappableBoats = computed<MapBoat[]>(() =>
 const selectedBoat = computed(
   () => mappableBoats.value.find((boat) => boat.id === selectedMapBoatId.value) ?? null,
 )
-
-const unmappableCount = computed(() => Math.max(0, props.boats.length - mappableBoats.value.length))
 
 const visiblePages = computed(() => {
   const start = Math.max(1, props.currentPage - 2)
@@ -113,84 +106,7 @@ function detailTo(boatId: number) {
 </script>
 
 <template>
-  <div class="space-y-5">
-    <div class="space-y-4">
-      <div class="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-        <div class="space-y-3">
-          <div class="flex flex-wrap items-center gap-2">
-            <UBadge label="Map view" color="primary" variant="subtle" icon="i-lucide-map" />
-            <UBadge
-              :label="`${mappableBoats.length} pinned on this page`"
-              :color="mappableBoats.length ? 'primary' : 'neutral'"
-              variant="soft"
-            />
-            <UBadge
-              v-if="unmappableCount"
-              :label="`${unmappableCount} without verified coordinates`"
-              color="warning"
-              variant="soft"
-            />
-          </div>
-          <div class="space-y-2">
-            <h1 class="text-3xl font-bold text-default sm:text-4xl">Boats for sale map</h1>
-            <p class="max-w-3xl text-sm text-muted sm:text-base">
-              {{ resultsContext }}
-            </p>
-          </div>
-        </div>
-
-        <UBadge
-          :label="resultsLabel"
-          :color="mappableBoats.length ? 'primary' : 'neutral'"
-          variant="soft"
-        />
-      </div>
-
-      <div
-        v-if="props.activeFilterChips.length || props.hasActiveFilters"
-        class="brand-surface-soft rounded-[1.4rem] p-4"
-      >
-        <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-          <div class="space-y-3">
-            <div class="flex flex-wrap items-center gap-2">
-              <UBadge
-                :label="`${props.total.toLocaleString()} total match${props.total === 1 ? '' : 'es'}`"
-                color="neutral"
-                variant="soft"
-              />
-            </div>
-
-            <div
-              v-if="props.activeFilterChips.length"
-              class="flex items-center gap-2 overflow-x-auto pb-1 sm:flex-wrap sm:overflow-visible"
-            >
-              <UButton
-                v-for="chip in props.activeFilterChips"
-                :key="chip.key"
-                :label="`${chip.label}: ${chip.value}`"
-                color="neutral"
-                variant="soft"
-                size="sm"
-                class="shrink-0"
-                trailing-icon="i-lucide-x"
-                @click="emit('removeFilter', chip.key)"
-              />
-            </div>
-          </div>
-
-          <UButton
-            v-if="props.hasActiveFilters"
-            color="neutral"
-            variant="ghost"
-            icon="i-lucide-rotate-ccw"
-            label="Clear all"
-            class="w-full justify-center sm:w-auto"
-            @click="emit('clearFilters')"
-          />
-        </div>
-      </div>
-    </div>
-
+  <div class="space-y-3 sm:space-y-5">
     <UCard
       v-if="props.errorMessage"
       class="brand-surface"

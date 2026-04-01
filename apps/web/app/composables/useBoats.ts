@@ -4,7 +4,12 @@
  * Follows Thin Component / Thick Composable pattern.
  */
 
-import type { BoatInventorySearchResponse, BoatInventorySort } from '~~/app/types/boat-inventory'
+import type {
+  BoatInventorySearchResponse,
+  BoatInventorySort,
+  BoatInventoryVesselMode,
+  BoatInventoryVesselSubtype,
+} from '~~/app/types/boat-inventory'
 
 interface Boat {
   id: number
@@ -54,6 +59,8 @@ interface BoatFilters {
   maxLength?: number
   minPrice?: number
   maxPrice?: number
+  vesselMode?: BoatInventoryVesselMode
+  vesselSubtype?: BoatInventoryVesselSubtype
   limit?: number
   offset?: number
   sort?: BoatInventorySort
@@ -90,6 +97,8 @@ export function useBoats() {
     if (filters.maxLength) params.set('maxLength', String(filters.maxLength))
     if (filters.minPrice) params.set('minPrice', String(filters.minPrice))
     if (filters.maxPrice) params.set('maxPrice', String(filters.maxPrice))
+    if (filters.vesselMode) params.set('vesselMode', filters.vesselMode)
+    if (filters.vesselSubtype) params.set('vesselSubtype', filters.vesselSubtype)
     if (filters.limit) params.set('limit', String(filters.limit))
     if (filters.offset) params.set('offset', String(filters.offset))
     if (filters.sort) params.set('sort', filters.sort)

@@ -6,11 +6,13 @@ import type {
   BoatInventorySearchResponse,
   BoatInventorySort,
 } from '~~/app/types/boat-inventory'
+import { getBoatInventoryVesselSubtypeLabel } from '~~/app/types/boat-inventory'
 import { BOAT_INVENTORY_SEARCH_PATH } from '~~/app/utils/boatBrowse'
 import {
   boatInventoryFiltersToQuery,
   boatInventoryFilterQuerySignature,
   buildBoatInventoryNavigationQuery,
+  clearBoatInventoryFilter,
   createEmptyBoatInventoryFilters,
   DEFAULT_BOAT_INVENTORY_SORT,
   normalizeBoatInventoryPage,
@@ -18,9 +20,25 @@ import {
   routeQueryToBoatInventoryFilters,
 } from '~~/app/utils/boatInventorySearch'
 
+const BOAT_INVENTORY_AUTO_APPLY_DELAY_MS = 350
+
 function buildActiveFilterChips(filters: BoatInventoryFilters): BoatInventoryActiveFilterChip[] {
   const chips: BoatInventoryActiveFilterChip[] = []
 
+  if (filters.vesselMode) {
+    chips.push({
+      key: 'vesselMode',
+      label: 'Mode',
+      value: filters.vesselMode === 'power' ? 'Power' : 'Sail',
+    })
+  }
+  if (filters.vesselSubtype) {
+    chips.push({
+      key: 'vesselSubtype',
+      label: 'Style',
+      value: getBoatInventoryVesselSubtypeLabel(filters.vesselSubtype),
+    })
+  }
   if (filters.q) {
     const display = filters.q.length > 48 ? `${filters.q.slice(0, 45).trimEnd()}…` : filters.q
     chips.push({ key: 'q', label: 'Search', value: display })
@@ -79,11 +97,14 @@ export function useBoatInventorySearch(
   const router = useRouter()
   const limit = options.limit ?? 48
   const inventoryPath = computed(() => route.path || BOAT_INVENTORY_SEARCH_PATH)
+  const draftApplyTimer = shallowRef<ReturnType<typeof setTimeout> | null>(null)
 
   const draftFilters = ref<BoatInventoryFilters>(createEmptyBoatInventoryFilters())
 
   function syncDraftFiltersFromRoute() {
-    draftFilters.value = routeQueryToBoatInventoryFilters(route.query)
+    const nextFilters = routeQueryToBoatInventoryFilters(route.query)
+    if (queriesMatch(draftFilters.value, nextFilters)) return
+    draftFilters.value = nextFilters
   }
 
   syncDraftFiltersFromRoute()
@@ -127,35 +148,52 @@ export function useBoatInventorySearch(
     })
   }
 
-  async function applyFilters() {
+  function clearDraftApplyTimer() {
+    if (!draftApplyTimer.value) return
+    clearTimeout(draftApplyTimer.value)
+    draftApplyTimer.value = null
+  }
+
+  async function applyDraftFilters() {
+    clearDraftApplyTimer()
+    if (queriesMatch(draftFilters.value, appliedFilters.value)) return
     await pushInventoryQuery(draftFilters.value, currentSort.value, 1)
   }
 
+  function queueDraftApply() {
+    clearDraftApplyTimer()
+    if (queriesMatch(draftFilters.value, appliedFilters.value)) return
+
+    draftApplyTimer.value = setTimeout(() => {
+      void applyDraftFilters()
+    }, BOAT_INVENTORY_AUTO_APPLY_DELAY_MS)
+  }
+
   async function clearFilters() {
+    clearDraftApplyTimer()
     draftFilters.value = createEmptyBoatInventoryFilters()
     await pushInventoryQuery(createEmptyBoatInventoryFilters(), currentSort.value, 1)
   }
 
   async function removeFilter(key: BoatInventoryFilterKey) {
-    const nextFilters = {
-      ...appliedFilters.value,
-      [key]: '',
-    }
-
-    draftFilters.value = {
-      ...draftFilters.value,
-      [key]: '',
-    }
-
+    clearDraftApplyTimer()
+    const nextFilters = clearBoatInventoryFilter(appliedFilters.value, key)
+    draftFilters.value = clearBoatInventoryFilter(draftFilters.value, key)
     await pushInventoryQuery(nextFilters, currentSort.value, 1)
   }
 
   async function setSort(sort: BoatInventorySort) {
     if (sort === currentSort.value) return
-    await pushInventoryQuery(appliedFilters.value, sort, 1)
+    clearDraftApplyTimer()
+    const nextFilters = queriesMatch(draftFilters.value, appliedFilters.value)
+      ? appliedFilters.value
+      : draftFilters.value
+
+    await pushInventoryQuery(nextFilters, sort, 1)
   }
 
   async function goToPage(page: number) {
+    clearDraftApplyTimer()
     await pushInventoryQuery(appliedFilters.value, currentSort.value, page)
   }
 
@@ -166,12 +204,14 @@ export function useBoatInventorySearch(
     () => Object.keys(boatInventoryFiltersToQuery(appliedFilters.value)).length > 0,
   )
   const activeFilterChips = computed(() => buildActiveFilterChips(appliedFilters.value))
-  const hasUnsavedChanges = computed(() => !queriesMatch(draftFilters.value, appliedFilters.value))
+  const hasPendingDraftFilters = computed(
+    () => !queriesMatch(draftFilters.value, appliedFilters.value),
+  )
   const navigationQuery = computed(() =>
     buildBoatInventoryNavigationQuery({
-      filters: hasUnsavedChanges.value ? draftFilters.value : appliedFilters.value,
+      filters: hasPendingDraftFilters.value ? draftFilters.value : appliedFilters.value,
       sort: currentSort.value,
-      page: hasUnsavedChanges.value ? 1 : currentPage.value,
+      page: hasPendingDraftFilters.value ? 1 : currentPage.value,
     }),
   )
   const visibleStart = computed(() => (boats.value.length ? currentOffset.value + 1 : 0))
@@ -190,15 +230,15 @@ export function useBoatInventorySearch(
       return 'Inventory is still filling in. Check back after the next import run.'
     }
 
-    if (hasUnsavedChanges.value) {
-      return 'Draft filters are staged locally. Press Search or Apply filters to refresh results.'
-    }
-
     if (activeFilterChips.value.length) {
       return activeFilterChips.value.map((chip) => `${chip.label}: ${chip.value}`).join(' · ')
     }
 
-    return 'Newest listings first. Use the floating bar to sort or filter the list at any time.'
+    return 'Newest listings first. Use filters to narrow the market and jump between list and map.'
+  })
+
+  onBeforeUnmount(() => {
+    clearDraftApplyTimer()
   })
 
   return {
@@ -214,12 +254,12 @@ export function useBoatInventorySearch(
     hasNextPage: computed(() => data.value.hasNextPage),
     hasPreviousPage: computed(() => data.value.hasPreviousPage),
     hasActiveFilters,
-    hasUnsavedChanges,
     navigationQuery,
     activeFilterChips,
     resultsLabel,
     resultsContext,
-    applyFilters,
+    applyDraftFilters,
+    queueDraftApply,
     clearFilters,
     removeFilter,
     setSort,

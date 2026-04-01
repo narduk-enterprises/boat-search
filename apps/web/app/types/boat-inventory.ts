@@ -37,6 +37,72 @@ export interface BoatInventoryStats {
   topMakes: { make: string; count: number }[]
 }
 
+export const BOAT_INVENTORY_VESSEL_MODE_VALUES = ['power', 'sail'] as const
+
+export type BoatInventoryVesselMode = (typeof BOAT_INVENTORY_VESSEL_MODE_VALUES)[number]
+
+export const BOAT_INVENTORY_VESSEL_MODE_OPTIONS: Array<{
+  value: BoatInventoryVesselMode
+  label: string
+  icon: string
+}> = [
+  { value: 'power', label: 'Power', icon: 'i-lucide-zap' },
+  { value: 'sail', label: 'Sail', icon: 'i-lucide-wind' },
+]
+
+export const BOAT_INVENTORY_VESSEL_SUBTYPE_VALUES = [
+  'power-center-console',
+  'power-sportfish',
+  'power-catamaran',
+  'power-cruiser',
+  'sail-sloop',
+  'sail-catamaran',
+  'sail-cruiser',
+] as const
+
+export type BoatInventoryVesselSubtype = (typeof BOAT_INVENTORY_VESSEL_SUBTYPE_VALUES)[number]
+
+export const BOAT_INVENTORY_VESSEL_SUBTYPE_TO_MODE: Record<
+  BoatInventoryVesselSubtype,
+  BoatInventoryVesselMode
+> = {
+  'power-center-console': 'power',
+  'power-sportfish': 'power',
+  'power-catamaran': 'power',
+  'power-cruiser': 'power',
+  'sail-sloop': 'sail',
+  'sail-catamaran': 'sail',
+  'sail-cruiser': 'sail',
+}
+
+export const BOAT_INVENTORY_VESSEL_SUBTYPE_OPTIONS: Record<
+  BoatInventoryVesselMode,
+  ReadonlyArray<{ value: BoatInventoryVesselSubtype; label: string }>
+> = {
+  power: [
+    { value: 'power-center-console', label: 'Center console' },
+    { value: 'power-sportfish', label: 'Sportfish' },
+    { value: 'power-catamaran', label: 'Catamaran' },
+    { value: 'power-cruiser', label: 'Cruiser' },
+  ],
+  sail: [
+    { value: 'sail-sloop', label: 'Sloop' },
+    { value: 'sail-catamaran', label: 'Catamaran' },
+    { value: 'sail-cruiser', label: 'Cruiser' },
+  ],
+}
+
+export function getBoatInventoryVesselSubtypeLabel(subtype: BoatInventoryVesselSubtype) {
+  for (const mode of BOAT_INVENTORY_VESSEL_MODE_VALUES) {
+    const match = BOAT_INVENTORY_VESSEL_SUBTYPE_OPTIONS[mode].find(
+      (option) => option.value === subtype,
+    )
+    if (match) return match.label
+  }
+
+  return subtype
+}
+
 export interface BoatInventoryFilters {
   q: string
   make: string
@@ -45,6 +111,51 @@ export interface BoatInventoryFilters {
   maxPrice: string
   minLength: string
   maxLength: string
+  vesselMode: '' | BoatInventoryVesselMode
+  vesselSubtype: '' | BoatInventoryVesselSubtype
+}
+
+export interface BoatInventoryBudgetPreset {
+  label: string
+  minPrice: string
+  maxPrice: string
+}
+
+export const BOAT_INVENTORY_BUDGET_PRESETS: BoatInventoryBudgetPreset[] = [
+  { label: 'Under $50k', minPrice: '', maxPrice: '50000' },
+  { label: '$50k-$100k', minPrice: '50000', maxPrice: '100000' },
+  { label: '$100k-$250k', minPrice: '100000', maxPrice: '250000' },
+  { label: '$250k-$500k', minPrice: '250000', maxPrice: '500000' },
+  { label: '$500k-$1M', minPrice: '500000', maxPrice: '1000000' },
+  { label: '$1M+', minPrice: '1000000', maxPrice: '' },
+]
+
+export interface BoatInventoryLengthPreset {
+  label: string
+  minLength: string
+  maxLength: string
+}
+
+export const BOAT_INVENTORY_LENGTH_PRESETS: BoatInventoryLengthPreset[] = [
+  { label: 'Under 24 ft', minLength: '', maxLength: '24' },
+  { label: '24-30 ft', minLength: '24', maxLength: '30' },
+  { label: '30-36 ft', minLength: '30', maxLength: '36' },
+  { label: '36-45 ft', minLength: '36', maxLength: '45' },
+  { label: '45-60 ft', minLength: '45', maxLength: '60' },
+  { label: '60+ ft', minLength: '60', maxLength: '' },
+]
+
+export interface BoatInventoryAutocompleteSuggestion {
+  label: string
+  value: string
+  count?: number
+}
+
+export interface BoatInventoryAutocompleteFieldState {
+  enabled: boolean
+  loading: boolean
+  items: BoatInventoryAutocompleteSuggestion[]
+  helperText: string
 }
 
 export type BoatInventorySort = 'updated-desc' | 'price-asc' | 'price-desc' | 'year-desc'

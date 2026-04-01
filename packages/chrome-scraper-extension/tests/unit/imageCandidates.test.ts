@@ -41,4 +41,25 @@ describe('readImageSource', () => {
     )
     expect(readImageSource(img)).toBe('https://cdn.example/b.jpg')
   })
+
+  it('prefers linked full-resolution image URLs over thumbnail src attributes', () => {
+    const link = document.createElement('a')
+    link.href = 'https://images.yachtworld.com/detail/viking-52-1.jpg'
+
+    const img = document.createElement('img')
+    img.src = 'https://images.yachtworld.com/resize/viking-52-1.jpg?w=320'
+
+    link.append(img)
+    document.body.append(link)
+
+    expect(readImageSource(img)).toBe('https://images.yachtworld.com/detail/viking-52-1.jpg')
+  })
+
+  it('prefers explicit full-size data attributes before srcset candidates', () => {
+    const img = document.createElement('img')
+    img.setAttribute('data-large-image', 'https://cdn.example/full.jpg?w=2400')
+    img.setAttribute('srcset', 'https://cdn.example/a.jpg 640w, https://cdn.example/b.jpg 1280w')
+
+    expect(readImageSource(img)).toBe('https://cdn.example/full.jpg?w=2400')
+  })
 })

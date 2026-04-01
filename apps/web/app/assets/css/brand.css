@@ -18,12 +18,19 @@
 }
 
 :root {
+  --brand-header-height: 4.5rem;
   --boat-sand-rgb: 247 243 236;
   --boat-foam-rgb: 236 253 255;
   --boat-sea-rgb: 8 145 178;
   --boat-deep-rgb: 8 47 73;
   --boat-brass-rgb: 180 121 52;
   --boat-grid-rgb: 14 116 144;
+}
+
+@media (min-width: 640px) {
+  :root {
+    --brand-header-height: 5.25rem;
+  }
 }
 
 .dark {
@@ -102,10 +109,16 @@ body {
 .brand-header-bar {
   position: relative;
   display: flex;
-  min-height: 5.25rem;
+  min-height: var(--brand-header-height);
   align-items: center;
   justify-content: space-between;
-  gap: 1rem;
+  gap: 0.75rem;
+}
+
+@media (min-width: 640px) {
+  .brand-header-bar {
+    gap: 1rem;
+  }
 }
 
 .brand-header-side {

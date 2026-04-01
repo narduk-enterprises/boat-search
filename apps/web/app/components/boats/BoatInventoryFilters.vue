@@ -1,65 +1,95 @@
 <script setup lang="ts">
 import type { BoatInventoryFilters } from '~~/app/types/boat-inventory'
+import {
+  BOAT_INVENTORY_BUDGET_PRESETS,
+  BOAT_INVENTORY_LENGTH_PRESETS,
+} from '~~/app/types/boat-inventory'
+import BoatInventoryVesselFilters from '~~/app/components/boats/BoatInventoryVesselFilters.vue'
+
+type AutoApplyMode = 'immediate' | 'debounced'
 
 const props = withDefaults(
   defineProps<{
-    loading?: boolean
-    hasActiveFilters: boolean
-    hasUnsavedChanges?: boolean
+    hasActiveFilters?: boolean
     suggestedMakes?: string[]
   }>(),
   {
-    loading: false,
-    hasUnsavedChanges: false,
+    hasActiveFilters: false,
     suggestedMakes: () => [],
   },
 )
 
-const budgetPresets = [
-  { label: 'Under $100k', minPrice: '', maxPrice: '100000' },
-  { label: '$100k to $250k', minPrice: '100000', maxPrice: '250000' },
-  { label: '$250k to $500k', minPrice: '250000', maxPrice: '500000' },
-  { label: '$500k+', minPrice: '500000', maxPrice: '' },
-]
-
-const lengthPresets = [
-  { label: '20 to 28 ft', minLength: '20', maxLength: '28' },
-  { label: '28 to 35 ft', minLength: '28', maxLength: '35' },
-  { label: '35 to 45 ft', minLength: '35', maxLength: '45' },
-  { label: '45 ft+', minLength: '45', maxLength: '' },
-]
-
 const filters = defineModel<BoatInventoryFilters>({ required: true })
 
 const emit = defineEmits<{
-  submit: []
   clear: []
+  requestAutoApply: [mode: AutoApplyMode]
 }>()
 
-const activeDraftCount = computed(
-  () =>
-    Object.values(filters.value).filter((value) => String(value ?? '').trim().length > 0).length,
-)
 const normalizedSuggestedMakes = computed(() =>
   props.suggestedMakes
     .map((make) => String(make ?? '').trim())
     .filter((make, index, makes) => make.length > 0 && makes.indexOf(make) === index),
 )
+const activeDraftCount = computed(
+  () =>
+    Object.values(filters.value).filter((value) => String(value ?? '').trim().length > 0).length,
+)
 const canClear = computed(() => props.hasActiveFilters || activeDraftCount.value > 0)
-const applyLabel = computed(() => (props.hasUnsavedChanges ? 'Apply filters' : 'Show results'))
+const laneLabel = computed(() => {
+  if (filters.value.vesselMode === 'power') return 'Power lane'
+  if (filters.value.vesselMode === 'sail') return 'Sail lane'
+  return 'All inventory'
+})
+const { makeField, locationField } = useBoatInventoryAutocomplete({
+  makeQuery: computed(() => filters.value.make),
+  locationQuery: computed(() => filters.value.location),
+})
+
+function requestAutoApply(mode: AutoApplyMode) {
+  emit('requestAutoApply', mode)
+}
+
+function normalizeInputValue(value: string | number | null | undefined) {
+  return value == null ? '' : String(value)
+}
+
+function setTextFilter(key: keyof BoatInventoryFilters, value: string | number | null | undefined) {
+  filters.value[key] = normalizeInputValue(value) as never
+  requestAutoApply('debounced')
+}
+
+function setVesselMode(value: BoatInventoryFilters['vesselMode']) {
+  filters.value.vesselMode = value
+  if (
+    filters.value.vesselSubtype &&
+    !filters.value.vesselSubtype.startsWith(value ? `${value}-` : '__invalid__')
+  ) {
+    filters.value.vesselSubtype = ''
+  }
+  requestAutoApply('immediate')
+}
+
+function setVesselSubtype(value: BoatInventoryFilters['vesselSubtype']) {
+  filters.value.vesselSubtype = value
+  requestAutoApply('immediate')
+}
 
 function applyBudgetPreset(minPrice: string, maxPrice: string) {
   filters.value.minPrice = minPrice
   filters.value.maxPrice = maxPrice
+  requestAutoApply('immediate')
 }
 
 function applyLengthPreset(minLength: string, maxLength: string) {
   filters.value.minLength = minLength
   filters.value.maxLength = maxLength
+  requestAutoApply('immediate')
 }
 
 function applySuggestedMake(make: string) {
   filters.value.make = make
+  requestAutoApply('immediate')
 }
 
 function matchesBudgetPreset(minPrice: string, maxPrice: string) {
@@ -72,77 +102,103 @@ function matchesLengthPreset(minLength: string, maxLength: string) {
 </script>
 
 <template>
-  <UCard class="brand-surface" :ui="{ body: 'space-y-6 p-5 sm:p-6' }">
-    <div class="space-y-3">
-      <div class="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <p class="text-xs font-semibold uppercase tracking-[0.2em] text-dimmed">Filters</p>
-          <h2 class="mt-2 text-2xl font-semibold text-default">Refine the list</h2>
+  <div
+    class="brand-surface brand-grid-panel brand-orbit space-y-6 rounded-[1.8rem] p-5 sm:p-6"
+    data-testid="boat-inventory-filters-panel"
+  >
+    <div class="flex flex-wrap items-start justify-between gap-3">
+      <div class="flex min-w-0 items-center gap-3">
+        <div
+          class="flex size-11 shrink-0 items-center justify-center rounded-[1.2rem] bg-primary/10 text-primary"
+        >
+          <UIcon name="i-lucide-sliders-horizontal" class="text-lg" />
         </div>
-        <div class="flex flex-wrap gap-2">
-          <UBadge
-            :label="props.hasActiveFilters ? 'Filtered view' : 'All inventory'"
-            :color="props.hasActiveFilters ? 'primary' : 'neutral'"
-            variant="subtle"
-          />
-          <UBadge
-            v-if="props.hasUnsavedChanges"
-            label="Draft changes"
-            color="warning"
-            variant="soft"
-          />
+        <div class="space-y-2">
+          <div class="flex flex-wrap gap-2">
+            <UBadge :label="laneLabel" color="neutral" variant="soft" />
+            <UBadge
+              :label="`${activeDraftCount} active`"
+              :color="activeDraftCount ? 'primary' : 'neutral'"
+              variant="soft"
+            />
+          </div>
+          <p class="text-sm font-medium text-default">Filters update results automatically.</p>
         </div>
       </div>
-      <p class="text-sm text-muted">
-        Draft edits stay in this panel until you apply them. Use quick ranges or set precise values
-        below.
-      </p>
-      <div class="flex flex-wrap gap-2 text-sm">
-        <UBadge
-          :label="`${activeDraftCount} draft filter${activeDraftCount === 1 ? '' : 's'}`"
-          color="neutral"
-          variant="soft"
-        />
-        <UBadge
-          :label="props.hasUnsavedChanges ? 'Results are not updated yet' : 'Draft matches results'"
-          :color="props.hasUnsavedChanges ? 'warning' : 'neutral'"
-          variant="soft"
+
+      <UButton
+        type="button"
+        icon="i-lucide-rotate-ccw"
+        label="Reset"
+        color="neutral"
+        variant="soft"
+        :disabled="!canClear"
+        @click="emit('clear')"
+      />
+    </div>
+
+    <div class="brand-surface-soft rounded-[1.35rem] p-4 sm:p-5">
+      <div class="flex items-center gap-2">
+        <UIcon name="i-lucide-waves" class="text-base text-primary" />
+        <p class="text-xs font-semibold uppercase tracking-[0.2em] text-dimmed">Vessel mode</p>
+      </div>
+
+      <div class="mt-4">
+        <BoatInventoryVesselFilters
+          :vessel-mode="filters.vesselMode"
+          :vessel-subtype="filters.vesselSubtype"
+          @update:vessel-mode="setVesselMode"
+          @update:vessel-subtype="setVesselSubtype"
         />
       </div>
     </div>
 
+    <div class="brand-surface-soft rounded-[1.35rem] p-4 md:col-span-2">
+      <UFormField name="q" label="Keywords">
+        <UInput
+          :model-value="filters.q"
+          class="w-full"
+          type="search"
+          icon="i-lucide-search"
+          enterkeyhint="search"
+          placeholder="Sea Ray, diesel, flybridge…"
+          @update:model-value="setTextFilter('q', $event)"
+        />
+      </UFormField>
+    </div>
+
     <div class="grid gap-3 sm:grid-cols-2">
-      <div class="brand-surface-soft rounded-[1.25rem] p-4">
+      <div class="brand-surface-soft rounded-[1.35rem] p-4">
         <div class="space-y-3">
-          <div>
+          <div class="flex items-center gap-2">
+            <UIcon name="i-lucide-dollar-sign" class="text-base text-primary" />
             <p class="text-xs font-semibold uppercase tracking-[0.18em] text-dimmed">Budget</p>
-            <p class="mt-1 text-sm text-muted">Quick price ranges for fast narrowing.</p>
           </div>
-          <div class="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
+          <div class="grid grid-cols-2 gap-2 lg:grid-cols-3">
             <UButton
-              v-for="preset in budgetPresets"
+              v-for="preset in BOAT_INVENTORY_BUDGET_PRESETS"
               :key="preset.label"
               :label="preset.label"
               :color="matchesBudgetPreset(preset.minPrice, preset.maxPrice) ? 'primary' : 'neutral'"
               :variant="matchesBudgetPreset(preset.minPrice, preset.maxPrice) ? 'soft' : 'ghost'"
               size="sm"
               type="button"
-              class="w-full justify-center sm:w-auto"
+              class="min-h-10 w-full justify-center rounded-full px-3"
               @click="applyBudgetPreset(preset.minPrice, preset.maxPrice)"
             />
           </div>
         </div>
       </div>
 
-      <div class="brand-surface-soft rounded-[1.25rem] p-4">
+      <div class="brand-surface-soft rounded-[1.35rem] p-4">
         <div class="space-y-3">
-          <div>
+          <div class="flex items-center gap-2">
+            <UIcon name="i-lucide-ruler" class="text-base text-primary" />
             <p class="text-xs font-semibold uppercase tracking-[0.18em] text-dimmed">Length</p>
-            <p class="mt-1 text-sm text-muted">Common hull-length bands.</p>
           </div>
-          <div class="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
+          <div class="grid grid-cols-2 gap-2 lg:grid-cols-3">
             <UButton
-              v-for="preset in lengthPresets"
+              v-for="preset in BOAT_INVENTORY_LENGTH_PRESETS"
               :key="preset.label"
               :label="preset.label"
               :color="
@@ -151,7 +207,7 @@ function matchesLengthPreset(minLength: string, maxLength: string) {
               :variant="matchesLengthPreset(preset.minLength, preset.maxLength) ? 'soft' : 'ghost'"
               size="sm"
               type="button"
-              class="w-full justify-center sm:w-auto"
+              class="min-h-10 w-full justify-center rounded-full px-3"
               @click="applyLengthPreset(preset.minLength, preset.maxLength)"
             />
           </div>
@@ -159,13 +215,16 @@ function matchesLengthPreset(minLength: string, maxLength: string) {
       </div>
     </div>
 
-    <div v-if="normalizedSuggestedMakes.length" class="brand-surface-soft rounded-[1.25rem] p-4">
+    <div
+      v-if="normalizedSuggestedMakes.length"
+      class="brand-surface-soft rounded-[1.35rem] p-4 sm:p-5"
+    >
       <div class="space-y-3">
-        <div>
+        <div class="flex items-center gap-2">
+          <UIcon name="i-lucide-anchor" class="text-base text-primary" />
           <p class="text-xs font-semibold uppercase tracking-[0.18em] text-dimmed">Popular makes</p>
-          <p class="mt-1 text-sm text-muted">Seed the make field with one tap.</p>
         </div>
-        <div class="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
+        <div class="grid grid-cols-2 gap-2 lg:grid-cols-4">
           <UButton
             v-for="make in normalizedSuggestedMakes"
             :key="make"
@@ -174,107 +233,105 @@ function matchesLengthPreset(minLength: string, maxLength: string) {
             :variant="filters.make === make ? 'soft' : 'ghost'"
             size="sm"
             type="button"
-            class="w-full justify-center sm:w-auto"
+            class="min-h-10 w-full justify-center rounded-full px-3"
             @click="applySuggestedMake(make)"
           />
         </div>
       </div>
     </div>
 
-    <UForm :state="filters" class="space-y-5" @submit.prevent="emit('submit')">
-      <UFormField
-        name="q"
-        label="Keywords"
-        description="Matches make, model, description, and features. Multiple words narrow results."
-      >
-        <UInput v-model="filters.q" class="w-full" placeholder="Sea Ray, diesel, flybridge…" />
-      </UFormField>
-
-      <div class="grid gap-4 md:grid-cols-2">
-        <UFormField name="make" label="Make" description="Builder or brand name">
+    <div class="grid gap-3 md:grid-cols-2">
+      <div class="brand-surface-soft rounded-[1.35rem] p-4">
+        <UFormField name="make" label="Make" :description="makeField.helperText">
           <UInput
-            v-model="filters.make"
+            :model-value="filters.make"
             class="w-full"
-            placeholder="Grady-White, Boston Whaler, Sea Ray"
+            type="search"
+            icon="i-lucide-anchor"
+            enterkeyhint="next"
+            placeholder="Grady-White, Boston Whaler"
+            @update:model-value="setTextFilter('make', $event)"
           />
         </UFormField>
+      </div>
 
-        <UFormField name="location" label="Location" description="State, city, or region">
-          <UInput v-model="filters.location" class="w-full" placeholder="FL, Miami, Gulf Coast" />
-        </UFormField>
-
-        <UFormField name="minPrice" label="Minimum price" description="Lowest asking price">
+      <div class="brand-surface-soft rounded-[1.35rem] p-4">
+        <UFormField name="location" label="Location" :description="locationField.helperText">
           <UInput
-            v-model="filters.minPrice"
+            :model-value="filters.location"
+            class="w-full"
+            type="search"
+            icon="i-lucide-map-pin"
+            enterkeyhint="search"
+            placeholder="FL, Miami, Gulf Coast"
+            @update:model-value="setTextFilter('location', $event)"
+          />
+        </UFormField>
+      </div>
+
+      <div class="brand-surface-soft rounded-[1.35rem] p-4">
+        <UFormField name="minPrice" label="Min price">
+          <UInput
+            :model-value="filters.minPrice"
             class="w-full"
             type="number"
             inputmode="numeric"
+            min="0"
+            step="1"
+            icon="i-lucide-dollar-sign"
             placeholder="25000"
+            @update:model-value="setTextFilter('minPrice', $event)"
           />
         </UFormField>
+      </div>
 
-        <UFormField name="maxPrice" label="Maximum price" description="Highest asking price">
+      <div class="brand-surface-soft rounded-[1.35rem] p-4">
+        <UFormField name="maxPrice" label="Max price">
           <UInput
-            v-model="filters.maxPrice"
+            :model-value="filters.maxPrice"
             class="w-full"
             type="number"
             inputmode="numeric"
+            min="0"
+            step="1"
+            icon="i-lucide-dollar-sign"
             placeholder="100000"
+            @update:model-value="setTextFilter('maxPrice', $event)"
           />
         </UFormField>
+      </div>
 
-        <UFormField
-          name="minLength"
-          label="Minimum length (ft)"
-          description="Smallest hull to include"
-        >
+      <div class="brand-surface-soft rounded-[1.35rem] p-4">
+        <UFormField name="minLength" label="Min length (ft)">
           <UInput
-            v-model="filters.minLength"
+            :model-value="filters.minLength"
             class="w-full"
             type="number"
             inputmode="numeric"
+            min="0"
+            step="1"
+            icon="i-lucide-ruler"
             placeholder="20"
+            @update:model-value="setTextFilter('minLength', $event)"
           />
         </UFormField>
+      </div>
 
-        <UFormField
-          name="maxLength"
-          label="Maximum length (ft)"
-          description="Largest hull to include"
-        >
+      <div class="brand-surface-soft rounded-[1.35rem] p-4">
+        <UFormField name="maxLength" label="Max length (ft)">
           <UInput
-            v-model="filters.maxLength"
+            :model-value="filters.maxLength"
             class="w-full"
             type="number"
             inputmode="numeric"
+            min="0"
+            step="1"
+            icon="i-lucide-ruler"
             placeholder="42"
+            @update:model-value="setTextFilter('maxLength', $event)"
           />
         </UFormField>
       </div>
-
-      <div
-        class="sticky bottom-0 z-10 -mx-5 border-t border-default bg-default/95 px-5 pb-[calc(0.5rem+env(safe-area-inset-bottom))] pt-4 backdrop-blur-sm sm:-mx-6 sm:px-6"
-      >
-        <div class="flex flex-col gap-3 sm:flex-row">
-          <UButton
-            type="submit"
-            :label="applyLabel"
-            icon="i-lucide-search"
-            :loading="props.loading"
-            class="brand-button-shadow w-full justify-center sm:w-auto"
-          />
-          <UButton
-            type="button"
-            label="Reset all"
-            icon="i-lucide-rotate-ccw"
-            color="neutral"
-            variant="soft"
-            :disabled="!canClear"
-            class="w-full justify-center sm:w-auto"
-            @click="emit('clear')"
-          />
-        </div>
-      </div>
-    </UForm>
-  </UCard>
+    </div>
+  </div>
 </template>

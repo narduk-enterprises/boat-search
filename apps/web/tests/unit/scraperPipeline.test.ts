@@ -3,6 +3,7 @@ import {
   createEmptyScraperPipelineDraft,
   isYachtWorldDetailBackfillUrl,
   multilineToList,
+  scraperBrowserRunDetailArtifactSchema,
   scraperBrowserRunListingAuditSchema,
   scraperBrowserRunRecordSchema,
   scraperPipelineDraftSchema,
@@ -220,5 +221,53 @@ describe('scraper pipeline draft schema', () => {
     expect(parsed.detailStatus).toBe('retry_queued')
     expect(parsed.retryQueued).toBe(true)
     expect(parsed.auditJson.pageUrl).toBe('https://www.yachtworld.com/boats-for-sale/page-3/')
+  })
+
+  it('accepts serialized detail artifacts captured during browser runs', () => {
+    const parsed = scraperBrowserRunDetailArtifactSchema.parse({
+      capturedAt: '2026-03-31T12:34:56.000Z',
+      pages: [
+        {
+          role: 'detail',
+          html: '<!doctype html><html><body><main>Listing detail</main></body></html>',
+          analysis: {
+            pageType: 'detail',
+            pageState: 'ok',
+            stateMessage: null,
+            siteName: 'YachtWorld',
+            pageUrl: 'https://www.yachtworld.com/yacht/2021-pathfinder-2500-hybrid-10019034/',
+            itemSelector: '',
+            nextPageSelector: '',
+            sampleDetailUrl: null,
+            fields: [],
+            warnings: [],
+            stats: {
+              detailLinkCount: 0,
+              listingCardCount: 0,
+              distinctImageCount: 6,
+            },
+          },
+          page: {
+            url: 'https://www.yachtworld.com/yacht/2021-pathfinder-2500-hybrid-10019034/',
+            title: '2021 Pathfinder 2500 Hybrid',
+            readyState: 'complete',
+            viewport: {
+              width: 1600,
+              height: 1200,
+              scrollX: 0,
+              scrollY: 0,
+              scrollWidth: 1600,
+              scrollHeight: 2400,
+              clientWidth: 1600,
+              clientHeight: 1200,
+            },
+          },
+        },
+      ],
+    })
+
+    expect(parsed.pages).toHaveLength(1)
+    expect(parsed.pages[0]?.role).toBe('detail')
+    expect(parsed.pages[0]?.analysis.stats.distinctImageCount).toBe(6)
   })
 })

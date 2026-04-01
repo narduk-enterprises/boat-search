@@ -3,10 +3,15 @@ import type { ScraperBrowserRunRecord, ScraperPipelineDraft } from '../../lib/sc
 
 const upsertBoatSourceListing = vi.fn()
 const rebuildBoatDedupeState = vi.fn()
+const uploadToR2 = vi.fn()
 
 vi.mock('#server/utils/boatDedupe', () => ({
   rebuildBoatDedupeState,
   upsertBoatSourceListing,
+}))
+
+vi.mock('#layer/server/utils/r2', () => ({
+  uploadToR2,
 }))
 
 let persistScraperBrowserRecord: typeof import('../../server/utils/scraperPipelineEngine').persistScraperBrowserRecord
@@ -28,6 +33,7 @@ function createDraft(): ScraperPipelineDraft {
       maxPages: 1,
       maxItemsPerRun: 50,
       fetchDetailPages: true,
+      detailBackfillMode: false,
       fields: [],
     },
   }
@@ -120,7 +126,9 @@ describe('persistScraperBrowserRecord', () => {
   beforeEach(() => {
     upsertBoatSourceListing.mockReset()
     rebuildBoatDedupeState.mockReset()
+    uploadToR2.mockReset()
     upsertBoatSourceListing.mockResolvedValue({ boatId: 101, inserted: 1, updated: 0 })
+    uploadToR2.mockResolvedValue('artifacts/detail-pages/yachtworld/listing-10019034-latest.json')
   })
 
   it('stores raw image urls in both images fields and reports zero uploads', async () => {
@@ -166,5 +174,90 @@ describe('persistScraperBrowserRecord', () => {
       'https://images.yachtworld.com/example-1.jpg',
       'https://images.yachtworld.com/example-2.jpg',
     ])
+  })
+
+  it('stores the combined detail artifact in R2 under versioned and latest keys', async () => {
+    const event = {
+      context: {
+        cloudflare: {
+          env: {
+            BUCKET: {},
+          },
+        },
+      },
+    } as never
+
+    const result = await persistScraperBrowserRecord(event, {
+      draft: createDraft(),
+      record: createBrowserRecord(),
+      detailArtifact: {
+        capturedAt: '2026-03-31T18:45:12.000Z',
+        pages: [
+          {
+            role: 'detail',
+            html: '<!doctype html><html><body><main>Detail</main></body></html>',
+            analysis: {
+              pageType: 'detail',
+              pageState: 'ok',
+              stateMessage: null,
+              siteName: 'YachtWorld',
+              pageUrl: 'https://www.yachtworld.com/yacht/2021-pathfinder-2500-hybrid-10019034/',
+              itemSelector: '',
+              nextPageSelector: '',
+              sampleDetailUrl: null,
+              fields: [],
+              warnings: [],
+              stats: {
+                detailLinkCount: 0,
+                listingCardCount: 0,
+                distinctImageCount: 4,
+              },
+            },
+            page: {
+              url: 'https://www.yachtworld.com/yacht/2021-pathfinder-2500-hybrid-10019034/',
+              title: '2021 Pathfinder 2500 Hybrid',
+              readyState: 'complete',
+              viewport: {
+                width: 1600,
+                height: 1200,
+                scrollX: 0,
+                scrollY: 0,
+                scrollWidth: 1600,
+                scrollHeight: 2400,
+                clientWidth: 1600,
+                clientHeight: 1200,
+              },
+            },
+          },
+        ],
+      },
+    })
+
+    expect(uploadToR2).toHaveBeenCalledTimes(2)
+    expect(uploadToR2).toHaveBeenNthCalledWith(
+      1,
+      event,
+      expect.stringMatching(
+        /^artifacts\/detail-pages\/yachtworld\/listing-10019034-[a-f0-9]{12}\/20260331T184512000Z\.json$/,
+      ),
+      expect.stringContaining('"listingId":"10019034"'),
+      'application/json;charset=utf-8',
+    )
+    expect(uploadToR2).toHaveBeenNthCalledWith(
+      2,
+      event,
+      expect.stringMatching(
+        /^artifacts\/detail-pages\/yachtworld\/listing-10019034-[a-f0-9]{12}\/latest\.json$/,
+      ),
+      expect.stringContaining('"role":"detail"'),
+      'application/json;charset=utf-8',
+    )
+    expect(result.detailArtifact).toEqual(
+      expect.objectContaining({
+        pageCount: 1,
+        latestKey: expect.stringMatching(/\/latest\.json$/),
+        versionKey: expect.stringMatching(/20260331T184512000Z\.json$/),
+      }),
+    )
   })
 })

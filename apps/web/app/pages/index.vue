@@ -13,6 +13,8 @@ useWebPageSchema({
   name: 'Boat Search',
   description: 'Simple launch page for live boat inventory and AI-guided suggestions.',
 })
+
+const { label: aiEntryLabel, to: aiEntryTo } = useAiBoatFinderEntry()
 </script>
 
 <template>
@@ -48,8 +50,8 @@ useWebPageSchema({
               class="min-h-18 w-full justify-center whitespace-normal rounded-[1.4rem] px-6 py-5 text-base font-semibold sm:text-lg"
             />
             <UButton
-              to="/account/profile"
-              label="AI Boat Profiles"
+              :to="aiEntryTo"
+              :label="aiEntryLabel"
               color="neutral"
               variant="ghost"
               icon="i-lucide-sparkles"

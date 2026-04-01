@@ -51,20 +51,28 @@ const statusLabel = computed(() => {
       <header class="step-card__header">
         <div class="step-card__copy">
           <div class="step-card__meta">
-            <p class="step-card__eyebrow">Step {{ props.step }}</p>
+            <p class="step-card__eyebrow">
+              Step {{ props.step }}
+            </p>
             <span class="step-card__status">{{ statusLabel }}</span>
           </div>
           <h2>{{ props.title }}</h2>
           <p class="step-card__subtitle">
             {{ props.subtitle }}
           </p>
-          <p v-if="props.note" class="step-card__note">
+          <p
+            v-if="props.note"
+            class="step-card__note"
+          >
             {{ props.note }}
           </p>
         </div>
 
         <div class="step-card__aside">
-          <div v-if="props.open" class="step-card__actions">
+          <div
+            v-if="props.open"
+            class="step-card__actions"
+          >
             <slot name="actions" />
           </div>
 
@@ -75,12 +83,15 @@ const statusLabel = computed(() => {
             :aria-expanded="props.open"
             @click="emit('toggle')"
           >
-            {{ props.open ? 'Keep open' : 'Open step' }}
+            {{ props.open ? 'Collapse step' : 'Open step' }}
           </button>
         </div>
       </header>
 
-      <div v-if="props.open" class="step-card__body">
+      <div
+        v-if="props.open"
+        class="step-card__body"
+      >
         <slot />
       </div>
     </div>
@@ -92,7 +103,7 @@ const statusLabel = computed(() => {
   display: grid;
   grid-template-columns: auto 1fr;
   gap: 0.85rem;
-  padding: 0.95rem;
+  padding: 0.85rem;
   border-radius: 1.1rem;
   border: 1px solid rgba(148, 163, 184, 0.24);
   background: rgba(255, 255, 255, 0.94);
@@ -117,13 +128,13 @@ const statusLabel = computed(() => {
 
 .step-card__content {
   display: grid;
-  gap: 0.8rem;
+  gap: 0.7rem;
 }
 
 .step-card__header {
   display: flex;
   justify-content: space-between;
-  gap: 0.9rem;
+  gap: 0.8rem;
   align-items: flex-start;
 }
 
@@ -169,9 +180,9 @@ const statusLabel = computed(() => {
 
 .step-card__aside {
   display: grid;
-  gap: 0.55rem;
+  gap: 0.45rem;
   justify-items: end;
-  min-width: min(14rem, 100%);
+  min-width: min(13rem, 100%);
 }
 
 .step-card__status {
@@ -201,13 +212,13 @@ const statusLabel = computed(() => {
   background: white;
   color: #0f172a;
   font-weight: 600;
-  padding: 0.55rem 0.9rem;
+  padding: 0.5rem 0.85rem;
   cursor: pointer;
 }
 
 .step-card__body {
   display: grid;
-  gap: 0.8rem;
+  gap: 0.75rem;
 }
 
 .step-card--complete {

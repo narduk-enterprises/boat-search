@@ -338,6 +338,52 @@ const scraperJsonValueSchema: z.ZodType<JsonValue> = z.lazy(() =>
   ]),
 )
 
+const scraperFixtureCaptureViewportSchema = z.object({
+  width: z.number().int().min(0),
+  height: z.number().int().min(0),
+  scrollX: z.number().int().min(0),
+  scrollY: z.number().int().min(0),
+  scrollWidth: z.number().int().min(0),
+  scrollHeight: z.number().int().min(0),
+  clientWidth: z.number().int().min(0),
+  clientHeight: z.number().int().min(0),
+})
+
+const scraperArtifactAnalysisSchema = z.object({
+  pageType: z.enum(['search', 'detail', 'unknown']),
+  pageState: z.enum(['ok', 'challenge', 'no_results', 'parser_changed']),
+  stateMessage: scraperNullableStringField,
+  siteName: z.string().trim().min(1),
+  pageUrl: z.string().url(),
+  itemSelector: z.string().default(''),
+  nextPageSelector: z.string().default(''),
+  sampleDetailUrl: z.string().url().nullable().optional().default(null),
+  fields: z.array(scraperFieldSchema).default([]),
+  warnings: z.array(z.string()).default([]),
+  stats: z.object({
+    detailLinkCount: z.number().int().min(0),
+    listingCardCount: z.number().int().min(0),
+    distinctImageCount: z.number().int().min(0),
+  }),
+})
+
+export const scraperBrowserRunDetailArtifactPageSchema = z.object({
+  role: z.enum(['detail', 'detail-follow']),
+  html: z.string().min(1),
+  analysis: scraperArtifactAnalysisSchema,
+  page: z.object({
+    url: z.string().url(),
+    title: z.string(),
+    readyState: z.string(),
+    viewport: scraperFixtureCaptureViewportSchema,
+  }),
+})
+
+export const scraperBrowserRunDetailArtifactSchema = z.object({
+  capturedAt: z.string().trim().min(1),
+  pages: z.array(scraperBrowserRunDetailArtifactPageSchema).min(1).max(2),
+})
+
 export const scraperBrowserRunListingAuditSchema = z.object({
   runId: z.number().int().positive(),
   identityKey: z.string().trim().min(1).max(500),
@@ -374,6 +420,7 @@ export const scraperPipelineStreamRecordSchema = z.object({
   draft: scraperPipelineDraftSchema,
   listing: scraperBrowserRunListingAuditSchema,
   record: scraperBrowserRunRecordSchema,
+  detailArtifact: scraperBrowserRunDetailArtifactSchema.optional(),
 })
 
 export const scraperPipelineStreamListingSchema = z.object({
@@ -429,6 +476,7 @@ export type ScraperBrowserRunRecord = z.infer<typeof scraperBrowserRunRecordSche
 export type ScraperBrowserRunSummary = z.infer<typeof scraperBrowserRunSummarySchema>
 export type ScraperBrowserRunProgress = z.infer<typeof scraperBrowserRunProgressSchema>
 export type ScraperBrowserRunListingAudit = z.infer<typeof scraperBrowserRunListingAuditSchema>
+export type ScraperBrowserRunDetailArtifact = z.infer<typeof scraperBrowserRunDetailArtifactSchema>
 export type ScraperPipelineStreamStart = z.infer<typeof scraperPipelineStreamStartSchema>
 export type ScraperPipelineStreamRecord = z.infer<typeof scraperPipelineStreamRecordSchema>
 export type ScraperPipelineStreamListing = z.infer<typeof scraperPipelineStreamListingSchema>

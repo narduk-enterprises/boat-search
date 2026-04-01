@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { resolveSafeAuthRedirect } from '~~/app/utils/authRedirect'
+
 useSeo({
   title: 'Sign In',
   description: 'Sign in before starting the AI-first fishing boat finder.',
@@ -15,11 +17,7 @@ useWebPageSchema({
 definePageMeta({ middleware: ['guest'] })
 
 const route = useRoute()
-const redirectPath = computed(() => {
-  const r = route.query.redirect
-  if (typeof r !== 'string' || !r.startsWith('/') || r.startsWith('//')) return '/account/profile'
-  return r
-})
+const redirectPath = computed(() => resolveSafeAuthRedirect(route.query.redirect, '/account/profile'))
 </script>
 
 <template>

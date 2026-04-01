@@ -271,6 +271,54 @@ describe('extension DOM analyzer', () => {
     expect(result.record.images).toContain('https://images.yachtworld.com/detail/viking-52-6.jpg')
   })
 
+  it('prefers full-size gallery links over thumbnail image sources on follow pages', () => {
+    const html = `<!doctype html>
+      <html>
+        <body>
+          <main class="style-module_verticalImageGallery__aQsAd">
+            <a href="https://images.yachtworld.com/detail/viking-52-7.jpg">
+              <img
+                src="https://images.yachtworld.com/resize/viking-52-7.jpg?w=320"
+                srcset="https://images.yachtworld.com/resize/viking-52-7.jpg?w=640 640w, https://images.yachtworld.com/resize/viking-52-7.jpg?w=1024 1024w"
+                width="320"
+                height="180"
+                alt="Tower profile"
+              >
+            </a>
+            <a href="https://images.yachtworld.com/detail/viking-52-8.jpg">
+              <img
+                src="https://images.yachtworld.com/resize/viking-52-8.jpg?w=320"
+                width="320"
+                height="180"
+                alt="Cockpit tackle center"
+              >
+            </a>
+          </main>
+        </body>
+      </html>`
+    const document = createDocument(
+      html,
+      'https://www.yachtworld.com/yacht/viking-52-convertible-1234567/photos/',
+    )
+
+    const draft = buildPresetDraft('yachtworld-search', {
+      pageUrl:
+        'https://www.yachtworld.com/boats-for-sale/type-power/class-power-saltwater-fishing/',
+      analysis: null,
+    })
+
+    const result = extractDetailPageDocument(document, document.location.href, {
+      draft,
+      presetId: 'yachtworld-search',
+      scope: 'detail-follow',
+    })
+
+    expect(result.record.images).toEqual([
+      'https://images.yachtworld.com/detail/viking-52-7.jpg',
+      'https://images.yachtworld.com/detail/viking-52-8.jpg',
+    ])
+  })
+
   it('captures serialized page HTML, metadata, and a fresh analysis snapshot', () => {
     const html = readFixture('tests', 'fixtures', 'yachtworld', 'detail-ok.html')
     const document = createDocument(
