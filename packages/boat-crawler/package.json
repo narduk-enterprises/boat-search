@@ -4,6 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "build": "echo 'No build step required for boat-crawler'",
     "crawl:test": "node scripts/crawl-test.mjs",
     "crawl:test:doppler": "doppler run --project narduk-nuxt-template --config prd -- node scripts/crawl-test.mjs",
     "capture:console": "node scripts/capture-console-fixture.mjs",

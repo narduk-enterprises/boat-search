@@ -24,6 +24,7 @@
     "clean": "find . -type d \\( -name node_modules -o -name .nuxt -o -name .output -o -name .nitro -o -name .wrangler -o -name .turbo -o -name .data -o -name dist \\) -not -path './.git/*' -prune -exec rm -rf {} +",
     "clean:install": "pnpm run clean && pnpm install && pnpm --filter web run db:ready",
     "db:migrate": "pnpm --filter web run db:migrate",
+    "crawler:build": "pnpm --filter boat-crawler run build",
     "crawler:setup": "pnpm --filter boat-crawler run setup:db",
     "crawler:texas": "pnpm --filter boat-crawler run crawl:texas",
     "crawler:yachtworld": "pnpm --filter boat-crawler run crawl:yachtworld",
