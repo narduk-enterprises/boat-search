@@ -30,6 +30,7 @@ import {
 } from '~~/lib/scraperPipeline'
 import { isAppHostedBoatImageUrl } from '~~/lib/boatImageRefs'
 import { buildBoatDetailArtifactKeys } from '~~/lib/scraperArtifacts'
+import { extractBoatDataFromHtml } from '~~/lib/reduxExtractor'
 import { cleanBoatDescription } from '#server/utils/boatInventory'
 import { rebuildBoatDedupeState, upsertBoatSourceListing } from '#server/utils/boatDedupe'
 import { useAppDatabase } from '#server/utils/database'
@@ -727,7 +728,17 @@ async function executeScraperPipeline(draftInput: ScraperPipelineDraft) {
   }
 }
 
-function toBoatInsertValues(candidate: ExtractedBoatCandidate, now: string) {
+function toBoatInsertValues(candidate: ExtractedBoatCandidate & {
+  hin?: string | null
+  boatClass?: string | null
+  condition?: string | null
+  geoLat?: number | null
+  geoLng?: number | null
+  geoProvider?: string | null
+  geoPrecision?: string | null
+  geoStatus?: string | null
+  geoUpdatedAt?: string | null
+}, now: string) {
   return {
     listingId: candidate.listingId,
     source: candidate.source,
@@ -744,6 +755,9 @@ function toBoatInsertValues(candidate: ExtractedBoatCandidate, now: string) {
     country: candidate.country || 'US',
     description: candidate.description,
     ...pickExtraRecordTextFields(candidate),
+    hin: candidate.hin ?? null,
+    boatClass: candidate.boatClass ?? null,
+    condition: candidate.condition ?? null,
     sellerType: candidate.sellerType,
     listingType: candidate.listingType,
     images: candidate.images.length ? JSON.stringify(candidate.images) : null,
@@ -756,6 +770,16 @@ function toBoatInsertValues(candidate: ExtractedBoatCandidate, now: string) {
     searchType: null,
     searchLocation: null,
     needsRescrape: 0,
+    ...(candidate.geoLat != null && candidate.geoLng != null
+      ? {
+          geoLat: candidate.geoLat,
+          geoLng: candidate.geoLng,
+          geoProvider: candidate.geoProvider ?? 'yachtworld-redux',
+          geoPrecision: candidate.geoPrecision ?? 'listing',
+          geoStatus: candidate.geoStatus ?? 'ok',
+          geoUpdatedAt: candidate.geoUpdatedAt ?? now,
+        }
+      : {}),
   }
 }
 
@@ -1167,6 +1191,109 @@ export async function getCrawlJobAuditDetail(
   }
 }
 
+/**
+ * Extracts structured data from a detail artifact's HTML via __REDUX_STATE__
+ * and merges richer values into the candidate before D1 upsert.
+ */
+function enrichCandidateFromRedux(
+  candidate: ExtractedBoatCandidate & {
+    hin?: string | null
+    boatClass?: string | null
+    condition?: string | null
+    geoLat?: number | null
+    geoLng?: number | null
+    geoProvider?: string | null
+    geoPrecision?: string | null
+    geoStatus?: string | null
+    geoUpdatedAt?: string | null
+  },
+  detailArtifact: ScraperBrowserRunDetailArtifact | undefined,
+) {
+  if (!detailArtifact?.pages.length) return
+
+  const detailPage = detailArtifact.pages.find((p) => p.role === 'detail')
+  const html = detailPage?.html
+  if (!html) return
+
+  const extracted = extractBoatDataFromHtml(html)
+  if (!extracted) return
+
+  // Helper to overwrite if Redux value is richer (longer)
+  function overwriteIfRicher<K extends string>(
+    obj: Record<string, unknown>,
+    key: K,
+    newVal: string | null | undefined,
+  ) {
+    if (!newVal) return
+    const existing = obj[key]
+    if (existing == null || existing === '' || String(newVal).length > String(existing).length) {
+      ;(obj as Record<string, unknown>)[key] = newVal
+    }
+  }
+
+  // Always-set: new columns
+  if (extracted.hin) candidate.hin = extracted.hin
+  if (extracted.boatClass) candidate.boatClass = extracted.boatClass
+  if (extracted.condition) candidate.condition = extracted.condition
+
+  // Geo coordinates — always prefer Redux (YachtWorld's own listing data)
+  if (extracted.geoLat != null && extracted.geoLng != null) {
+    candidate.geoLat = extracted.geoLat
+    candidate.geoLng = extracted.geoLng
+    candidate.geoProvider = 'yachtworld-redux'
+    candidate.geoPrecision = 'listing'
+    candidate.geoStatus = 'ok'
+    candidate.geoUpdatedAt = new Date().toISOString()
+  }
+
+  // Images — replace with full-resolution CDN URLs from Redux
+  if (extracted.images.length > 0) {
+    // Preserve old images as sourceImages for traceability
+    if (candidate.images.length > 0) {
+      candidate.sourceImages = dedupeStrings([...candidate.sourceImages, ...candidate.images])
+    }
+    candidate.images = extracted.images
+  }
+
+  // Overwrite-if-richer for text fields
+  overwriteIfRicher(candidate, 'contactName', extracted.contactName)
+  overwriteIfRicher(candidate, 'contactPhone', extracted.contactPhone)
+  overwriteIfRicher(candidate, 'contactInfo', extracted.contactInfo)
+  overwriteIfRicher(candidate, 'description', extracted.description)
+  overwriteIfRicher(candidate, 'sellerType', extracted.sellerType)
+  overwriteIfRicher(candidate, 'listingType', extracted.listingType)
+  overwriteIfRicher(candidate, 'engineMake', extracted.engineMake)
+  overwriteIfRicher(candidate, 'engineModel', extracted.engineModel)
+  overwriteIfRicher(candidate, 'engineYearDetail', extracted.engineYearDetail)
+  overwriteIfRicher(candidate, 'engineHours', extracted.engineHours)
+  overwriteIfRicher(candidate, 'engineTypeDetail', extracted.engineTypeDetail)
+  overwriteIfRicher(candidate, 'driveType', extracted.driveType)
+  overwriteIfRicher(candidate, 'fuelTypeDetail', extracted.fuelTypeDetail)
+  overwriteIfRicher(candidate, 'propellerType', extracted.propellerType)
+  overwriteIfRicher(candidate, 'propellerMaterial', extracted.propellerMaterial)
+  overwriteIfRicher(candidate, 'propulsion', extracted.propulsion)
+  overwriteIfRicher(candidate, 'hullMaterial', extracted.hullMaterial)
+  overwriteIfRicher(candidate, 'keelType', extracted.keelType)
+  overwriteIfRicher(candidate, 'cruisingSpeed', extracted.cruisingSpeed)
+  overwriteIfRicher(candidate, 'maxSpeed', extracted.maxSpeed)
+  overwriteIfRicher(candidate, 'range', extracted.range)
+  overwriteIfRicher(candidate, 'lengthOverall', extracted.lengthOverall)
+  overwriteIfRicher(candidate, 'maxBridgeClearance', extracted.maxBridgeClearance)
+  overwriteIfRicher(candidate, 'maxDraft', extracted.maxDraft)
+  overwriteIfRicher(candidate, 'beamDetail', extracted.beamDetail)
+  overwriteIfRicher(candidate, 'dryWeight', extracted.dryWeight)
+  overwriteIfRicher(candidate, 'deadriseAtTransom', extracted.deadriseAtTransom)
+  overwriteIfRicher(candidate, 'specifications', extracted.specifications)
+  overwriteIfRicher(candidate, 'freshWaterTank', extracted.freshWaterTank)
+  overwriteIfRicher(candidate, 'fuelTank', extracted.fuelTank)
+  overwriteIfRicher(candidate, 'holdingTank', extracted.holdingTank)
+  overwriteIfRicher(candidate, 'features', extracted.features)
+  overwriteIfRicher(candidate, 'otherDetails', extracted.otherDetails)
+  overwriteIfRicher(candidate, 'city', extracted.city)
+  overwriteIfRicher(candidate, 'state', extracted.state)
+  overwriteIfRicher(candidate, 'country', extracted.country)
+}
+
 export async function persistScraperBrowserRecord(
   event: H3Event,
   params: {
@@ -1175,7 +1302,17 @@ export async function persistScraperBrowserRecord(
     detailArtifact?: ScraperBrowserRunDetailArtifact
   },
 ) {
-  const candidate = fromBrowserRunRecord(params.record, params.draft.boatSource)
+  const candidate: ExtractedBoatCandidate & {
+    hin?: string | null
+    boatClass?: string | null
+    condition?: string | null
+    geoLat?: number | null
+    geoLng?: number | null
+    geoProvider?: string | null
+    geoPrecision?: string | null
+    geoStatus?: string | null
+    geoUpdatedAt?: string | null
+  } = fromBrowserRunRecord(params.record, params.draft.boatSource)
   let persistedDetailArtifact: Awaited<ReturnType<typeof persistBrowserDetailArtifact>> = null
 
   try {
@@ -1190,6 +1327,13 @@ export async function persistScraperBrowserRecord(
         ? `Could not store the detail artifact in R2: ${error.message}`
         : 'Could not store the detail artifact in R2.',
     )
+  }
+
+  // Enrich candidate with structured data from the detail page's __REDUX_STATE__
+  try {
+    enrichCandidateFromRedux(candidate, params.detailArtifact)
+  } catch {
+    // Redux extraction is best-effort — CSS-selector data is still the primary source
   }
 
   const persisted = await upsertBoatSourceListing(

@@ -596,7 +596,12 @@ function normalizeImageIdentity(url: string) {
   }
 }
 
-/** Boats Group CDN caps listing photos below this width in galleries; bump for inventory quality. */
+/**
+ * Boats Group CDN caps listing photos below this width in galleries; bump for
+ * inventory quality. Also strips the `h=` crop parameter that forces a banner
+ * aspect ratio (e.g. 1920×267) which produces blurry images when displayed at
+ * normal proportions.
+ */
 const YACHTWORLD_CDN_LISTING_MIN_WIDTH = 1920
 
 function upgradeYachtWorldCdnListingImageUrl(url: string): string {
@@ -616,13 +621,28 @@ function upgradeYachtWorldCdnListingImageUrl(url: string): string {
       return url
     }
 
+    let changed = false
+
     const current = Number(parsed.searchParams.get('w')) || 0
-    if (current >= YACHTWORLD_CDN_LISTING_MIN_WIDTH) {
-      return url
+    if (current < YACHTWORLD_CDN_LISTING_MIN_WIDTH) {
+      parsed.searchParams.set('w', String(YACHTWORLD_CDN_LISTING_MIN_WIDTH))
+      changed = true
     }
 
-    parsed.searchParams.set('w', String(YACHTWORLD_CDN_LISTING_MIN_WIDTH))
-    return parsed.toString()
+    // Remove fixed height crop that causes blurry banner-aspect images (e.g. h=267)
+    if (parsed.searchParams.has('h')) {
+      parsed.searchParams.delete('h')
+      parsed.searchParams.set('ratio', 'default')
+      changed = true
+    }
+
+    // Remove the 'exact' param that forces exact dimensions (can cause stretching)
+    if (parsed.searchParams.has('exact')) {
+      parsed.searchParams.delete('exact')
+      changed = true
+    }
+
+    return changed ? parsed.toString() : url
   } catch {
     return url
   }
