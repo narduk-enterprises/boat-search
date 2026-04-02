@@ -5,6 +5,40 @@ import {
   readPageSignal,
 } from '../page-state.mjs'
 
+/** Pagination stops when there is no next link, not at an arbitrary page count. */
+const UNLIMITED_PAGES = Number.MAX_SAFE_INTEGER
+const DEFAULT_MAX_REQUESTS_PER_CRAWL = 50_000_000
+
+function parseMaxPagesEnv(env) {
+  const raw = env.MAX_PAGES
+  if (raw === undefined || raw === '' || raw === '0') {
+    return UNLIMITED_PAGES
+  }
+  const n = parseInt(raw, 10)
+  if (!Number.isFinite(n) || n < 1) {
+    return UNLIMITED_PAGES
+  }
+  return n
+}
+
+function parseMaxRequestsPerCrawl(env, maxPages, streamCount) {
+  const raw = env.MAX_REQUESTS_PER_CRAWL
+  if (raw !== undefined && raw !== '') {
+    const n = parseInt(raw, 10)
+    if (Number.isFinite(n) && n > 0) {
+      return n
+    }
+  }
+  if (maxPages >= 1_000_000_000) {
+    return DEFAULT_MAX_REQUESTS_PER_CRAWL
+  }
+  const product = maxPages * streamCount * 3
+  if (!Number.isFinite(product) || product > DEFAULT_MAX_REQUESTS_PER_CRAWL) {
+    return DEFAULT_MAX_REQUESTS_PER_CRAWL
+  }
+  return Math.max(product, 800)
+}
+
 const BLOCK_TITLE_SUBSTRINGS = [
   'just a moment',
   'moment please',
@@ -50,14 +84,13 @@ export const yachtWorldSource = {
       'power-express',
     ]
 
+    const maxPages = parseMaxPagesEnv(env)
+
     return {
       headless: env.HEADLESS !== 'false',
-      maxPages: parseInt(env.MAX_PAGES || '100', 10),
+      maxPages,
       maxConcurrency: parseInt(env.MAX_CONCURRENCY || '2', 10),
-      maxRequestsPerCrawl: Math.max(
-        parseInt(env.MAX_PAGES || '100', 10) * searchClasses.length * 3,
-        800,
-      ),
+      maxRequestsPerCrawl: parseMaxRequestsPerCrawl(env, maxPages, searchClasses.length),
       requestHandlerTimeoutSecs: 120,
       launchArgs: [
         '--disable-blink-features=AutomationControlled',

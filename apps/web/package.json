@@ -5,6 +5,7 @@
   "version": "1.17.2",
   "scripts": {
     "build": "PLATFORM_SECRETS_ALLOW_FALLBACK=0 node ../../tools/run-with-platform-secrets.mjs --app boat-search --environment prd --profile build -- nuxt build",
+    "build:local": "PLATFORM_SECRETS_ALLOW_FALLBACK=1 node ../../tools/run-with-platform-secrets.mjs --app boat-search --environment prd --profile build -- pnpm exec nuxt build",
     "db:ready": "pnpm run db:migrate && pnpm run db:seed",
     "dev": "(doppler run -- nuxt dev || nuxt dev)",
     "quality": "echo 'Turbo dependsOn handles lint + typecheck + format:check'",

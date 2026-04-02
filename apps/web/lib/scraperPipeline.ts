@@ -24,8 +24,9 @@ export const SCRAPER_FIELD_KEYS = [
 export const SCRAPER_FIELD_SCOPES = ['item', 'detail', 'detail-follow'] as const
 export const SCRAPER_FIELD_EXTRACT_TYPES = ['text', 'attr', 'html'] as const
 export const SCRAPER_FIELD_TRANSFORMS = ['text', 'price', 'year', 'integer', 'url'] as const
-export const SCRAPER_PIPELINE_MAX_PAGES = 500
-export const SCRAPER_PIPELINE_MAX_ITEMS_PER_RUN = 2000
+/** Upper bounds for validation only — large enough for full-site listing crawls. */
+export const SCRAPER_PIPELINE_MAX_PAGES = 1_000_000
+export const SCRAPER_PIPELINE_MAX_ITEMS_PER_RUN = 1_000_000
 
 /** Detail backfill (v1): only YachtWorld listing detail URLs in `startUrls`. */
 export function isYachtWorldDetailBackfillUrl(url: string): boolean {
