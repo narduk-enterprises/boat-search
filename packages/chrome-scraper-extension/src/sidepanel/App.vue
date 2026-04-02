@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, shallowRef } from 'vue'
+import { computed, onMounted, ref, shallowRef } from 'vue'
 import WorkflowStepCard from './components/WorkflowStepCard.vue'
 import { useExtensionSession } from './composables/useExtensionSession'
 import {
@@ -28,6 +28,7 @@ const stoppingRemoteRun = computed(() => extension.stoppingRemoteRun.value)
 const verifyingConnection = computed(() => extension.verifyingConnection.value)
 const debugCopyLabel = shallowRef('Copy debug snapshot')
 const expandedCompleteStepId = shallowRef<string | null>(null)
+const showApiKey = ref(false)
 const detailTabConcurrencyOptions = Array.from(
   { length: MAX_BROWSER_DETAIL_TAB_CONCURRENCY },
   (_, index) => index + 1,
@@ -493,13 +494,24 @@ onMounted(async () => {
 
         <label class="stack">
           <span>Boat Search API key</span>
-          <input
-            :value="connection.apiKey"
-            data-testid="api-key-input"
-            type="password"
-            placeholder="nk_..."
-            @input="onApiKeyInput"
-          >
+          <div class="input-reveal">
+            <input
+              :value="connection.apiKey"
+              data-testid="api-key-input"
+              :type="showApiKey ? 'text' : 'password'"
+              placeholder="nk_..."
+              @input="onApiKeyInput"
+            >
+            <button
+              type="button"
+              class="input-reveal__toggle"
+              data-testid="toggle-api-key-visibility"
+              :title="showApiKey ? 'Hide API key' : 'Show API key'"
+              @click="showApiKey = !showApiKey"
+            >
+              {{ showApiKey ? '🙈' : '👁' }}
+            </button>
+          </div>
         </label>
       </div>
 
@@ -1136,6 +1148,38 @@ onMounted(async () => {
   gap: 0.35rem;
   font-size: 0.8rem;
   color: #334155;
+}
+
+.input-reveal {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.input-reveal input {
+  padding-right: 2.6rem;
+}
+
+.input-reveal__toggle {
+  position: absolute;
+  right: 0.35rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  padding: 0;
+  border: none;
+  border-radius: 0.55rem;
+  background: transparent;
+  color: var(--panel-muted);
+  font-size: 1rem;
+  cursor: pointer;
+  line-height: 1;
+}
+
+.input-reveal__toggle:hover {
+  background: rgba(148, 163, 184, 0.15);
 }
 
 input,
