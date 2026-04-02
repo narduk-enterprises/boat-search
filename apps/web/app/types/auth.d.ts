@@ -1,5 +1,6 @@
 declare module '#auth-utils' {
   interface User {
+    isAdmin: boolean | null
     authSessionId?: string | null
     authProvider?: string | null
     authProviders?: string[]

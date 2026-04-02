@@ -10,7 +10,7 @@ vi.mock('#server/utils/boatDedupe', () => ({
   upsertBoatSourceListing,
 }))
 
-vi.mock('#layer/server/utils/r2', () => ({
+vi.mock('@narduk-enterprises/narduk-nuxt-template-layer-uploads/server/utils/r2', () => ({
   uploadToR2,
 }))
 

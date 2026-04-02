@@ -12,6 +12,7 @@ const props = withDefaults(
 
 const config = useRuntimeConfig()
 const route = useRoute()
+const { exchangeSession } = useAuth()
 
 const status = ref<'loading' | 'error'>('loading')
 const errorMsg = ref('')
@@ -33,19 +34,11 @@ onMounted(async () => {
   }
 
   try {
-    const returnPath =
-      typeof route.path === 'string' && route.path.startsWith('/') ? route.path : '/auth/callback'
-    const exchangeUrl = new URL('/api/auth/session/exchange', window.location.origin)
-    exchangeUrl.searchParams.set('code', code)
-    exchangeUrl.searchParams.set('returnPath', returnPath)
-    if (next) {
-      exchangeUrl.searchParams.set('next', next)
-    }
-
-    window.location.replace(exchangeUrl.toString())
+    const result = await exchangeSession({ code, next })
+    await navigateTo(result.redirectTo || config.public.authRedirectPath, { replace: true })
   } catch (error) {
     status.value = 'error'
-    errorMsg.value = toUserFacingError(error, 'The callback could not be prepared for exchange.')
+    errorMsg.value = toUserFacingError(error, 'The callback could not be exchanged for a session.')
   }
 })
 

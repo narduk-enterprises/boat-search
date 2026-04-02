@@ -43,7 +43,13 @@ const authProviders =
 // https://nuxt.com/docs/api/configuration/nuxt-config
 export default defineNuxtConfig({
   // Extend the published Narduk Nuxt Layer
-  extends: ['@narduk-enterprises/narduk-nuxt-template-layer'],
+  extends: [
+    '@narduk-enterprises/narduk-nuxt-template-layer-core',
+    '@narduk-enterprises/narduk-nuxt-template-layer-auth',
+    '@narduk-enterprises/narduk-nuxt-template-layer-analytics',
+    '@narduk-enterprises/narduk-nuxt-template-layer-maps',
+    '@narduk-enterprises/narduk-nuxt-template-layer-uploads',
+  ],
 
   alias: {
     '#server/app-orm-tables': fileURLToPath(new URL(appOrmTablesEntry, import.meta.url)),
@@ -99,13 +105,13 @@ export default defineNuxtConfig({
       authConfirmPath: '/auth/confirm',
       authResetPath: '/reset-password',
       authLogoutPath: '/logout',
-      authRedirectPath: '/ai-boat-finder',
       authProviders,
       authPublicSignup: process.env.AUTH_PUBLIC_SIGNUP !== 'false',
       authRequireMfa: process.env.AUTH_REQUIRE_MFA === 'true',
       authTurnstileSiteKey: process.env.TURNSTILE_SITE_KEY || '',
       supabaseUrl,
       supabasePublishableKey,
+      authRedirectPath: '/ai-boat-finder',
       appUrl: process.env.SITE_URL || 'https://boat-search.nard.uk',
       appName: process.env.APP_NAME || 'Boat Search',
       // Analytics (client-side tracking)

@@ -9,7 +9,7 @@
     "prebuild": "node tools/check-setup.cjs",
     "build": "pnpm -r build",
     "preship": "node tools/check-setup.cjs && pnpm install --frozen-lockfile && pnpm audit --audit-level=critical && pnpm exec tsx tools/check-drift-ci.ts && pnpm exec tsx tools/check-sync-health.ts && pnpm run quality:check",
-    "ship": "PLATFORM_SECRETS_ALLOW_FALLBACK=0 pnpm exec tsx tools/ship.ts",
+    "ship": "pnpm exec tsx tools/ship.ts",
     "ship:ci": "PLATFORM_SECRETS_ALLOW_FALLBACK=0 pnpm exec tsx tools/ship.ts --ci",
     "lint": "turbo run lint",
     "typecheck": "turbo run typecheck",
