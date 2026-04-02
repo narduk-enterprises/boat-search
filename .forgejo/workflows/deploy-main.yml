@@ -29,6 +29,10 @@ jobs:
     permissions:
       contents: read
 
+    env:
+      PLATFORM_SECRETS_TOKEN: ${{ secrets.PLATFORM_SECRETS_TOKEN }}
+      PLATFORM_SECRETS_BASE_URL: https://platform.nard.uk
+
     defaults:
       run:
         working-directory: apps/web
