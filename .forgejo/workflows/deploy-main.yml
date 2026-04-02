@@ -1,155 +1,103 @@
-name: Deploy From Main
+name: Production Deploy
 
 on:
   push:
     branches:
       - main
   workflow_dispatch:
+    inputs:
+      run_migrate:
+        description: >
+          Run remote D1 migrations before deploying.
+          Set to "true" only when this deployment includes schema changes.
+        required: false
+        default: "false"
+        type: choice
+        options:
+          - "false"
+          - "true"
 
 concurrency:
-  group: deploy-${{ github.repository }}
+  group: deploy-main-${{ github.ref }}
   cancel-in-progress: true
-
-env:
-  PLATFORM_SECRETS_TOKEN: ${{ secrets.PLATFORM_SECRETS_TOKEN }}
-  PLATFORM_SECRETS_APP_NAME: boat-search
-  PLATFORM_SECRETS_ENVIRONMENT: prd
-  PLATFORM_SECRETS_PROFILE: build
-  CONTROL_PLANE_URL: https://platform.nard.uk
-  NUXT_TELEMETRY_DISABLED: 1
 
 jobs:
   deploy:
+    name: Production Deploy
     runs-on: deploy
-    timeout-minutes: 45
+
     permissions:
       contents: read
+
+    defaults:
+      run:
+        working-directory: apps/web
+
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
 
-      - name: Align repo git hooks for guardrails
-        run: git config core.hooksPath .githooks
-      - uses: pnpm/action-setup@v4
-        with:
-          package_json_file: package.json
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
 
-      - uses: actions/setup-node@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: "22"
           cache: pnpm
 
-      - name: Resolve platform secrets for deploy
-        run: |
-          set -euo pipefail
+      - name: Install Doppler CLI
+        run: curl -Ls https://cli.doppler.com/install.sh | sh
+        working-directory: .
 
-          node --input-type=module <<'NODE'
-          import { appendFile } from 'node:fs/promises'
-
-          const baseUrl = (process.env.CONTROL_PLANE_URL || '').trim()
-          const token = (process.env.PLATFORM_SECRETS_TOKEN || '').trim()
-          const appName = (process.env.PLATFORM_SECRETS_APP_NAME || '').trim()
-          const environment = (process.env.PLATFORM_SECRETS_ENVIRONMENT || '').trim()
-          const profile = (process.env.PLATFORM_SECRETS_PROFILE || '').trim()
-
-          if (!baseUrl || !token || !appName || !environment || !profile) {
-            console.error(
-              '[platform-secrets] CONTROL_PLANE_URL, PLATFORM_SECRETS_TOKEN, PLATFORM_SECRETS_APP_NAME, PLATFORM_SECRETS_ENVIRONMENT, and PLATFORM_SECRETS_PROFILE are required.',
-            )
-            process.exit(1)
-          }
-
-          const response = await fetch(`${baseUrl.replace(/\/$/, '')}/api/secrets/resolve`, {
-            method: 'POST',
-            headers: {
-              Authorization: `Bearer ${token}`,
-              Accept: 'application/json',
-              'Content-Type': 'application/json',
-              'X-Platform-Secrets-Token': token,
-              'X-Requested-With': 'XMLHttpRequest',
-            },
-            body: JSON.stringify({ appName, environment, profile }),
-          })
-
-          if (!response.ok) {
-            const body = await response.text().catch(() => '')
-            console.error(
-              `[platform-secrets] resolve failed (${response.status}) for ${appName}/${environment}/${profile}: ${body}`,
-            )
-            process.exit(1)
-          }
-
-          const payload = await response.json()
-          const values = payload?.values
-
-          if (!values || typeof values !== 'object') {
-            console.error('[platform-secrets] resolve returned an invalid payload')
-            process.exit(1)
-          }
-
-          for (const key of [
-            'CLOUDFLARE_API_TOKEN',
-            'CLOUDFLARE_ACCOUNT_ID',
-            'FORGEJO_TOKEN',
-            'OPERATION_REPORT_API_KEY',
-          ]) {
-            if (!String(values[key] ?? '').trim()) {
-              console.error(`[platform-secrets] Missing required ${key} in ${appName}/${environment}/${profile}`)
-              process.exit(1)
-            }
-          }
-
-          if (!String(values.SITE_URL ?? '').trim()) {
-            console.warn(
-              '[platform-secrets] SITE_URL is unset in platform prd/build; ship:ci will fall back to the canonical deploy URL.',
-            )
-          }
-
-          const githubEnv = process.env.GITHUB_ENV
-          if (!githubEnv) {
-            console.error('[platform-secrets] GITHUB_ENV is not available')
-            process.exit(1)
-          }
-
-          for (const [key, value] of Object.entries(values)) {
-            const text = String(value ?? '')
-            if (text.includes('\n') || text.includes('\r')) {
-              const marker = `EOF_${key}_${Date.now()}_${Math.random().toString(16).slice(2)}`
-              await appendFile(githubEnv, `${key}<<${marker}\n${text}\n${marker}\n`)
-            } else {
-              await appendFile(githubEnv, `${key}=${text}\n`)
-            }
-          }
-
-          console.log(`Using platform secrets app=${appName} environment=${environment} profile=${profile} for deploy.`)
-          NODE
-
-      - name: Report deploy start to platform
-        run: env APP_OPERATION_REPORT_STAGE=start node ./tools/report-app-operation.mjs
+      - name: Validate production env
+        run: doppler run --config prd -- node ./tools/validate-production-env.mjs
+        working-directory: .
+        env:
+          DOPPLER_TOKEN: ${{ secrets.DOPPLER_TOKEN }}
 
       - name: Repair Forgejo lockfile package source
-        run: node ./tools/repair-forgejo-lockfile.mjs
+        run: doppler run --config prd -- node ./tools/repair-forgejo-lockfile.mjs
+        working-directory: .
+        env:
+          DOPPLER_TOKEN: ${{ secrets.DOPPLER_TOKEN }}
 
       - name: Verify Forgejo package source
-        run: node ./tools/verify-forgejo-package-source.mjs
+        run: doppler run --config prd -- node ./tools/verify-forgejo-package-source.mjs
+        working-directory: .
+        env:
+          DOPPLER_TOKEN: ${{ secrets.DOPPLER_TOKEN }}
 
-      - name: Run preship checks
+      - name: Install dependencies
         run: |
           set -euo pipefail
           temp_npmrc="$(mktemp)"
           trap 'rm -f "$temp_npmrc"' EXIT
           cp .npmrc "$temp_npmrc"
-          printf '\n//code.platform.nard.uk/api/packages/narduk-enterprises/npm/:_authToken=%s\n' "$FORGEJO_TOKEN" >> "$temp_npmrc"
-          env PATH="$PATH" NPM_CONFIG_USERCONFIG="$temp_npmrc" pnpm run preship
+          doppler run --config prd -- bash -lc \
+            "printf '\n//code.platform.nard.uk/api/packages/narduk-enterprises/npm/:_authToken=%s\n' \"\$FORGEJO_TOKEN\" >> \"$temp_npmrc\""
+          doppler run --config prd -- env PATH="$PATH" NPM_CONFIG_USERCONFIG="$temp_npmrc" pnpm install --frozen-lockfile
+        working-directory: .
         env:
+          DOPPLER_TOKEN: ${{ secrets.DOPPLER_TOKEN }}
           npm_config_fetch_retries: "0"
           npm_config_fetch_retry_mintimeout: "1"
           npm_config_fetch_retry_maxtimeout: "1"
 
-      - name: Deploy app from main
-        run: pnpm run ship:ci
-
-      - name: Report deploy outcome to platform
-        if: ${{ always() }}
+      - name: Build
+        run: doppler run --config prd -- pnpm run build
         env:
-          JOB_STATUS: ${{ job.status }}
-        run: env APP_OPERATION_REPORT_STAGE=outcome JOB_STATUS="${JOB_STATUS}" node ./tools/report-app-operation.mjs
+          DOPPLER_TOKEN: ${{ secrets.DOPPLER_TOKEN }}
+          NODE_OPTIONS: --max-old-space-size=3072
+
+      - name: Migrate (remote D1)
+        if: ${{ inputs.run_migrate == 'true' }}
+        run: doppler run --config prd -- node ./tools/run-remote-d1-migrate.mjs
+        env:
+          DOPPLER_TOKEN: ${{ secrets.DOPPLER_TOKEN }}
+
+      - name: Deploy
+        run: doppler run --config prd -- pnpm run deploy
+        env:
+          DOPPLER_TOKEN: ${{ secrets.DOPPLER_TOKEN }}
+          NARDUK_SHIP_ACTIVE: "1"

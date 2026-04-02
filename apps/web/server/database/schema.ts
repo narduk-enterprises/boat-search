@@ -15,9 +15,9 @@ import {
  * drizzle-kit can discover them from this workspace. Add app-specific
  * tables below the re-export.
  */
-import { users } from '@narduk-enterprises/narduk-nuxt-template-layer/server/database/schema'
+import { users } from '#layer/server/database/schema'
 
-export * from '@narduk-enterprises/narduk-nuxt-template-layer/server/database/schema'
+export * from '#layer/server/database/schema'
 export * from './auth-bridge-schema'
 
 export const boats = sqliteTable(

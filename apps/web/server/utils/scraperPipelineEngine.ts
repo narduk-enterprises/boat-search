@@ -35,7 +35,7 @@ import { rebuildBoatDedupeState, upsertBoatSourceListing } from '#server/utils/b
 import { useAppDatabase } from '#server/utils/database'
 import { crawlJobEvents, crawlJobListings, crawlJobs } from '#server/database/schema'
 import { markScraperPipelineRun } from '#server/utils/scraperPipelineStore'
-import { uploadToR2 } from '#layer/server/utils/r2'
+import { uploadToR2 } from '@narduk-enterprises/narduk-nuxt-template-layer-uploads/server/utils/r2'
 
 type SelectorContext = ReturnType<CheerioAPI>
 

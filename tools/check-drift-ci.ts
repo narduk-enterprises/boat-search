@@ -11,7 +11,6 @@ import {
   STALE_SYNC_PATHS,
   VERBATIM_SYNC_FILES,
   getCanonicalCiContent,
-  getCanonicalDeployMainContent,
   normalizeManagedContent,
 } from './sync-manifest'
 
@@ -190,10 +189,6 @@ function buildTrackedFiles(ref: string): string[] {
 function getGeneratedFileContent(relativePath: string): string | null {
   if (relativePath === '.github/workflows/ci.yml') {
     return getCanonicalCiContent()
-  }
-
-  if (relativePath === '.github/workflows/deploy-main.yml') {
-    return getCanonicalDeployMainContent()
   }
 
   return null

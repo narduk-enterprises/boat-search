@@ -2,6 +2,7 @@ import { existsSync, readFileSync, readdirSync, writeFileSync } from 'node:fs'
 import { relative, resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { runCommand } from './command'
+import { resolveRepoLayerDrizzleDirs } from './template-layer-selection'
 
 type WranglerRoute = string | { pattern?: string; custom_domain?: boolean }
 type WranglerKvBinding = { binding?: string; id?: string; preview_id?: string }
@@ -24,21 +25,10 @@ type KvNamespaceListResponse = CloudflareApiResponse<KvNamespace[]> & {
   result_info?: { total_count?: number; page?: number; per_page?: number; count?: number }
 }
 type D1Row = Record<string, unknown>
-type ResolvedShipSecrets = Record<string, string>
-type DeployProfile = 'cloudflare-web' | 'cloudflare-web-plus-backend'
-type MigrationMode = 'auto' | 'none' | 'custom'
-type ProvisionDeployConfig = {
-  deployProfile: DeployProfile
-  migrationMode: MigrationMode
-}
 
 const CF_API_BASE = 'https://api.cloudflare.com/client/v4'
 const PLACEHOLDER_KV_NAMESPACE_ID = '00000000000000000000000000000000'
 const SHIP_DOPPLER_CONFIG = 'prd'
-const DEFAULT_DEPLOY_PROFILE: DeployProfile = 'cloudflare-web'
-const DEFAULT_MIGRATION_MODE: MigrationMode = 'auto'
-const SUPPORTED_DEPLOY_PROFILES = [DEFAULT_DEPLOY_PROFILE, 'cloudflare-web-plus-backend'] as const
-const SUPPORTED_MIGRATION_MODES = [DEFAULT_MIGRATION_MODE, 'none', 'custom'] as const
 const REQUIRED_REMOTE_D1_TABLES = [
   'api_keys',
   'kv_cache',
@@ -50,27 +40,6 @@ const REQUIRED_REMOTE_D1_TABLES = [
 ] as const
 const REQUIRED_AUTH_TABLES = ['api_keys', 'sessions', 'users'] as const
 
-function shouldAllowPlatformFallback(): boolean {
-  return process.env.PLATFORM_SECRETS_ALLOW_FALLBACK !== '0'
-}
-
-function getPlatformBaseUrl(): string {
-  return (
-    process.env.PLATFORM_SECRETS_BASE_URL ||
-    process.env.CONTROL_PLANE_URL ||
-    process.env.SITE_URL ||
-    ''
-  ).trim()
-}
-
-function getPlatformSecretsToken(): string {
-  return (process.env.PLATFORM_SECRETS_TOKEN || '').trim()
-}
-
-function getTrimmedValue(value: unknown): string {
-  return typeof value === 'string' ? value.trim() : ''
-}
-
 function buildSqlStringList(values: readonly string[]): string {
   return values.map((value) => `'${value.replaceAll("'", "''")}'`).join(', ')
 }
@@ -81,18 +50,14 @@ function getWranglerD1DatabaseName(wrangler: WranglerConfig): string | null {
   return preferred?.database_name?.trim() || databases[0]?.database_name?.trim() || null
 }
 
-function resolveLayerDrizzleDir(appDir: string): string {
+function resolveLayerDrizzleDirs(appDir: string): string[] {
   const repoRoot = getRepoRoot(appDir)
-  const candidates = [
-    resolve(appDir, 'node_modules', '@narduk-enterprises', 'narduk-nuxt-template-layer', 'drizzle'),
-    resolve(repoRoot, 'layers', 'narduk-nuxt-layer', 'drizzle'),
-  ]
-
-  for (const candidate of candidates) {
-    if (existsSync(candidate)) return candidate
+  const resolved = resolveRepoLayerDrizzleDirs(repoRoot)
+  if (resolved.length > 0) {
+    return resolved
   }
 
-  throw new Error(`Unable to resolve layer drizzle directory for ${appDir}.`)
+  throw new Error(`Unable to resolve any layer drizzle directories for ${appDir}.`)
 }
 
 export function getLayerMigrationIds(drizzleDir: string): string[] {
@@ -112,39 +77,27 @@ function parseD1Rows(raw: string): D1Row[] {
   return result.results
 }
 
-function queryRemoteD1Rows(
-  appDir: string,
-  databaseName: string,
-  sql: string,
-  commandEnv?: NodeJS.ProcessEnv,
-): D1Row[] {
-  const raw = commandEnv
-    ? getOutput(
-        'pnpm',
-        ['exec', 'wrangler', 'd1', 'execute', databaseName, '--remote', '--json', '--command', sql],
-        appDir,
-        commandEnv,
-      )
-    : getOutput(
-        'doppler',
-        [
-          'run',
-          '--config',
-          SHIP_DOPPLER_CONFIG,
-          '--',
-          'pnpm',
-          'exec',
-          'wrangler',
-          'd1',
-          'execute',
-          databaseName,
-          '--remote',
-          '--json',
-          '--command',
-          sql,
-        ],
-        appDir,
-      )
+function queryRemoteD1Rows(appDir: string, databaseName: string, sql: string): D1Row[] {
+  const raw = getOutput(
+    'doppler',
+    [
+      'run',
+      '--config',
+      SHIP_DOPPLER_CONFIG,
+      '--',
+      'pnpm',
+      'exec',
+      'wrangler',
+      'd1',
+      'execute',
+      databaseName,
+      '--remote',
+      '--json',
+      '--command',
+      sql,
+    ],
+    appDir,
+  )
 
   return parseD1Rows(raw)
 }
@@ -249,164 +202,16 @@ function normalizeShipMigrateCommand(tokens: string[]): string[] {
   return ['pnpm', 'exec', ...commandTokens]
 }
 
-function getOutput(
-  command: string,
-  args: string[] = [],
-  cwd = process.cwd(),
-  env: NodeJS.ProcessEnv | undefined = undefined,
-): string {
+function getOutput(command: string, args: string[] = [], cwd = process.cwd()): string {
   return runCommand(command, args, {
     cwd,
     encoding: 'utf-8',
     stdio: ['ignore', 'pipe', 'pipe'],
-    env,
   }).trim()
 }
 
 function getRepoRoot(appDir: string): string {
   return resolve(appDir, '..', '..')
-}
-
-function readJsonFileIfExists<T>(targetPath: string): T | null {
-  if (!existsSync(targetPath)) return null
-  return JSON.parse(readFileSync(targetPath, 'utf8')) as T
-}
-
-function readPackageJson(cwd: string): Record<string, any> | null {
-  return readJsonFileIfExists<Record<string, any>>(resolve(cwd, 'package.json'))
-}
-
-function resolveShipAppName(appDir: string): string {
-  const repoRoot = getRepoRoot(appDir)
-  const packageJson = readPackageJson(repoRoot)
-  const packageName = getTrimmedValue(packageJson?.name)
-  if (packageName) return packageName
-
-  return repoRoot.split('/').pop() || 'web'
-}
-
-async function resolvePlatformShipSecrets(appDir: string): Promise<ResolvedShipSecrets | null> {
-  const baseUrl = getPlatformBaseUrl()
-  const token = getPlatformSecretsToken()
-
-  if (!baseUrl || !token) {
-    if (shouldAllowPlatformFallback()) return null
-
-    throw new Error(
-      'PLATFORM_SECRETS_TOKEN plus PLATFORM_SECRETS_BASE_URL or CONTROL_PLANE_URL are required for pnpm ship.',
-    )
-  }
-
-  const response = await fetch(`${baseUrl.replace(/\/$/, '')}/api/secrets/resolve`, {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${token}`,
-      'Content-Type': 'application/json',
-      Accept: 'application/json',
-      'X-Platform-Secrets-Token': token,
-      'X-Requested-With': 'XMLHttpRequest',
-    },
-    body: JSON.stringify({
-      appName: resolveShipAppName(appDir),
-      environment: 'prd',
-      profile: 'build',
-    }),
-  })
-
-  if (!response.ok) {
-    const body = await response.text().catch(() => '')
-    throw new Error(`platform secrets resolve failed (${response.status}): ${body}`)
-  }
-
-  const payload = (await response.json()) as { values?: Record<string, unknown> }
-  const values = payload?.values
-  if (!values || typeof values !== 'object') {
-    throw new Error('platform secrets resolve returned an invalid payload')
-  }
-
-  return Object.fromEntries(
-    Object.entries(values).map(([key, value]) => [key, value == null ? '' : String(value)]),
-  )
-}
-
-function buildResolvedCommandEnv(
-  resolvedSecrets: ResolvedShipSecrets | null,
-  extraEnv?: NodeJS.ProcessEnv,
-): NodeJS.ProcessEnv | undefined {
-  if (!resolvedSecrets && !extraEnv) return undefined
-
-  return {
-    ...process.env,
-    ...(resolvedSecrets ?? {}),
-    ...(extraEnv ?? {}),
-  }
-}
-
-function getShipSecret(
-  appDir: string,
-  resolvedSecrets: ResolvedShipSecrets | null,
-  key: string,
-): string {
-  const fromResolved = getTrimmedValue(resolvedSecrets?.[key])
-  if (fromResolved) return fromResolved
-
-  const fromProcess = getTrimmedValue(process.env[key])
-  if (fromProcess) return fromProcess
-
-  return getDopplerSecret(appDir, key)
-}
-
-function resolveProvisionDeployConfig(repoRoot: string): ProvisionDeployConfig {
-  const provision = readJsonFileIfExists<Record<string, unknown>>(
-    resolve(repoRoot, 'provision.json'),
-  )
-  const deployProfile = provision?.deployProfile
-  const migrationMode = provision?.migrationMode
-
-  if (
-    deployProfile != null &&
-    !SUPPORTED_DEPLOY_PROFILES.includes(deployProfile as DeployProfile)
-  ) {
-    throw new Error(
-      `Unsupported deployProfile "${String(deployProfile)}" in provision.json. Expected one of ${SUPPORTED_DEPLOY_PROFILES.join(', ')}.`,
-    )
-  }
-
-  if (
-    migrationMode != null &&
-    !SUPPORTED_MIGRATION_MODES.includes(migrationMode as MigrationMode)
-  ) {
-    throw new Error(
-      `Unsupported migrationMode "${String(migrationMode)}" in provision.json. Expected one of ${SUPPORTED_MIGRATION_MODES.join(', ')}.`,
-    )
-  }
-
-  return {
-    deployProfile: (deployProfile as DeployProfile | undefined) ?? DEFAULT_DEPLOY_PROFILE,
-    migrationMode: (migrationMode as MigrationMode | undefined) ?? DEFAULT_MIGRATION_MODE,
-  }
-}
-
-function resolveCustomMigrationCommand(
-  repoRoot: string,
-  appDir: string,
-): {
-  command: string
-  cwd: string
-} {
-  const rootScript = readPackageJson(repoRoot)?.scripts?.['db:migrate:deploy']
-  if (typeof rootScript === 'string' && rootScript.trim()) {
-    return { command: rootScript, cwd: repoRoot }
-  }
-
-  const appScript = readPackageJson(appDir)?.scripts?.['db:migrate:deploy']
-  if (typeof appScript === 'string' && appScript.trim()) {
-    return { command: appScript, cwd: appDir }
-  }
-
-  throw new Error(
-    'migrationMode=custom requires a checked-in db:migrate:deploy script in the repo root or app package.json.',
-  )
 }
 
 function getAppWranglerPath(appDir: string): string {
@@ -570,10 +375,7 @@ function resolveKvNamespaceBaseName(appDir: string, wrangler: WranglerConfig): s
   return getRepoRoot(appDir).split('/').pop() || 'web'
 }
 
-async function ensureWranglerKvBinding(
-  appDir: string,
-  resolvedSecrets: ResolvedShipSecrets | null,
-): Promise<void> {
+async function ensureWranglerKvBinding(appDir: string): Promise<void> {
   const wranglerPath = getAppWranglerPath(appDir)
   if (!existsSync(wranglerPath)) return
 
@@ -599,10 +401,12 @@ async function ensureWranglerKvBinding(
     )
   }
 
-  const accountId = getShipSecret(appDir, resolvedSecrets, 'CLOUDFLARE_ACCOUNT_ID')
-  const apiToken = getShipSecret(appDir, resolvedSecrets, 'CLOUDFLARE_API_TOKEN')
+  const accountId = getDopplerSecret(appDir, 'CLOUDFLARE_ACCOUNT_ID')
+  const apiToken = getDopplerSecret(appDir, 'CLOUDFLARE_API_TOKEN')
   if (!accountId || !apiToken) {
-    throw new Error(`Missing CLOUDFLARE_ACCOUNT_ID or CLOUDFLARE_API_TOKEN for ${repoRoot}.`)
+    throw new Error(
+      `Missing CLOUDFLARE_ACCOUNT_ID or CLOUDFLARE_API_TOKEN in Doppler for ${repoRoot}.`,
+    )
   }
 
   const namespaceBaseName = resolveKvNamespaceBaseName(appDir, wrangler)
@@ -637,22 +441,17 @@ function getUntrackedFiles(cwd: string): string[] {
     .filter(Boolean)
 }
 
-async function verifyRemoteD1Readiness(
-  appDir: string,
-  resolvedSecrets: ResolvedShipSecrets | null,
-): Promise<void> {
+async function verifyRemoteD1Readiness(appDir: string): Promise<void> {
   const wrangler = readJsonFile<WranglerConfig>(getAppWranglerPath(appDir))
   if (!wrangler) return
 
   const databaseName = getWranglerD1DatabaseName(wrangler)
   if (!databaseName) return
-  const commandEnv = buildResolvedCommandEnv(resolvedSecrets)
 
   const existingTables = queryRemoteD1Rows(
     appDir,
     databaseName,
     `SELECT name FROM sqlite_master WHERE type='table' AND name IN (${buildSqlStringList(REQUIRED_REMOTE_D1_TABLES)}) ORDER BY name;`,
-    commandEnv,
   )
     .map((row) => (typeof row.name === 'string' ? row.name : ''))
     .filter(Boolean)
@@ -661,7 +460,6 @@ async function verifyRemoteD1Readiness(
     appDir,
     databaseName,
     'SELECT filename FROM _applied_migrations ORDER BY filename;',
-    commandEnv,
   )
     .map((row) => (typeof row.filename === 'string' ? row.filename : ''))
     .filter(Boolean)
@@ -669,7 +467,9 @@ async function verifyRemoteD1Readiness(
   const readiness = evaluateRemoteD1Readiness({
     existingTables,
     appliedMigrations,
-    requiredLayerMigrations: getLayerMigrationIds(resolveLayerDrizzleDir(appDir)),
+    requiredLayerMigrations: resolveLayerDrizzleDirs(appDir).flatMap((dir) =>
+      getLayerMigrationIds(dir),
+    ),
   })
 
   if (readiness.missingMigrations.length > 0) {
@@ -739,27 +539,28 @@ function resolveCanonicalSiteUrl(appDir: string): string | null {
   return null
 }
 
-function resolveShipEnvironment(
-  appDir: string,
-  resolvedSecrets: ResolvedShipSecrets | null,
-): NodeJS.ProcessEnv | undefined {
+function getDopplerSiteUrl(appDir: string): string {
+  return getDopplerSecret(appDir, 'SITE_URL')
+}
+
+function resolveShipEnvironment(appDir: string): NodeJS.ProcessEnv | undefined {
   const canonicalSiteUrl = resolveCanonicalSiteUrl(appDir)
-  const configuredSiteUrl = getShipSecret(appDir, resolvedSecrets, 'SITE_URL')
+  const dopplerSiteUrl = getDopplerSiteUrl(appDir)
 
   if (!canonicalSiteUrl) {
-    if (isLocalhostUrl(configuredSiteUrl)) {
+    if (isLocalhostUrl(dopplerSiteUrl)) {
       console.warn(
-        `⚠️ SITE_URL is localhost for ${appDir}, but no canonical route was found in wrangler.json.`,
+        `⚠️ Doppler SITE_URL is localhost for ${appDir}, but no canonical route was found in wrangler.json.`,
       )
     }
     return undefined
   }
 
-  if (configuredSiteUrl && !isLocalhostUrl(configuredSiteUrl)) {
+  if (dopplerSiteUrl && !isLocalhostUrl(dopplerSiteUrl)) {
     return undefined
   }
 
-  const reason = configuredSiteUrl ? `SITE_URL=${configuredSiteUrl}` : 'SITE_URL is unset'
+  const reason = dopplerSiteUrl ? `Doppler SITE_URL=${dopplerSiteUrl}` : 'Doppler SITE_URL is unset'
   console.log(`Using canonical site URL ${canonicalSiteUrl} for build/deploy because ${reason}.`)
 
   return {
@@ -772,100 +573,7 @@ function resolveShipEnvironment(
   }
 }
 
-function runConfiguredMigrations(
-  appTarget: string,
-  appDir: string,
-  repoRoot: string,
-  pkg: Record<string, any> | undefined,
-  migrationMode: MigrationMode,
-  resolvedSecrets: ResolvedShipSecrets | null,
-  commandEnv: NodeJS.ProcessEnv | undefined,
-) {
-  if (migrationMode === 'none') {
-    console.log(`\n⏭ Skipping remote migrations for ${appTarget} because migrationMode=none.`)
-    return
-  }
-
-  if (migrationMode === 'custom') {
-    const customMigration = resolveCustomMigrationCommand(repoRoot, appDir)
-    console.log(`\n🗄️ Running custom remote migrations for ${appTarget}...`)
-    const migrateArgs = normalizeShipMigrateCommand(parseMigrateCommand(customMigration.command))
-    if (resolvedSecrets) {
-      run(migrateArgs[0], migrateArgs.slice(1), customMigration.cwd, commandEnv)
-    } else {
-      run(
-        'doppler',
-        ['run', '--config', SHIP_DOPPLER_CONFIG, '--', ...migrateArgs],
-        customMigration.cwd,
-      )
-    }
-    return
-  }
-
-  const rawCommand = pkg?.scripts?.['db:migrate']
-  if (typeof rawCommand !== 'string' || !rawCommand.trim()) {
-    console.log(`\n⏭ No db:migrate script found for ${appTarget}; skipping remote migrations.`)
-    return
-  }
-
-  console.log(`\n🗄️ Running remote D1 migrations for ${appTarget}...`)
-  const migrateCmd = rawCommand.replaceAll('--local', '--remote')
-  const migrateArgs = normalizeShipMigrateCommand(parseMigrateCommand(migrateCmd))
-  if (resolvedSecrets) {
-    run(migrateArgs[0], migrateArgs.slice(1), appDir, commandEnv)
-  } else {
-    run('doppler', ['run', '--config', SHIP_DOPPLER_CONFIG, '--', ...migrateArgs], appDir)
-  }
-}
-
-function runConfiguredDeployProfile(
-  appTarget: string,
-  appDir: string,
-  repoRoot: string,
-  deployProfile: DeployProfile,
-  resolvedSecrets: ResolvedShipSecrets | null,
-  shipEnv: NodeJS.ProcessEnv | undefined,
-) {
-  const deployEnv = {
-    ...(buildResolvedCommandEnv(resolvedSecrets, shipEnv) || process.env),
-    NARDUK_SHIP_ACTIVE: '1',
-  }
-
-  if (deployProfile === 'cloudflare-web-plus-backend') {
-    const backendScript = readPackageJson(repoRoot)?.scripts?.['deploy:backend']
-    if (typeof backendScript !== 'string' || !backendScript.trim()) {
-      throw new Error(
-        'deployProfile=cloudflare-web-plus-backend requires a checked-in root deploy:backend script.',
-      )
-    }
-
-    console.log(`\n🧩 Running backend deploy hook for ${appTarget}...`)
-    if (resolvedSecrets) {
-      run('pnpm', ['run', 'deploy:backend'], repoRoot, deployEnv)
-    } else {
-      run(
-        'doppler',
-        ['run', '--config', SHIP_DOPPLER_CONFIG, '--', 'pnpm', 'run', 'deploy:backend'],
-        repoRoot,
-        deployEnv,
-      )
-    }
-  }
-
-  console.log(`\n☁️ Deploying ${appTarget} to Edge...`)
-  if (resolvedSecrets) {
-    run('pnpm', ['run', 'deploy'], appDir, deployEnv)
-  } else {
-    run(
-      'doppler',
-      ['run', '--config', SHIP_DOPPLER_CONFIG, '--', 'pnpm', 'run', 'deploy'],
-      appDir,
-      deployEnv,
-    )
-  }
-}
-
-async function shipApp(appTarget: string, options: { ci: boolean; repairOnly: boolean }) {
+async function shipApp(appTarget: string, options: { repairOnly: boolean }) {
   // Find target directory
   let appDir = resolve(process.cwd(), 'apps', appTarget)
   if (!existsSync(appDir)) {
@@ -876,9 +584,8 @@ async function shipApp(appTarget: string, options: { ci: boolean; repairOnly: bo
     }
   }
 
+  await ensureWranglerKvBinding(appDir)
   const repoRoot = getRepoRoot(appDir)
-  const resolvedSecrets = await resolvePlatformShipSecrets(appDir)
-  await ensureWranglerKvBinding(appDir, resolvedSecrets)
 
   if (options.repairOnly) {
     console.log(
@@ -888,96 +595,81 @@ async function shipApp(appTarget: string, options: { ci: boolean; repairOnly: bo
   }
 
   const pkgPath = resolve(appDir, 'package.json')
+  let hasMigrate = false
   let pkg
   if (existsSync(pkgPath)) {
     pkg = JSON.parse(readFileSync(pkgPath, 'utf8'))
-  }
-  const provisionDeployConfig = resolveProvisionDeployConfig(repoRoot)
-  const shipEnv = resolveShipEnvironment(appDir, resolvedSecrets)
-  const commandEnv = buildResolvedCommandEnv(resolvedSecrets, shipEnv)
-
-  console.log(
-    `\n🧭 Using deployProfile=${provisionDeployConfig.deployProfile} migrationMode=${provisionDeployConfig.migrationMode} for ${appTarget}.`,
-  )
-
-  if (!options.ci) {
-    const untrackedFiles = getUntrackedFiles(repoRoot)
-    try {
-      assertNoUntrackedFiles(untrackedFiles)
-    } catch (error) {
-      console.error(`\n❌ ${error instanceof Error ? error.message : String(error)}\n`)
-      process.exit(1)
+    if (pkg.scripts && pkg.scripts['db:migrate']) {
+      hasMigrate = true
     }
+  }
+  const shipEnv = resolveShipEnvironment(appDir)
+
+  const untrackedFiles = getUntrackedFiles(repoRoot)
+  try {
+    assertNoUntrackedFiles(untrackedFiles)
+  } catch (error) {
+    console.error(`\n❌ ${error instanceof Error ? error.message : String(error)}\n`)
+    process.exit(1)
   }
 
   // 1. Build Verification
   console.log(`\n🏗️ Building ${appTarget}...`)
   try {
-    if (resolvedSecrets) {
-      run('pnpm', ['run', 'build'], appDir, commandEnv)
-    } else {
-      run(
-        'doppler',
-        ['run', '--config', SHIP_DOPPLER_CONFIG, '--', 'pnpm', 'run', 'build'],
-        appDir,
-        shipEnv,
-      )
-    }
+    run(
+      'doppler',
+      ['run', '--config', SHIP_DOPPLER_CONFIG, '--', 'pnpm', 'run', 'build'],
+      appDir,
+      shipEnv,
+    )
   } catch (error) {
     console.error(`\n❌ Build failed for ${appTarget}. Aborting ship to prevent broken commit.`)
     process.exit(1)
   }
 
-  if (options.ci) {
-    console.log(`\n🤖 CI mode active. Skipping git commit, fetch, and push.`)
-  } else {
-    // 2. Git operations
-    console.log(`\n📦 Checking git status...`)
-    run('git', ['add', '-u'], appDir)
+  // 2. Git operations
+  console.log(`\n📦 Checking git status...`)
+  run('git', ['add', '-u'], appDir)
 
-    let hasChanges = false
-    try {
-      runCommand('git', ['diff', '--cached', '--quiet'], { cwd: appDir })
-    } catch (e) {
-      hasChanges = true
-    }
-
-    if (hasChanges) {
-      const date = new Date().toISOString().replace(/\.\d{3}Z$/, 'Z')
-      run('git', ['commit', '-m', `chore: ship ${date}`], appDir)
-    } else {
-      console.log('No changes to commit.')
-    }
-
-    console.log(`\n🔄 Fetching remote...`)
-    run('git', ['fetch'], appDir)
-    try {
-      runCommand('git', ['merge-base', '--is-ancestor', '@{u}', 'HEAD'], { cwd: appDir })
-    } catch (e) {
-      console.error(
-        '\n❌ Remote has changes not in local branch. Run: git pull --rebase && pnpm ship\n',
-      )
-      process.exit(1)
-    }
-
-    console.log(`\n🚀 Pushing to remote...`)
-    run('git', ['push'], appDir)
+  let hasChanges = false
+  try {
+    runCommand('git', ['diff', '--cached', '--quiet'], { cwd: appDir })
+  } catch (e) {
+    hasChanges = true
   }
 
+  if (hasChanges) {
+    const date = new Date().toISOString().replace(/\.\d{3}Z$/, 'Z')
+    run('git', ['commit', '-m', `chore: ship ${date}`], appDir)
+  } else {
+    console.log('No changes to commit.')
+  }
+
+  console.log(`\n🔄 Fetching remote...`)
+  run('git', ['fetch'], appDir)
+  try {
+    runCommand('git', ['merge-base', '--is-ancestor', '@{u}', 'HEAD'], { cwd: appDir })
+  } catch (e) {
+    console.error(
+      '\n❌ Remote has changes not in local branch. Run: git pull --rebase && pnpm ship\n',
+    )
+    process.exit(1)
+  }
+
+  console.log(`\n🚀 Pushing to remote...`)
+  run('git', ['push'], appDir)
+
   // 3. Remote Migrations
-  runConfiguredMigrations(
-    appTarget,
-    appDir,
-    repoRoot,
-    pkg,
-    provisionDeployConfig.migrationMode,
-    resolvedSecrets,
-    commandEnv,
-  )
+  if (hasMigrate && pkg) {
+    console.log(`\n🗄️ Running remote D1 migrations for ${appTarget}...`)
+    const migrateCmd = pkg.scripts['db:migrate'].replaceAll('--local', '--remote')
+    const migrateArgs = normalizeShipMigrateCommand(parseMigrateCommand(migrateCmd))
+    run('doppler', ['run', '--config', SHIP_DOPPLER_CONFIG, '--', ...migrateArgs], appDir)
+  }
 
   console.log(`\n🔍 Verifying remote D1 readiness for ${appTarget}...`)
   try {
-    await verifyRemoteD1Readiness(appDir, resolvedSecrets)
+    await verifyRemoteD1Readiness(appDir)
   } catch (error) {
     console.error(
       `\n❌ Remote D1 readiness check failed for ${appTarget}: ${error instanceof Error ? error.message : String(error)}`,
@@ -986,14 +678,14 @@ async function shipApp(appTarget: string, options: { ci: boolean; repairOnly: bo
   }
 
   // 4. Deploy
+  console.log(`\n☁️ Deploying ${appTarget} to Edge...`)
   try {
-    runConfiguredDeployProfile(
-      appTarget,
+    const deployEnv = { ...(shipEnv || process.env), NARDUK_SHIP_ACTIVE: '1' }
+    run(
+      'doppler',
+      ['run', '--config', SHIP_DOPPLER_CONFIG, '--', 'pnpm', 'run', 'deploy'],
       appDir,
-      repoRoot,
-      provisionDeployConfig.deployProfile,
-      resolvedSecrets,
-      shipEnv,
+      deployEnv,
     )
   } catch (error) {
     console.error(`\n❌ Deploy failed for ${appTarget}.`)
@@ -1009,7 +701,6 @@ async function shipApp(appTarget: string, options: { ci: boolean; repairOnly: bo
 
 async function main() {
   const args = process.argv.slice(2)
-  const ci = args.includes('--ci')
   const repairOnly = args.includes('--repair-only')
   const targetsArg = args.filter((arg) => !arg.startsWith('--'))[0] || 'web'
 
@@ -1023,7 +714,7 @@ async function main() {
     console.log(`\n======================================================`)
     console.log(`🚀 INITIATING SHIP SEQUENCE FOR: ${target}`)
     console.log(`======================================================\n`)
-    await shipApp(target, { ci, repairOnly })
+    await shipApp(target, { repairOnly })
   }
 }
 

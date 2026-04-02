@@ -1,4 +1,5 @@
 export default defineNuxtRouteMiddleware(async () => {
+  const config = useRuntimeConfig()
   const { loggedIn, fetch: refreshSession, clear } = useUserSession()
 
   try {
@@ -8,9 +9,6 @@ export default defineNuxtRouteMiddleware(async () => {
   }
 
   if (loggedIn.value) {
-    const appConfig = useAppConfig()
-    const redirectPath =
-      (appConfig as { auth?: { redirectPath?: string } }).auth?.redirectPath ?? '/ai-boat-finder'
-    return navigateTo(redirectPath, { replace: true })
+    return navigateTo(config.public.authRedirectPath, { replace: true })
   }
 })

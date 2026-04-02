@@ -1,6 +1,6 @@
 import { eq } from 'drizzle-orm'
 import type { DrizzleD1Database } from 'drizzle-orm/d1'
-import { geocodeAppleMaps } from '#layer/server/utils/appleMapToken'
+import { geocodeAppleMaps } from '@narduk-enterprises/narduk-nuxt-template-layer-maps/server/utils/appleMapToken'
 import { geocodeCache } from '~~/server/database/schema'
 import {
   BOAT_GEO_NORMALIZATION_VERSION,

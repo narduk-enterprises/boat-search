@@ -49,6 +49,14 @@ export interface ApiKeyCreateResult {
   createdAt: string
 }
 
+type EmailVerificationType =
+  | 'signup'
+  | 'invite'
+  | 'magiclink'
+  | 'recovery'
+  | 'email_change'
+  | 'email'
+
 export function useAuthApi() {
   const nuxtApp = useNuxtApp()
   const csrfFetch = (nuxtApp.$csrfFetch ?? $fetch) as typeof $fetch
@@ -98,7 +106,11 @@ export function useAuthApi() {
     })
   }
 
-  function exchangeSession(payload: { code: string; next?: string }) {
+  function exchangeSession(
+    payload:
+      | { code: string; next?: string }
+      | { tokenHash: string; verificationType: EmailVerificationType; next?: string },
+  ) {
     return csrfFetch<AuthMutationResult>('/api/auth/session/exchange', {
       method: 'POST',
       body: payload,
@@ -116,6 +128,14 @@ export function useAuthApi() {
 
   function changePassword(payload: { currentPassword?: string; newPassword: string }) {
     return csrfFetch<{ success: boolean }>('/api/auth/change-password', {
+      method: 'POST',
+      body: payload,
+      headers: csrfHeaders,
+    })
+  }
+
+  function deleteAccount(payload: { currentPassword?: string }) {
+    return csrfFetch<{ success: boolean }>('/api/auth/account/delete', {
       method: 'POST',
       body: payload,
       headers: csrfHeaders,
@@ -177,6 +197,7 @@ export function useAuthApi() {
     exchangeSession,
     updateProfile,
     changePassword,
+    deleteAccount,
     requestPasswordReset,
     enrollMfa,
     verifyMfa,
