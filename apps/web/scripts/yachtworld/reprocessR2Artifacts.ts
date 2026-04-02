@@ -39,13 +39,29 @@ const BUCKET_NAME = 'boat-search-images'
 // Helpers
 // ---------------------------------------------------------------------------
 
-function wrangler(cmd: string): string {
-  return execSync(`npx wrangler ${cmd}`, {
-    cwd: CWD,
-    encoding: 'utf-8',
-    maxBuffer: 50 * 1024 * 1024,
-    stdio: ['pipe', 'pipe', 'pipe'],
-  })
+function wrangler(cmd: string, retries = 3): string {
+  for (let attempt = 1; attempt <= retries; attempt++) {
+    try {
+      return execSync(`npx wrangler ${cmd}`, {
+        cwd: CWD,
+        encoding: 'utf-8',
+        maxBuffer: 50 * 1024 * 1024,
+        stdio: ['pipe', 'pipe', 'pipe'],
+      })
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      const isAuthError = message.includes('Authentication error') || message.includes('code: 10000')
+      if (isAuthError && attempt < retries) {
+        const delay = attempt * 2000
+        console.log(`   ⏳ Auth error on attempt ${attempt}/${retries}, retrying in ${delay}ms...`)
+        const start = Date.now()
+        while (Date.now() - start < delay) { /* busy wait */ }
+        continue
+      }
+      throw error
+    }
+  }
+  throw new Error('Exhausted retries')
 }
 
 function d1Query(sql: string): Record<string, unknown>[] {
@@ -145,12 +161,21 @@ async function main() {
     console.log(`── Batch ${batchIdx + 1}/${batches.length} (${batch.length} items) ──`)
 
     // Fetch existing boat data for this batch
-    const boatIds = batch.map((l) => l.boatId).join(',')
-    const existingBoatsSql = `
-      SELECT * FROM boats WHERE id IN (${boatIds})
-    `.replace(/\n/g, ' ').replace(/\s+/g, ' ').trim()
-    const existingBoats = d1Query(existingBoatsSql)
-    const boatMap = new Map(existingBoats.map((b) => [b.id, b]))
+    let boatMap: Map<unknown, Record<string, unknown>>
+    try {
+      const boatIds = batch.map((l) => l.boatId).join(',')
+      const existingBoatsSql = `
+        SELECT * FROM boats WHERE id IN (${boatIds})
+      `.replace(/\n/g, ' ').replace(/\s+/g, ' ').trim()
+      const existingBoats = d1Query(existingBoatsSql)
+      boatMap = new Map(existingBoats.map((b) => [b.id, b]))
+    } catch (error) {
+      console.error(`   ❌ Failed to fetch existing boats for batch ${batchIdx + 1}:`, error)
+      stats.errors += batch.length
+      stats.processed += batch.length
+      console.log(`   Batch ${batchIdx + 1} skipped. Progress: ${stats.processed}/${stats.total}\n`)
+      continue
+    }
 
     for (const listing of batch) {
       const boatId = listing.boatId as number
