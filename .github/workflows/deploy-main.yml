@@ -17,6 +17,7 @@ env:
   PLATFORM_SECRETS_PROFILE: build
   CONTROL_PLANE_URL: https://platform.nard.uk
   NUXT_TELEMETRY_DISABLED: 1
+      NODE_OPTIONS: --max-old-space-size=5120
 
 jobs:
   deploy:
