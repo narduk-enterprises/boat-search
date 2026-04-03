@@ -1,5 +1,5 @@
 {
-  "name": "boat-search",
+  "name": "boat-search-platform-cutover",
   "version": "1.17.2",
   "private": true,
   "packageManager": "pnpm@10.28.0",
@@ -9,7 +9,6 @@
     "prebuild": "node tools/check-setup.cjs",
     "build": "pnpm -r build",
     "preship": "node tools/check-setup.cjs && pnpm install --frozen-lockfile && pnpm audit --audit-level=critical && pnpm exec tsx tools/check-drift-ci.ts && pnpm exec tsx tools/check-sync-health.ts && pnpm run quality:check",
-    "ship": "pnpm exec tsx tools/ship.ts",
     "ship:ci": "PLATFORM_SECRETS_ALLOW_FALLBACK=0 pnpm exec tsx tools/ship.ts --ci",
     "lint": "turbo run lint",
     "typecheck": "turbo run typecheck",
@@ -51,7 +50,7 @@
     "generate:favicons": "pnpm exec tsx tools/generate-favicons.ts",
     "format": "prettier --write \"**/*.{ts,mts,vue,js,mjs,json,yaml,yml,css,md}\"",
     "format:check": "prettier --check \"**/*.{ts,mts,vue,js,mjs,json,yaml,yml,css,md}\"",
-    "postinstall": "node -e \"if(!require('fs').existsSync('.setup-complete'))console.log('\\n⚠️  New apps: provision via the control plane (see AGENTS.md). Generated starters get .setup-complete from provisioning.\\n')\"",
+    "postinstall": "node -e \"if(!require('fs').existsSync('.setup-complete'))console.log('\\n⚠️  New apps: provision via platform.nard.uk (see AGENTS.md). Generated starters get .setup-complete from provisioning.\\n')\"",
     "build:plugins": "pnpm --filter @narduk/eslint-config build",
     "prelint": "pnpm run build:plugins",
     "hooks:install": "node tools/install-git-hooks.cjs",

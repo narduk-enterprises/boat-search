@@ -728,17 +728,20 @@ async function executeScraperPipeline(draftInput: ScraperPipelineDraft) {
   }
 }
 
-function toBoatInsertValues(candidate: ExtractedBoatCandidate & {
-  hin?: string | null
-  boatClass?: string | null
-  condition?: string | null
-  geoLat?: number | null
-  geoLng?: number | null
-  geoProvider?: string | null
-  geoPrecision?: string | null
-  geoStatus?: string | null
-  geoUpdatedAt?: string | null
-}, now: string) {
+function toBoatInsertValues(
+  candidate: ExtractedBoatCandidate & {
+    hin?: string | null
+    boatClass?: string | null
+    condition?: string | null
+    geoLat?: number | null
+    geoLng?: number | null
+    geoProvider?: string | null
+    geoPrecision?: string | null
+    geoStatus?: string | null
+    geoUpdatedAt?: string | null
+  },
+  now: string,
+) {
   return {
     listingId: candidate.listingId,
     source: candidate.source,
@@ -1219,15 +1222,16 @@ function enrichCandidateFromRedux(
   if (!extracted) return
 
   // Helper to overwrite if Redux value is richer (longer)
-  function overwriteIfRicher<K extends string>(
-    obj: Record<string, unknown>,
+  function overwriteIfRicher<T extends object, K extends string>(
+    obj: T,
     key: K,
     newVal: string | null | undefined,
   ) {
     if (!newVal) return
-    const existing = obj[key]
+    const record = obj as Record<string, unknown>
+    const existing = record[key]
     if (existing == null || existing === '' || String(newVal).length > String(existing).length) {
-      ;(obj as Record<string, unknown>)[key] = newVal
+      record[key] = newVal
     }
   }
 

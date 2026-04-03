@@ -324,8 +324,7 @@ function formatSpecifications(specs: unknown): string | null {
     const max = speed.maxHullSpeed as { kn?: number } | null
     if (max?.kn != null && Number.isFinite(max.kn)) parts.push(`Max Speed: ${max.kn} kn`)
     const rangeVal = speed.range as { nm?: number } | null
-    if (rangeVal?.nm != null && Number.isFinite(rangeVal.nm))
-      parts.push(`Range: ${rangeVal.nm} nm`)
+    if (rangeVal?.nm != null && Number.isFinite(rangeVal.nm)) parts.push(`Range: ${rangeVal.nm} nm`)
   }
 
   return parts.length ? parts.join(' | ') : null
@@ -344,7 +343,7 @@ function formatFeatures(features: unknown): string | null {
   if (equipment) {
     for (const [key, value] of Object.entries(equipment)) {
       if (value != null && value !== false) {
-        const label = key.replace(/([A-Z])/g, ' $1').trim()
+        const label = key.replaceAll(/([A-Z])/g, ' $1').trim()
         parts.push(value === true ? label : `${label}: ${String(value)}`)
       }
     }
@@ -367,13 +366,11 @@ function formatOtherDetails(data: Record<string, unknown>): string | null {
   }
 
   const accom = data.specifications as Record<string, unknown> | null
-  const accommodation = accom
-    ? (accom.accommodation as Record<string, unknown> | null)
-    : null
+  const accommodation = accom ? (accom.accommodation as Record<string, unknown> | null) : null
   if (accommodation && Object.keys(accommodation).length) {
     for (const [key, value] of Object.entries(accommodation)) {
       if (value != null) {
-        const label = key.replace(/([A-Z])/g, ' $1').trim()
+        const label = key.replaceAll(/([A-Z])/g, ' $1').trim()
         parts.push(`${label}: ${String(value)}`)
       }
     }
@@ -541,14 +538,14 @@ export function extractBoatDataFromHtml(html: string): ReduxExtractedBoatData | 
     maxBridgeClearance: formatDimension(dig(dims, 'maxBridgeClearance')),
     maxDraft: formatDimension(dig(dims, 'maxDraft')),
     beamDetail: formatDimension(dig(dims, 'beam')),
-    dryWeight: dryLb != null && Number.isFinite(dryLb)
-      ? `${dryLb} lbs`
-      : dryKg != null && Number.isFinite(dryKg)
-        ? `${dryKg} kg`
-        : null,
-    deadriseAtTransom: deadriseRaw?.deg != null && Number.isFinite(deadriseRaw.deg)
-      ? `${deadriseRaw.deg}°`
-      : null,
+    dryWeight:
+      dryLb != null && Number.isFinite(dryLb)
+        ? `${dryLb} lbs`
+        : dryKg != null && Number.isFinite(dryKg)
+          ? `${dryKg} kg`
+          : null,
+    deadriseAtTransom:
+      deadriseRaw?.deg != null && Number.isFinite(deadriseRaw.deg) ? `${deadriseRaw.deg}°` : null,
     specifications: formatSpecifications(specs),
 
     // Tanks
@@ -591,11 +588,7 @@ export function buildBoatUpdatePatch(
   }
 
   // Always-set fields (new columns or strategic overrides)
-  const alwaysSetFields: Array<keyof ReduxExtractedBoatData> = [
-    'hin',
-    'boatClass',
-    'condition',
-  ]
+  const alwaysSetFields: Array<keyof ReduxExtractedBoatData> = ['hin', 'boatClass', 'condition']
 
   for (const field of alwaysSetFields) {
     const val = extracted[field]
@@ -682,7 +675,7 @@ export function buildBoatUpdatePatch(
  * Converts a camelCase key to snake_case for D1 column names.
  */
 export function camelToSnake(key: string): string {
-  return key.replace(/[A-Z]/g, (letter) => `_${letter.toLowerCase()}`)
+  return key.replaceAll(/[A-Z]/g, (letter) => `_${letter.toLowerCase()}`)
 }
 
 /**
