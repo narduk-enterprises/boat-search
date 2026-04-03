@@ -60,20 +60,20 @@ importers:
         specifier: ^1.0.17
         version: 1.0.17(eslint@9.39.4(jiti@2.6.1))(typescript@5.9.3)(vitest@4.0.18(@opentelemetry/api@1.9.0)(@types/node@22.19.13)(happy-dom@20.7.0)(jiti@2.6.1)(jsdom@26.1.0)(lightningcss@1.32.0)(terser@5.46.0)(tsx@4.21.0)(yaml@2.8.2))(vue-eslint-parser@10.4.0(eslint@9.39.4(jiti@2.6.1)))
       '@narduk-enterprises/narduk-nuxt-template-layer-analytics':
-        specifier: ^1.0.15
-        version: 1.0.15(4960cac6b01c934a44cac810a9cbd8d2)
+        specifier: ^1.0.16
+        version: 1.0.17(4960cac6b01c934a44cac810a9cbd8d2)
       '@narduk-enterprises/narduk-nuxt-template-layer-auth':
-        specifier: ^1.0.15
-        version: 1.0.15(4960cac6b01c934a44cac810a9cbd8d2)
+        specifier: ^1.0.16
+        version: 1.0.17(4960cac6b01c934a44cac810a9cbd8d2)
       '@narduk-enterprises/narduk-nuxt-template-layer-core':
-        specifier: ^1.0.15
-        version: 1.0.15(4960cac6b01c934a44cac810a9cbd8d2)
+        specifier: ^1.0.16
+        version: 1.0.17(4960cac6b01c934a44cac810a9cbd8d2)
       '@narduk-enterprises/narduk-nuxt-template-layer-maps':
-        specifier: ^1.0.15
-        version: 1.0.15(4960cac6b01c934a44cac810a9cbd8d2)
+        specifier: ^1.0.16
+        version: 1.0.17(4960cac6b01c934a44cac810a9cbd8d2)
       '@narduk-enterprises/narduk-nuxt-template-layer-uploads':
-        specifier: ^1.0.15
-        version: 1.0.15(4960cac6b01c934a44cac810a9cbd8d2)
+        specifier: ^1.0.16
+        version: 1.0.17(4960cac6b01c934a44cac810a9cbd8d2)
       '@supabase/auth-js':
         specifier: ^2.100.1
         version: 2.100.1
@@ -1255,32 +1255,32 @@ packages:
       eslint: '>=9.0.0'
       vue-eslint-parser: '>=10.0.0'
 
-  '@narduk-enterprises/narduk-nuxt-template-layer-analytics@1.0.15':
-    resolution: {integrity: sha512-ZKwjitm8ftrarV8oqg5ENN3psSpnTzbtKrKHGbAG0OLPa7WTI4ZEF81Y4dNY1h/qjEXlBo35kxLmo2q95WYu9A==, tarball: https://code.platform.nard.uk/api/packages/narduk-enterprises/npm/%40narduk-enterprises%2Fnarduk-nuxt-template-layer-analytics/-/1.0.15/narduk-nuxt-template-layer-analytics-1.0.15.tgz}
+  '@narduk-enterprises/narduk-nuxt-template-layer-analytics@1.0.17':
+    resolution: {integrity: sha512-I3NvUm8mUANQPeh1tygzJ0MGkpcHti74496WnkGifjsBYYazOUNccJTz5pfgjkyJCxqSrvT0Okz3F8uXWY0oTQ==, tarball: https://code.platform.nard.uk/api/packages/narduk-enterprises/npm/%40narduk-enterprises%2Fnarduk-nuxt-template-layer-analytics/-/1.0.17/narduk-nuxt-template-layer-analytics-1.0.17.tgz}
     peerDependencies:
       nuxt: '>=3.16.0'
       wrangler: '>=4.0.0'
 
-  '@narduk-enterprises/narduk-nuxt-template-layer-auth@1.0.15':
-    resolution: {integrity: sha512-7+Ta/Hz63QF0c+AstRhZ7EsSob9KGn9JqrcuU44ah49Fcfr5s7eQXm2c2JPsWn97S4gXT1VPw+M7v5OCSKW1GQ==, tarball: https://code.platform.nard.uk/api/packages/narduk-enterprises/npm/%40narduk-enterprises%2Fnarduk-nuxt-template-layer-auth/-/1.0.15/narduk-nuxt-template-layer-auth-1.0.15.tgz}
+  '@narduk-enterprises/narduk-nuxt-template-layer-auth@1.0.17':
+    resolution: {integrity: sha512-gHCW6XqBmCmpU8iawnvDK5ohZLjVC6OcmMDShv5PaVyjMV5G87WwHhw0a0xOClPDNISDnFZhgoWkNsObh7/z1A==, tarball: https://code.platform.nard.uk/api/packages/narduk-enterprises/npm/%40narduk-enterprises%2Fnarduk-nuxt-template-layer-auth/-/1.0.17/narduk-nuxt-template-layer-auth-1.0.17.tgz}
     peerDependencies:
       nuxt: '>=3.16.0'
       wrangler: '>=4.0.0'
 
-  '@narduk-enterprises/narduk-nuxt-template-layer-core@1.0.15':
-    resolution: {integrity: sha512-pbMIilne3SgPSHHjudWf4ZMboDVhdxAoUkWVX/6Lr3qF+TErcIQ5BWiQZpdFtHPNKFy2haS7BsePaYtaRjX7SA==, tarball: https://code.platform.nard.uk/api/packages/narduk-enterprises/npm/%40narduk-enterprises%2Fnarduk-nuxt-template-layer-core/-/1.0.15/narduk-nuxt-template-layer-core-1.0.15.tgz}
+  '@narduk-enterprises/narduk-nuxt-template-layer-core@1.0.17':
+    resolution: {integrity: sha512-9EIGVaMb2ZdQQRI4TiwLxPs4ifRkp0O+6bl1wguT8d+DGI98e9mdDfc5NuBrCZkJQewacbU9FT+6WNT5w2ixpg==, tarball: https://code.platform.nard.uk/api/packages/narduk-enterprises/npm/%40narduk-enterprises%2Fnarduk-nuxt-template-layer-core/-/1.0.17/narduk-nuxt-template-layer-core-1.0.17.tgz}
     peerDependencies:
       nuxt: '>=3.16.0'
       wrangler: '>=4.0.0'
 
-  '@narduk-enterprises/narduk-nuxt-template-layer-maps@1.0.15':
-    resolution: {integrity: sha512-qxqwnvhTGIwjiT8/ZE19W6zcE/Qyee2RoGmJk0llpWxBmSSQGj/CcGuUMPYAZ6Li43oqjlJJakDX2/nVwOFvAA==, tarball: https://code.platform.nard.uk/api/packages/narduk-enterprises/npm/%40narduk-enterprises%2Fnarduk-nuxt-template-layer-maps/-/1.0.15/narduk-nuxt-template-layer-maps-1.0.15.tgz}
+  '@narduk-enterprises/narduk-nuxt-template-layer-maps@1.0.17':
+    resolution: {integrity: sha512-sILSs8D2yTZmsR3ch2wu6fcfOEHjTebnSJxQRjVfvvQrqpv71Q13OaLyNPF4mYX9lcOXzlaSGKtREcyXxFAMxQ==, tarball: https://code.platform.nard.uk/api/packages/narduk-enterprises/npm/%40narduk-enterprises%2Fnarduk-nuxt-template-layer-maps/-/1.0.17/narduk-nuxt-template-layer-maps-1.0.17.tgz}
     peerDependencies:
       nuxt: '>=3.16.0'
       wrangler: '>=4.0.0'
 
-  '@narduk-enterprises/narduk-nuxt-template-layer-uploads@1.0.15':
-    resolution: {integrity: sha512-k2uXmgH++FdVBaRY6hFC/9VU1HKwhPtllTqySB794DHFzJcj5y3uvgvzYKxptINIXn1nMrp6dOHFL1zh7gP4fw==, tarball: https://code.platform.nard.uk/api/packages/narduk-enterprises/npm/%40narduk-enterprises%2Fnarduk-nuxt-template-layer-uploads/-/1.0.15/narduk-nuxt-template-layer-uploads-1.0.15.tgz}
+  '@narduk-enterprises/narduk-nuxt-template-layer-uploads@1.0.17':
+    resolution: {integrity: sha512-2tHQTlSpyIhKwiakJi4SJJEwQiSS+VTAOIihC2QBsTKvkkKUxyZdxxWPWh7QSrI7wDpcyMxqre6l0uCHnS5yxQ==, tarball: https://code.platform.nard.uk/api/packages/narduk-enterprises/npm/%40narduk-enterprises%2Fnarduk-nuxt-template-layer-uploads/-/1.0.17/narduk-nuxt-template-layer-uploads-1.0.17.tgz}
     peerDependencies:
       nuxt: '>=3.16.0'
       wrangler: '>=4.0.0'
@@ -10148,10 +10148,10 @@ snapshots:
       - typescript
       - vitest
 
-  '@narduk-enterprises/narduk-nuxt-template-layer-analytics@1.0.15(4960cac6b01c934a44cac810a9cbd8d2)':
+  '@narduk-enterprises/narduk-nuxt-template-layer-analytics@1.0.17(4960cac6b01c934a44cac810a9cbd8d2)':
     dependencies:
       '@iconify-json/lucide': 1.2.94
-      '@narduk-enterprises/narduk-nuxt-template-layer-core': 1.0.15(4960cac6b01c934a44cac810a9cbd8d2)
+      '@narduk-enterprises/narduk-nuxt-template-layer-core': 1.0.17(4960cac6b01c934a44cac810a9cbd8d2)
       '@nuxt/eslint': 1.15.2(@typescript-eslint/utils@8.57.0(eslint@9.39.4(jiti@2.6.1))(typescript@5.9.3))(@vue/compiler-sfc@3.5.31)(eslint@9.39.4(jiti@2.6.1))(magicast@0.5.2)(typescript@5.9.3)(vite@7.3.1(@types/node@22.19.13)(jiti@2.6.1)(lightningcss@1.32.0)(terser@5.46.0)(tsx@4.21.0)(yaml@2.8.2))
       '@nuxt/fonts': 0.14.0(db0@0.3.4(better-sqlite3@12.8.0)(drizzle-orm@0.45.1(@cloudflare/workers-types@4.20260307.1)(@neondatabase/serverless@1.0.2)(@opentelemetry/api@1.9.0)(@types/better-sqlite3@7.6.13)(@types/pg@8.20.0)(better-sqlite3@12.8.0)(postgres@3.4.8)))(ioredis@5.10.0)(magicast@0.5.2)(vite@7.3.1(@types/node@22.19.13)(jiti@2.6.1)(lightningcss@1.32.0)(terser@5.46.0)(tsx@4.21.0)(yaml@2.8.2))
       '@nuxt/image': 2.0.0(db0@0.3.4(better-sqlite3@12.8.0)(drizzle-orm@0.45.1(@cloudflare/workers-types@4.20260307.1)(@neondatabase/serverless@1.0.2)(@opentelemetry/api@1.9.0)(@types/better-sqlite3@7.6.13)(@types/pg@8.20.0)(better-sqlite3@12.8.0)(postgres@3.4.8)))(ioredis@5.10.0)(magicast@0.5.2)
@@ -10275,10 +10275,10 @@ snapshots:
       - yjs
       - yup
 
-  '@narduk-enterprises/narduk-nuxt-template-layer-auth@1.0.15(4960cac6b01c934a44cac810a9cbd8d2)':
+  '@narduk-enterprises/narduk-nuxt-template-layer-auth@1.0.17(4960cac6b01c934a44cac810a9cbd8d2)':
     dependencies:
       '@iconify-json/lucide': 1.2.94
-      '@narduk-enterprises/narduk-nuxt-template-layer-core': 1.0.15(4960cac6b01c934a44cac810a9cbd8d2)
+      '@narduk-enterprises/narduk-nuxt-template-layer-core': 1.0.17(4960cac6b01c934a44cac810a9cbd8d2)
       '@nuxt/eslint': 1.15.2(@typescript-eslint/utils@8.57.0(eslint@9.39.4(jiti@2.6.1))(typescript@5.9.3))(@vue/compiler-sfc@3.5.31)(eslint@9.39.4(jiti@2.6.1))(magicast@0.5.2)(typescript@5.9.3)(vite@7.3.1(@types/node@22.19.13)(jiti@2.6.1)(lightningcss@1.32.0)(terser@5.46.0)(tsx@4.21.0)(yaml@2.8.2))
       '@nuxt/fonts': 0.14.0(db0@0.3.4(better-sqlite3@12.8.0)(drizzle-orm@0.45.1(@cloudflare/workers-types@4.20260307.1)(@neondatabase/serverless@1.0.2)(@opentelemetry/api@1.9.0)(@types/better-sqlite3@7.6.13)(@types/pg@8.20.0)(better-sqlite3@12.8.0)(postgres@3.4.8)))(ioredis@5.10.0)(magicast@0.5.2)(vite@7.3.1(@types/node@22.19.13)(jiti@2.6.1)(lightningcss@1.32.0)(terser@5.46.0)(tsx@4.21.0)(yaml@2.8.2))
       '@nuxt/image': 2.0.0(db0@0.3.4(better-sqlite3@12.8.0)(drizzle-orm@0.45.1(@cloudflare/workers-types@4.20260307.1)(@neondatabase/serverless@1.0.2)(@opentelemetry/api@1.9.0)(@types/better-sqlite3@7.6.13)(@types/pg@8.20.0)(better-sqlite3@12.8.0)(postgres@3.4.8)))(ioredis@5.10.0)(magicast@0.5.2)
@@ -10402,7 +10402,7 @@ snapshots:
       - yjs
       - yup
 
-  '@narduk-enterprises/narduk-nuxt-template-layer-core@1.0.15(4960cac6b01c934a44cac810a9cbd8d2)':
+  '@narduk-enterprises/narduk-nuxt-template-layer-core@1.0.17(4960cac6b01c934a44cac810a9cbd8d2)':
     dependencies:
       '@iconify-json/lucide': 1.2.94
       '@nuxt/eslint': 1.15.2(@typescript-eslint/utils@8.57.0(eslint@9.39.4(jiti@2.6.1))(typescript@5.9.3))(@vue/compiler-sfc@3.5.31)(eslint@9.39.4(jiti@2.6.1))(magicast@0.5.2)(typescript@5.9.3)(vite@7.3.1(@types/node@22.19.13)(jiti@2.6.1)(lightningcss@1.32.0)(terser@5.46.0)(tsx@4.21.0)(yaml@2.8.2))
@@ -10528,10 +10528,10 @@ snapshots:
       - yjs
       - yup
 
-  '@narduk-enterprises/narduk-nuxt-template-layer-maps@1.0.15(4960cac6b01c934a44cac810a9cbd8d2)':
+  '@narduk-enterprises/narduk-nuxt-template-layer-maps@1.0.17(4960cac6b01c934a44cac810a9cbd8d2)':
     dependencies:
       '@iconify-json/lucide': 1.2.94
-      '@narduk-enterprises/narduk-nuxt-template-layer-core': 1.0.15(4960cac6b01c934a44cac810a9cbd8d2)
+      '@narduk-enterprises/narduk-nuxt-template-layer-core': 1.0.17(4960cac6b01c934a44cac810a9cbd8d2)
       '@nuxt/eslint': 1.15.2(@typescript-eslint/utils@8.57.0(eslint@9.39.4(jiti@2.6.1))(typescript@5.9.3))(@vue/compiler-sfc@3.5.31)(eslint@9.39.4(jiti@2.6.1))(magicast@0.5.2)(typescript@5.9.3)(vite@7.3.1(@types/node@22.19.13)(jiti@2.6.1)(lightningcss@1.32.0)(terser@5.46.0)(tsx@4.21.0)(yaml@2.8.2))
       '@nuxt/fonts': 0.14.0(db0@0.3.4(better-sqlite3@12.8.0)(drizzle-orm@0.45.1(@cloudflare/workers-types@4.20260307.1)(@neondatabase/serverless@1.0.2)(@opentelemetry/api@1.9.0)(@types/better-sqlite3@7.6.13)(@types/pg@8.20.0)(better-sqlite3@12.8.0)(postgres@3.4.8)))(ioredis@5.10.0)(magicast@0.5.2)(vite@7.3.1(@types/node@22.19.13)(jiti@2.6.1)(lightningcss@1.32.0)(terser@5.46.0)(tsx@4.21.0)(yaml@2.8.2))
       '@nuxt/image': 2.0.0(db0@0.3.4(better-sqlite3@12.8.0)(drizzle-orm@0.45.1(@cloudflare/workers-types@4.20260307.1)(@neondatabase/serverless@1.0.2)(@opentelemetry/api@1.9.0)(@types/better-sqlite3@7.6.13)(@types/pg@8.20.0)(better-sqlite3@12.8.0)(postgres@3.4.8)))(ioredis@5.10.0)(magicast@0.5.2)
@@ -10655,10 +10655,10 @@ snapshots:
       - yjs
       - yup
 
-  '@narduk-enterprises/narduk-nuxt-template-layer-uploads@1.0.15(4960cac6b01c934a44cac810a9cbd8d2)':
+  '@narduk-enterprises/narduk-nuxt-template-layer-uploads@1.0.17(4960cac6b01c934a44cac810a9cbd8d2)':
     dependencies:
       '@iconify-json/lucide': 1.2.94
-      '@narduk-enterprises/narduk-nuxt-template-layer-core': 1.0.15(4960cac6b01c934a44cac810a9cbd8d2)
+      '@narduk-enterprises/narduk-nuxt-template-layer-core': 1.0.17(4960cac6b01c934a44cac810a9cbd8d2)
       '@nuxt/eslint': 1.15.2(@typescript-eslint/utils@8.57.0(eslint@9.39.4(jiti@2.6.1))(typescript@5.9.3))(@vue/compiler-sfc@3.5.31)(eslint@9.39.4(jiti@2.6.1))(magicast@0.5.2)(typescript@5.9.3)(vite@7.3.1(@types/node@22.19.13)(jiti@2.6.1)(lightningcss@1.32.0)(terser@5.46.0)(tsx@4.21.0)(yaml@2.8.2))
       '@nuxt/fonts': 0.14.0(db0@0.3.4(better-sqlite3@12.8.0)(drizzle-orm@0.45.1(@cloudflare/workers-types@4.20260307.1)(@neondatabase/serverless@1.0.2)(@opentelemetry/api@1.9.0)(@types/better-sqlite3@7.6.13)(@types/pg@8.20.0)(better-sqlite3@12.8.0)(postgres@3.4.8)))(ioredis@5.10.0)(magicast@0.5.2)(vite@7.3.1(@types/node@22.19.13)(jiti@2.6.1)(lightningcss@1.32.0)(terser@5.46.0)(tsx@4.21.0)(yaml@2.8.2))
       '@nuxt/image': 2.0.0(db0@0.3.4(better-sqlite3@12.8.0)(drizzle-orm@0.45.1(@cloudflare/workers-types@4.20260307.1)(@neondatabase/serverless@1.0.2)(@opentelemetry/api@1.9.0)(@types/better-sqlite3@7.6.13)(@types/pg@8.20.0)(better-sqlite3@12.8.0)(postgres@3.4.8)))(ioredis@5.10.0)(magicast@0.5.2)

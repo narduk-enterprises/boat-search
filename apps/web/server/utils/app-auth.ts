@@ -27,6 +27,7 @@ export interface AppSessionUser {
   name: string | null
   isAdmin: boolean | null
   authSessionId?: string | null
+  authSessionValidatedAt?: string | null
   authProvider?: string | null
   authProviders?: string[]
   authBackend?: AppAuthBackend

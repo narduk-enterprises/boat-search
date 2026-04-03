@@ -3,5 +3,5 @@
 #
 # Replace `project` with your Doppler app name before local Doppler commands.
 setup:
-  project: boat-search
+  project: boat-search-platform-cutover
   config: dev

@@ -49,7 +49,9 @@ function wrangler(cmd: string): string {
 }
 
 function d1Query(sql: string): Record<string, unknown>[] {
-  const raw = wrangler(`d1 execute ${DB_NAME} --remote --json --command "${sql.replace(/"/g, '\\"')}"`)
+  const raw = wrangler(
+    `d1 execute ${DB_NAME} --remote --json --command "${sql.replace(/"/g, '\\"')}"`,
+  )
   try {
     const parsed = JSON.parse(raw)
     // wrangler d1 --json returns an array of result objects
@@ -121,7 +123,10 @@ async function main() {
       AND b.superseded_by_boat_id IS NULL
     ORDER BY cjl.persisted_boat_id DESC
     ${LIMIT ? `LIMIT ${LIMIT}` : ''}
-  `.replace(/\n/g, ' ').replace(/\s+/g, ' ').trim()
+  `
+    .replace(/\n/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
 
   const listings = d1Query(listingsSql)
   stats.total = listings.length
@@ -133,7 +138,7 @@ async function main() {
   }
 
   // Step 2: Process in batches
-  const batches: typeof listings[] = []
+  const batches: (typeof listings)[] = []
   for (let i = 0; i < listings.length; i += BATCH_SIZE) {
     batches.push(listings.slice(i, i + BATCH_SIZE))
   }
@@ -148,7 +153,10 @@ async function main() {
     const boatIds = batch.map((l) => l.boatId).join(',')
     const existingBoatsSql = `
       SELECT * FROM boats WHERE id IN (${boatIds})
-    `.replace(/\n/g, ' ').replace(/\s+/g, ' ').trim()
+    `
+      .replace(/\n/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim()
     const existingBoats = d1Query(existingBoatsSql)
     const boatMap = new Map(existingBoats.map((b) => [b.id, b]))
 
@@ -240,9 +248,7 @@ async function main() {
           d1Query(updateSql)
           stats.updated++
           if (VERBOSE) {
-            console.log(
-              `   ✅ Updated boat #${boatId}: ${patchKeys.length} fields`,
-            )
+            console.log(`   ✅ Updated boat #${boatId}: ${patchKeys.length} fields`)
           }
         } catch (error) {
           console.error(`   ❌ Failed to update boat #${boatId}:`, error)
