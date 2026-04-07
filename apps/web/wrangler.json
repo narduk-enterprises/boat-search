@@ -33,6 +33,11 @@
       "preview_id": "cd997ffc21f9483b8c528591de1ff716"
     }
   ],
+  "tail_consumers": [
+    {
+      "service": "platform-runtime-logs"
+    }
+  ],
   "r2_buckets": [
     {
       "binding": "BUCKET",
